@@ -3,4 +3,9 @@
 *.png
 *.bmp
 *.txt
+*.npy
 .ipynb_checkpoints
+
+*.o
+*.so
+build
