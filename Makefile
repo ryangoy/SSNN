@@ -31,7 +31,7 @@ ifneq ("$(wildcard $(CUDA_DIR)/lib64)","")
 endif
 CUDA_LIB_DIR += $(CUDA_DIR)/lib
 
-INCLUDE_DIRS += $(PYTHON_INCLUDE) ./src/knn
+INCLUDE_DIRS += $(PYTHON_INCLUDE) ./src/cpp/knn
 ifneq ($(CPU_ONLY), 1)
 	INCLUDE_DIRS += $(CUDA_INCLUDE_DIR)
 	LIBRARY_DIRS += $(CUDA_LIB_DIR)
@@ -106,11 +106,11 @@ all: clean $(TARGET).so
 $(TARGET).so: $(ALL_OBJS)
 	$(CXX) $? $(LDFLAGS) -o $@
 
-$(BUILD_DIR)/$(TARGET).o: src/knn/$(TARGET).cpp
+$(BUILD_DIR)/$(TARGET).o: src/cpp/knn/$(TARGET).cpp
 	@ mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $? -o $@
 
-$(BUILD_DIR)/$(CUDA_TARGET).o: src/knn/$(CUDA_TARGET).cu
+$(BUILD_DIR)/$(CUDA_TARGET).o: src/cpp/knn/$(CUDA_TARGET).cu
 	@ mkdir -p $(BUILD_DIR)
 	$(NVCC) $(NVCCFLAGS) -dc $? -o $@
 
