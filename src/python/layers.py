@@ -25,7 +25,12 @@ def probe3d(x, W, b, name='probe3d'):
     """
     # tf.gather_nd takes in 
 
-    tf.while_loop(
-  
+    i = tf.constant(0)
+    j = tf.constant(0)
+    k = tf.constant(0)
+
+    c = lambda x, size: tf.less(x, size)
+
+    tf.while_loop(c, f, [i, j, k])
   
   return tf.bias_add(sampled_points, b)

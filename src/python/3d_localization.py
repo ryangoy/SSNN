@@ -13,7 +13,8 @@ from os import listdir
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/test', 'Path to base directory.')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/test', 
+                    'Path to base directory.')
 flags.DEFINE_integer('num_epochs', 1, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.2, 'Percentage of input data to use as test.')
 
@@ -49,7 +50,7 @@ def load_from_directory(path):
     for room in listdir(area_path):
       print "\tLoading room {}...".format(room)
       room_path = join(area_path, room)
-      if not isdir(room_path) or room == '.DS_Store' or room.endswith('Angle.txt'):
+      if not isdir(room_path) or room.endswith('Angle.txt') or room == '.DS_Store':
         continue
         
       # Load point cloud
@@ -59,9 +60,11 @@ def load_from_directory(path):
       annotation_pc = []
       annotation_label = []
       for annotation in listdir(join(room_path, 'Annotations')):
-        if annotation.startswith('wall') or annotation.startswith('ceiling') or not annotation.endswith('.txt'):
+        if annotation.startswith('wall') or annotation.startswith('ceiling') 
+                                         or not annotation.endswith('.txt'):
           continue
-        annotation_pc.append(np.loadtxt(join(room_path, 'Annotations', annotation), dtype=np.float32))
+        annotation_pc.append(np.loadtxt(join(room_path, 'Annotations', annotation), 
+                                        dtype=np.float32))
         annotation_label.append(annotation.split('.')[0])
       annotation_pc = np.array(annotation_pc)
       
