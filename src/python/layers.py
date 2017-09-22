@@ -8,10 +8,24 @@ def probe3d(x, W, b, name='probe3d'):
     W (Variable): Probe weights.
     b (Variable): Probe biases.
   """
-  def get_sample_coords(W, i, j, k):
+  def tf_knn(x, coords):
+    tf.py_func(knn, [x, coords], tf.float32)
+
+  def get_sample_coords(x, W, strides):
+    """
+    Python code equivalent:
+    for filter in W:
+      for i in range(0, x.shape[0], strides[0]):
+        for j in range(0, x.shape[1], strides[1]):
+          for k in range(0, x.shape[2], strides[2]):
+            offset = [i, j, k]
+            coords.append(filter + offset)
+    signals = knn(x, coords)
+    return signals.reshape(W.shape/strides.shape)
+    """
     # tf.gather_nd takes in 
-    sampled_points = tf.gather_nd(x, W)
-  tf.while_loop(  
+
+    tf.while_loop(
   
   
   return tf.bias_add(sampled_points, b)
