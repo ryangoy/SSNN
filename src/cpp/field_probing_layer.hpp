@@ -1,11 +1,14 @@
-#ifndef CAFFE_FIELD_PROBING_LAYER_HPP_
-#define CAFFE_FIELD_PROBING_LAYER_HPP_
+#ifndef FIELD_PROBING_LAYER_HPP_
+#define FIELD_PROBING_LAYER_HPP_
 
 #include <boost/random.hpp>
-#include "caffe/util/rng.hpp"
-#include "caffe/layer.hpp"
 
-namespace caffe {
+
+// tf code?
+template <typename Device, typename T>
+struct ExampleFunctor {
+  void operator()(const Device& d, int size, const T* in, T* out);
+};
 
 /**
  * @brief FieldProbingLayer
@@ -54,6 +57,6 @@ protected:
   static const int len_coordinates = 4;
 };
 
-}  // namespace caffe
 
-#endif  // CAFFE_FIELD_PROBING_LAYER_HPP_
+
+#endif  // FIELD_PROBING_LAYER_HPP_
