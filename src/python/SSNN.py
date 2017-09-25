@@ -55,6 +55,8 @@ class SSNN:
 
     self.model = tf.nn.conv3d(self.model, self.weights['conv3d_1'], strides=1, padding='SAME')
 
+    # Repeat more 3d convolutions
+
     self.model = tf.flatten(self.model)
 
     # Linear activation.
