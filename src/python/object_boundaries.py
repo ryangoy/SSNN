@@ -27,9 +27,12 @@ for dirName, subdirList, fileList in os.walk('../../../Stanford3dDataset_v1.2'):
 				try:
 					data = np.loadtxt(dirName + '/Annotations/' + fname)
 				except ValueError:
-					print('error on', area, room, obj_numbered)
-					error_files.append([area, room, fname])
-					continue
+					try:
+						data = np.genfromtxt(dirName + '/Annotations/' + fname).astype('float')
+					except ValueError:
+						print('error on', area, room, obj_numbered)
+						error_files.append([area, room, fname])
+						continue
 
 				x_vals = data[:, 0]
 				max_x = max(x_vals)
