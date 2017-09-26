@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
-# import sc_layer
+import _probe_3d_grad
+probe_3d_module = tf.load_op_library('build/libprobe3d.so')
+tf_probe3d = probe_3d_module.probe_3d
 
 class SSNN:
   

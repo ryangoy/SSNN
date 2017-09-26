@@ -11,18 +11,18 @@ namespace functor {
 
 // Applies a 3D convolution to a batch of multi-channel volumes.
 template <typename Device, typename T>
-struct CuboidConvolution;
+struct CuboidProbing;
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
 
 template <typename T>
-struct CuboidConvolution<CPUDevice, T> {
+struct CuboidProbing<CPUDevice, T> {
   void operator()(const CPUDevice& d, typename TTypes<T, 5>::Tensor output,
                   typename TTypes<T, 5>::ConstTensor input,
                   typename TTypes<T, 5>::ConstTensor filter, int stride_planes,
                   int stride_rows, int stride_cols,
                   const Eigen::PaddingType& padding) {
-    output.device(d) = Eigen::CuboidConvolution(
+    output.device(d) = Eigen::CuboidProbing(
         input, filter, stride_planes, stride_rows, stride_cols, padding);
   }
 };
