@@ -11,22 +11,33 @@ using namespace tensorflow;
 #define EIGEN_USE_GPU
 
 template <typename T>
-__global__ void Probe3DKernel(const int size, const T* in, 
-  				  T* weights, T* num_strides, T* out) {
+__global__ void Probe3DKernel(const T* input, 
+  				  T* weights, T* dims, T* steps, T* output) {
+	// PSEUDO CODE
+    // input: point cloud with size [n, p, 3]
+    //        weights with size [n, c, 3]
+
+    // for each interval in 3d_space:
+    //   for each filter and probe:
+    //     query points += interval_coord + xyz
+    // return knn(query_points, point_cloud)
+
+    // output: filter response with size [n, steps_x, steps_y, steps_z, c]
 	// loop
 }
 
 template <typename T>
 struct Probe3DFunctor<GPUDevice, T> {
-	void operator()(const GPUDevice& d, int size, const T* in, 
-  				  T* weights, T* num_strides, T* out) {
+
+	void operator()(const GPUDevice& d, const T* input, 
+  				  T* weights, T* dims, T* steps, T* output) {
 		// Launch cuda kernel
 		// see core/util/cuda_kernel_helper.h to compute block count and
 		// thread per block count
-		int block_count = 1024;
-		int thread_per_block = 20;
+		int block_count = 32;
+		int thread_per_block = 512;
 		Probe3DKernel<T>
-		<<<block_count, thread_per_block, 0, d.stream()>>>(size, in, weights, num_strides, out);
+		<<<block_count, thread_per_block, 0, d.stream()>>>(input, weights, dims, steps, output);
 
 	}
 };
