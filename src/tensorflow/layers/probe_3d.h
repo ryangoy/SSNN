@@ -4,7 +4,7 @@
 template <typename Device, typename T>
 struct Probe3DFunctor {
   void operator()(const Device& d, const T* input, 
-  				  T* weights, T* dims, T* steps, T* output);
+  				  const T* weights, const T* dims, const T* steps, T* output);
 };
 
-#endif PROBE_3D_H_
+#endif // PROBE_3D_H_

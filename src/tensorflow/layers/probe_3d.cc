@@ -61,9 +61,6 @@ public:
     OP_REQUIRES(context, steps.dims()==1, 
       errors::InvalidArgument("Probe3D expects steps to be of dimension 1"));
 
-    // Divide dims by strides to get steps.
-    Tensor strides = (dims / steps).cast<int>();
-
     // Create an output tensor with the correct output shape
     // [num_batches, num_filters, x_steps, y_steps, z_steps]
     Tensor* output_tensor = NULL;
@@ -72,20 +69,21 @@ public:
     int x = steps.shape().dim_size(0);
     int y = steps.shape().dim_size(1);
     int z = steps.shape().dim_size(2);
+    int p = input_tensor.shape().dim_size(1);
     OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,f,x,y,z},
                                                      &output_tensor));
-    
+    int* sizes = {b,f,p}
     Probe3DFunctor<Device, T>()(
         context->eigen_device<Device>(),
-        static_cast<int>(input_tensor.NumElements()),
+        sizes,
         input_tensor.flat<T>().data(),
         weights.flat<T>().data(),
-        dims.data(),
-        steps.data().
-        output_tensor.flat<T>().data());
+        dims.flat<T>().data(),
+        steps.flat<T>().data(),
+        output_tensor->flat<T>().data());
   }
 };
-REGISTER_KERNEL_BUILDER(Name("Probe3D").Device(DEVICE_GPU), Probe3DGpuOp);
+
 
 #ifdef GOOGLE_CUDA
 #define REGISTER_GPU(T)
