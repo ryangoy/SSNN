@@ -72,7 +72,7 @@ public:
     int p = input_tensor.shape().dim_size(1);
     OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,f,x,y,z},
                                                      &output_tensor));
-    int* sizes = {b,f,p}
+    int* sizes = {b,f,p};
     Probe3DFunctor<Device, T>()(
         context->eigen_device<Device>(),
         sizes,
