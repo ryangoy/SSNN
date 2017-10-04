@@ -6,6 +6,7 @@
 #include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/common_shape_fns.h"
 #include <cuda_runtime.h>
+#include <iostream>
 
 using namespace tensorflow;
 
@@ -16,28 +17,29 @@ REGISTER_OP("Probe3D")
   .Input("dims: float")
   .Input("steps: float")
   .Output("output: float")
-  .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
-    shape_inference::ShapeHandle input_shape;
-    shape_inference::ShapeHandle weights_shape;
-    shape_inference::ShapeHandle dims_shape;
-    shape_inference::ShapeHandle steps_shape;
+  // .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
+  //   shape_inference::ShapeHandle input_shape;
+  //   shape_inference::ShapeHandle weights_shape;
+  //   shape_inference::ShapeHandle dims_shape;
+  //   shape_inference::ShapeHandle steps_shape;
 
-    c->WithRank(c->input(0), 5, &input_shape); // [num_batches, num_points, 6]
-    c->WithRank(c->input(1), 3, &weights_shape); // [num_filters, num_probes, 3]
-    c->WithRank(c->input(2), 1, &dims_shape); // length 3 array
-    c->WithRank(c->input(3), 1, &steps_shape); // length 3 array
+  //   c->WithRank(c->input(0), 5, &input_shape); // [num_batches, num_points, 6]
+  //   c->WithRank(c->input(1), 3, &weights_shape); // [num_filters, num_probes, 3]
+  //   c->WithRank(c->input(2), 1, &dims_shape); // length 3 array
+  //   c->WithRank(c->input(3), 1, &steps_shape); // length 3 array
 
-    shape_inference::DimensionHandle num_batches = c->Dim(input_shape, 0);
-    shape_inference::DimensionHandle num_filters = c->Dim(weights_shape, 0);
-    shape_inference::DimensionHandle x_steps = c->Dim(steps_shape, 0);
-    shape_inference::DimensionHandle y_steps = c->Dim(steps_shape, 1);
-    shape_inference::DimensionHandle z_steps = c->Dim(steps_shape, 2);
+  //   shape_inference::DimensionHandle num_batches = c->Dim(input_shape, 0);
+  //   shape_inference::DimensionHandle num_filters = c->Dim(weights_shape, 0);
+  //   shape_inference::DimensionHandle x_steps = c->Dim(steps_shape, 0);
+  //   shape_inference::DimensionHandle y_steps = c->Dim(steps_shape, 1);
+  //   shape_inference::DimensionHandle z_steps = c->Dim(steps_shape, 2);
 
-    shape_inference::ShapeHandle output_shape = c->MakeShape({num_batches, num_filters, x_steps, y_steps, z_steps});
-    c->set_output(0, output_shape);
+  //   shape_inference::ShapeHandle output_shape = c->MakeShape({num_batches, num_filters, x_steps, y_steps, z_steps});
+  //   c->set_output(0, output_shape);
 
-    return Status::OK();
-  });
+  //   return Status::OK();
+  // });
+  ;
 
 template <typename Device, typename T>
 class Probe3DGpuOp : public OpKernel {
@@ -45,13 +47,13 @@ public:
   explicit Probe3DGpuOp(OpKernelConstruction* context) : OpKernel(context) {}
 
   void Compute(OpKernelContext* context) override {
+    std::cout << "hello world" << std::endl;
 
     // Grab the input tensor
     const Tensor& input_tensor = context->input(0);
     const Tensor& weights = context->input(1);
     const Tensor& dims = context->input(2);
     const Tensor& steps = context->input(3);
-
     OP_REQUIRES(context, input_tensor.dims()==3, 
       errors::InvalidArgument("Probe3D expects (batches, points, 6) input shape"));
     OP_REQUIRES(context, weights.dims()==3, 
@@ -83,7 +85,6 @@ public:
         output_tensor->flat<T>().data());
   }
 };
-
 
 #ifdef GOOGLE_CUDA
 #define REGISTER_GPU(T)
