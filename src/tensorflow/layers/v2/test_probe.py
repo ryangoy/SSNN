@@ -30,14 +30,13 @@ def test():
   with tf.device('/gpu:0'):
     sess = tf.Session()
     weights = tf.constant(np.array([[[0, 0, 0]]]).astype(np.float32))
-    dims = tf.constant(np.array([10, 10, 10]).astype(np.float32))
-    steps = tf.constant(np.array([10, 10 ,10]).astype(np.float32))
+    dims = tf.constant(np.array([13, 14, 15]).astype(np.float32))
 
     ph = tf.placeholder(tf.float32)
 
-    graph = probe_module.probe(ph, weights, dims, steps)
-
-    output = sess.run(graph, feed_dict={ph: xyzrgb[:,:3]})
+    graph = probe_module.probe(ph, weights, dims, steps=13)
+    print 'running graph'
+    output = sess.run(graph, feed_dict={ph: xyzrgb[:100,:3]})
 
     print output.shape
 

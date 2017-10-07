@@ -17,10 +17,10 @@ using namespace tensorflow;
 
 // Define Probe interface.
 REGISTER_OP("Probe")
+  .Attr("steps: int = 10")
   .Input("input: float32")
   .Input("weights: float32")
   .Input("dims: float32")
-  .Input("steps: float32")
   .Output("output: float32")
   // .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
   //   shape_inference::ShapeHandle input_shape;
@@ -62,10 +62,12 @@ REGISTER_OP("Probe")
 // CPU specialization of actual computation.
 // template <typename Device, typename T>
 void probeLauncher(int* sizes, const float* input_tensor, const float* weights,
-      const float* dims, const float* steps, float* output_tensor);
+      const float* dims, int steps, float* output_tensor);
 class ProbeOp : public OpKernel {
 public:
-  explicit ProbeOp(OpKernelConstruction* context) : OpKernel(context) {}
+  explicit ProbeOp(OpKernelConstruction* context) : OpKernel(context) {
+    OP_REQUIRES_OK(context, context->GetAttr("steps", &steps_));
+  }
 
   void Compute(OpKernelContext* context) override {
 
@@ -73,26 +75,24 @@ public:
     const Tensor& input_tensor = context->input(0);
     const Tensor& weights = context->input(1);
     const Tensor& dims = context->input(2);
-    const Tensor& steps = context->input(3);
     OP_REQUIRES(context, input_tensor.dims()==3, 
       errors::InvalidArgument("Probe expects (batches, points, 6) input shape"));
     OP_REQUIRES(context, weights.dims()==3, 
       errors::InvalidArgument("Probe expects (filters, probes, 3) weights shape"));
     OP_REQUIRES(context, dims.dims()==1, 
       errors::InvalidArgument("Probe expects dims to be of dimension 1"));
-    OP_REQUIRES(context, steps.dims()==1, 
-      errors::InvalidArgument("Probe expects steps to be of dimension 1"));
 
+
+    int steps = steps_;
+    // TF_RETURN_IF_ERROR(c->GetAttr("steps", &steps));
     // Create an output tensor with the correct output shape
     // [num_batches, num_filters, x_steps, y_steps, z_steps]
     Tensor* output_tensor = NULL;
     int b = input_tensor.shape().dim_size(0);
     int f = weights.shape().dim_size(0);
-    int x = steps.shape().dim_size(0);
-    int y = steps.shape().dim_size(1);
-    int z = steps.shape().dim_size(2);
+
     int p = input_tensor.shape().dim_size(1);
-    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,f,x,y,z},
+    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,f,steps,steps,steps},
                                                      &output_tensor));
     int sizes[3] = {b,f,p};
     // ProbeFunctor<Device, T>()(
@@ -107,10 +107,12 @@ public:
     float* out = &(output_tensor->flat<float>()(0));
     const float* cweights = &(weights.flat<float>()(0));
     const float* cdims = &(dims.flat<float>()(0));
-    const float* csteps = &(steps.flat<float>()(0));
+    
     probeLauncher(sizes, inp, cweights,
-      cdims, csteps, out);
+      cdims, steps, out);
   }
+private:
+  int steps_;
 };
 
 // Register the CPU kernels.
