@@ -76,7 +76,7 @@ public:
     const Tensor& weights = context->input(1);
     const Tensor& dims = context->input(2);
     OP_REQUIRES(context, input_tensor.dims()==3, 
-      errors::InvalidArgument("Probe expects (batches, points, 6) input shape"));
+      errors::InvalidArgument("Probe expects (batches, points, 3) input shape"));
     OP_REQUIRES(context, weights.dims()==3, 
       errors::InvalidArgument("Probe expects (filters, probes, 3) weights shape"));
     OP_REQUIRES(context, dims.dims()==1, 
@@ -94,7 +94,7 @@ public:
     int nsamples = weights.shape().dim_size(1);
 
 
-    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{nbatches,nkernels,steps,steps,steps},
+    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{nbatches,nkernels,nsamples,steps,steps,steps},
                                                      &output_tensor));
     // ProbeFunctor<Device, T>()(
     //     context->eigen_device<Device>(),

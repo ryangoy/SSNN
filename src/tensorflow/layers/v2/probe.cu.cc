@@ -23,14 +23,9 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
     // return knn(query_points, point_cloud)
 
     // output: filter response with size [n, c, steps_x, steps_y, steps_z]
-	// loop
+
     int num_intervals = steps * steps * steps;
-    // printf("Hello from block %d, thread %d\n", blockIdx.x, threadIdx.x);
-    // printf("steps: %d, blockdim %d\n", num_intervals, blockDim.x);
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
-    // printf("%i\n", *sizes);
-    int batch = 0;
+
     for (int batch = 0; batch < batches; batch++) {
         for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < steps; i+= blockDim.x * gridDim.x){
             for (int j = blockIdx.y * blockDim.y + threadIdx.y; j < steps; j+= blockDim.y * gridDim.y) {
@@ -61,7 +56,8 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
                                      // closest_z = curr_probe[2] - curr_point[1];
                                 } 
                             }
-                            output[probe_id*samples_per_probe*num_intervals+sample_id*num_intervals
+                            output[batch*filters*samples_per_probe*num_intervals
+                                +probe_id*samples_per_probe*num_intervals+sample_id*num_intervals
                                 +i*steps*steps+j*steps+k] = closest_dist;
                         }    
                     }
@@ -73,7 +69,6 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
 
 void probeLauncher(int batches, int filters, int samples_per_probe, int points, const float* input_tensor, const float* weights,
       const float* dims, int steps, float* output_tensor){
-    int N = steps * steps * steps;
     int threads_per_block = 512;
 
     ProbeKernel<<<dim3(steps, steps, steps), threads_per_block>>>

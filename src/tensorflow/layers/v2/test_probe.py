@@ -1,45 +1,34 @@
 import tensorflow as tf
 import numpy as np
-
-# class ProbeTest(tf.test.TestCase):
-#   def testProbe(self):
-#     probe_module = tf.load_op_library('./probe.so')
-    
-#     xyzrgb = np.load('/home/ryan/cs/datasets/SSNN/test/input_data.npy')[0]
-#     print np.array(xyzrgb).shape
-
-#     with self.test_session():
-#       # const T* input, const T* weights, const T* dims, const T* steps
-#       weights = np.array([[[0, 0, 0]]]).astype(float)
-#       dims = np.array([10, 10, 10]).astype(float)
-#       steps = np.array([10, 10 ,10]).astype(float)
-
-#       print ('running result')
-
-#       result = probe_module.probe(np.array([xyzrgb[:,:3]]), weights, dims, steps)
-#       print result.eval()
-#       print 'finished running'
+from tf_ops import probe3D
+import time
 
 def test():
   probe_module = tf.load_op_library('./probe.so')
     
   xyzrgb = np.load('/home/ryan/cs/datasets/SSNN/test/input_data.npy')[0]
-  xyzrgb = np.array([xyzrgb])
-  print np.array(xyzrgb).shape
+
+  xyz = xyzrgb[:, :3]
+  mins = xyz.min(axis=0)
+  maxes = xyz.max(axis=0)
+  dims = maxes-mins
+  xyz = np.array([xyz-mins])[:10]
+
+  steps = [1, 1, 1]
+  num_kernels = 4
 
   with tf.device('/gpu:0'):
-    sess = tf.Session()
-    weights = tf.constant(np.array([[[1, 1, 1]]]).astype(np.float32))
-    dims = tf.constant(np.array([13, 14, 15]).astype(np.float32))
-
     ph = tf.placeholder(tf.float32)
-
-    graph = probe_module.probe(ph, weights, dims, steps=13)
-    print 'running graph'
-    output = sess.run(graph, feed_dict={ph: xyzrgb[:,:3]})
-
+    graph = probe3D(ph, dims, steps=steps, num_kernels=num_kernels, kernel_size=None, strides=None)
+    
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
+    start = time.time()
+    output = sess.run(graph, feed_dict={ph: xyz})
+    print 'running op took {} seconds'.format(time.time()-start)
     print output.shape
-    print output[0, 0, 0, 0]
+    print output[0, 0, 0, 0, 0]
+    print output.mean()
 
 if __name__ == "__main__":
   # tf.test.main()
