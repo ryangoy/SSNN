@@ -29,16 +29,17 @@ def test():
 
   with tf.device('/gpu:0'):
     sess = tf.Session()
-    weights = tf.constant(np.array([[[0, 0, 0]]]).astype(np.float32))
+    weights = tf.constant(np.array([[[1, 1, 1]]]).astype(np.float32))
     dims = tf.constant(np.array([13, 14, 15]).astype(np.float32))
 
     ph = tf.placeholder(tf.float32)
 
     graph = probe_module.probe(ph, weights, dims, steps=13)
     print 'running graph'
-    output = sess.run(graph, feed_dict={ph: xyzrgb[:100,:3]})
+    output = sess.run(graph, feed_dict={ph: xyzrgb[:,:3]})
 
     print output.shape
+    print output[0, 0, 0, 0]
 
 if __name__ == "__main__":
   # tf.test.main()

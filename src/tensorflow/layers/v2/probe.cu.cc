@@ -1,5 +1,5 @@
 
-
+#include <stdio.h>
 // #define EIGEN_USE_GPU
 // #define EIGEN_USE_THREADS
 
@@ -11,8 +11,8 @@
 // #define EIGEN_USE_GPU
 
 
-__global__ void ProbeKernel(int* sizes, const float* input, const float* weights, 
-	const float* dims, int steps, float* output) {
+__global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int points, 
+    const float* input, const float* weights, const float* dims, int steps, float* output) {
 	// PSEUDO CODE
     // input: point cloud with size [n, p, 3]
     //        weights with size [n, c, 3]
@@ -24,77 +24,58 @@ __global__ void ProbeKernel(int* sizes, const float* input, const float* weights
 
     // output: filter response with size [n, c, steps_x, steps_y, steps_z]
 	// loop
-
-	// for (int batch = 0; batch < sizes[0]; batch += 1){
-	// 	int num_intervals = steps[0] * steps[1] * steps[2];
-	// 	int yz_size = y_steps * z_steps;
-	// 	// blockIdx.x is the id of the block
-	// 	// blockDim.x is the number of threads for a block
-	// 	// threadIdx.x is the thread number of the block
-
-	// 	// Loop through each step
-	// 	for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < num_intervals;
-	//       	i += blockDim.x * gridDim.x) {
-			
-	// 		// Compute the step coordinate that i corresponds to.
-	// 		int x_step = (int)(i / yz_size);
-	// 		int y_step = (int)(i / z_steps) % y_steps;
-	// 		int z_step = i % z_steps;
-
-	// 		// Convert step coordinates to world coordinates. 
-	// 		float x = dims[0] / x_steps * x_step;
-	// 		float y = dims[1] / y_steps * y_step;
-	// 		float z = dims[2] / z_steps * z_step;
-
-	//     	// This would be the place to query an octree. Works well since
-	//     	// we won't be modifying the octree once it's created for a sample.
-	//     	for (int probe_id = 0; probe_id < sizes[1]; probe_id += 1) {
-	//     		int probe_index = batch*sizes[0]*3 + probe_id*3;
-	//     		float curr_probe []= {weights[probe_index],
-	//     						  weights[probe_index+1],
-	//     						  weights[probe_index+2]};
-
-	//     		// Compute the probe position in world coordinates.
-	//     		curr_probe[0] += x;
-	//     		curr_probe[1] += y;
-	//     		curr_probe[2] += z;
-
-	//     		// Init with max distance.
-	//     		// float closest_x = 0.0f;
-	//     		// float closest_y = 0.0f;
-	//     		// float closest_z = 0.0f;
-	//     		float closest_dist = 1e12;
-	//     		for (int point_index = 0; point_index < sizes[2]; point_index += 1) {
-	// 				int curr_point_index = batch*sizes[2]*3+point_index*3;
-	// 				float curr_point [] = {input[curr_point_index], input[curr_point_index+1],
-	// 								 input[curr_point_index+2]};
-	//     			float dist = (curr_point[0]-curr_probe[0])*(curr_point[0]-curr_probe[0]) 
-	//     						+(curr_point[1]-curr_probe[1])*(curr_point[1]-curr_probe[1]) 
-	//     						+(curr_point[2]-curr_probe[2])*(curr_point[2]-curr_probe[2]);
-	//     			if (dist < closest_dist) {
-	//     				closest_dist = dist;
-	//     				// closest_x = curr_probe[0] - curr_point[0];
-	//     				// closest_y = curr_probe[1] - curr_point[1];
-	//     				// closest_z = curr_probe[2] - curr_point[1];
-	//     			} 
-	//     		}
-	//     		int output_index = batch*sizes[1]*num_intervals + probe_id*num_intervals + i;
-	//     		output[output_index] = closest_dist;
-	//     	}
-	//   	}
-	// }
+    int num_intervals = steps * steps * steps;
+    // printf("Hello from block %d, thread %d\n", blockIdx.x, threadIdx.x);
+    // printf("steps: %d, blockdim %d\n", num_intervals, blockDim.x);
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+    // printf("%i\n", *sizes);
+    int batch = 0;
+    for (int batch = 0; batch < batches; batch++) {
+        for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < steps; i+= blockDim.x * gridDim.x){
+            for (int j = blockIdx.y * blockDim.y + threadIdx.y; j < steps; j+= blockDim.y * gridDim.y) {
+                for (int k = blockIdx.z * blockDim.z + threadIdx.z; k < steps; k+= blockDim.z * gridDim.z) {
+                    // Convert step coordinates to world coordinates. 
+                    float xc = dims[0] / steps * i;
+                    float yc = dims[1] / steps * j;
+                    float zc = dims[2] / steps * k;
+                    for (int probe_id = 0; probe_id < filters; probe_id ++) {
+                        for (int sample_id = 0; sample_id < samples_per_probe; sample_id++) {
+                            int sample_index = batch*filters*3 + probe_id*3;
+                            float sample_coord []= {weights[sample_index] + xc,
+                                                    weights[sample_index+1] + yc,
+                                                    weights[sample_index+2] + zc};
+                            float closest_dist = 1e38;
+                            // This is where octree would be called:
+                            for (int point_index = 0; point_index < points; point_index++) {
+                                int curr_point_index = batch*points*3+point_index*3;
+                                float curr_point [] = {input[curr_point_index], input[curr_point_index+1],
+                                                       input[curr_point_index+2]};
+                                float dist = (sample_coord[0]-curr_point[0])*(sample_coord[0]-curr_point[0]) 
+                                            +(sample_coord[1]-curr_point[1])*(sample_coord[1]-curr_point[1]) 
+                                            +(sample_coord[2]-curr_point[2])*(sample_coord[2]-curr_point[2]);
+                                if (dist < closest_dist) {
+                                    closest_dist = dist;
+                                     // closest_x = curr_probe[0] - curr_point[0];
+                                     // closest_y = curr_probe[1] - curr_point[1];
+                                     // closest_z = curr_probe[2] - curr_point[1];
+                                } 
+                            }
+                            output[probe_id*samples_per_probe*num_intervals+sample_id*num_intervals
+                                +i*steps*steps+j*steps+k] = closest_dist;
+                        }    
+                    }
+                }
+            }
+        }
+    }
 }
 
-
-void probeLauncher(int* sizes, const float* input_tensor, const float* weights,
+void probeLauncher(int batches, int filters, int samples_per_probe, int points, const float* input_tensor, const float* weights,
       const float* dims, int steps, float* output_tensor){
-	int block_count = 32;
-    int thread_per_block = 512;
+    int N = steps * steps * steps;
+    int threads_per_block = 512;
 
-    ProbeKernel
-    	<<<block_count, thread_per_block>>>(sizes, input_tensor, weights, dims, steps, output_tensor);
+    ProbeKernel<<<dim3(steps, steps, steps), threads_per_block>>>
+        (batches, filters, samples_per_probe, points, input_tensor, weights, dims, steps, output_tensor);
 }
-
-
-// typedef Eigen::GpuDevice GPUDevice;
-// template struct ProbeFunctor<GPUDevice, float>;

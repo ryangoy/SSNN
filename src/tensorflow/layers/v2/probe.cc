@@ -61,7 +61,7 @@ REGISTER_OP("Probe")
 
 // CPU specialization of actual computation.
 // template <typename Device, typename T>
-void probeLauncher(int* sizes, const float* input_tensor, const float* weights,
+void probeLauncher(int batches, int kernels, int samples_per_probe, int points, const float* input_tensor, const float* weights,
       const float* dims, int steps, float* output_tensor);
 class ProbeOp : public OpKernel {
 public:
@@ -88,13 +88,14 @@ public:
     // Create an output tensor with the correct output shape
     // [num_batches, num_filters, x_steps, y_steps, z_steps]
     Tensor* output_tensor = NULL;
-    int b = input_tensor.shape().dim_size(0);
-    int f = weights.shape().dim_size(0);
+    int nbatches = input_tensor.shape().dim_size(0);
+    int npoints = input_tensor.shape().dim_size(1);
+    int nkernels = weights.shape().dim_size(0);
+    int nsamples = weights.shape().dim_size(1);
 
-    int p = input_tensor.shape().dim_size(1);
-    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,f,steps,steps,steps},
+
+    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{nbatches,nkernels,steps,steps,steps},
                                                      &output_tensor));
-    int sizes[3] = {b,f,p};
     // ProbeFunctor<Device, T>()(
     //     context->eigen_device<Device>(),
     //     sizes,
@@ -108,8 +109,7 @@ public:
     const float* cweights = &(weights.flat<float>()(0));
     const float* cdims = &(dims.flat<float>()(0));
     
-    probeLauncher(sizes, inp, cweights,
-      cdims, steps, out);
+    probeLauncher(nbatches, nkernels, nsamples, npoints, inp, cweights, cdims, steps, out);
   }
 private:
   int steps_;
