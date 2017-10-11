@@ -16,7 +16,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/test', 
                     'Path to base directory.')
 flags.DEFINE_integer('num_epochs', 1, 'Number of epochs to train.')
-flags.DEFINE_float('val_split', 0.2, 'Percentage of input data to use as test.')
+flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 
 X_NPY         = join(FLAGS.data_dir, 'input_data.npy')
 YS_NPY        = join(FLAGS.data_dir, 'segmentation_data.npy')

@@ -1,16 +1,18 @@
 import numpy as np
 import tensorflow as tf
 import _probe_3d_grad
-probe_3d_module = tf.load_op_library('build/libprobe3d.so')
-tf_probe3d = probe_3d_module.probe_3d
+from tf_ops import *
 
 class SSNN:
   
   def __init__(self, input_dims):
 
-    # Defines self.x, self.y, self.model, self.cost, self.optimizer
+    # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
     self.init_model(input_dims, step_size)
- 
+    self.sess = tf.Session()
+    init_op = tf.global_variables_initializer()
+    self.sess.run(init_op)
+
   def max_pool(self, x, kshape, name='conv2d'):
     """
     Args:
@@ -45,25 +47,34 @@ class SSNN:
     else:
       assert len(step_size) == 3, "Must have a step size for each xyz dimension, or input an int."
 
-    # Input shape [batches, num_points, rgbxyz].
-    self.X = tf.placeholder(tf.float32, (None, None, 6))
+    # Shape: (batches, num_points, rgbxyz)
+    self.X_ph = tf.placeholder(tf.float32, (None, None, 6))
 
-    # Input shape [batches, num_classes], in this case, it's a binary classifer.
-    self.y = tf.placeholder(tf.float32, [None, num_classes])
+    # Shape: (batches, num_classes), in this case, it's a binary classifer.
+    self.y_ph = tf.placeholder(tf.float32, [None, num_classes])
     
-    ### TO DO ###
-    # Output will be [batches, input_dims/step_size, num_probes]
-    self.model = tf_probe3d(self.X, stride=step_size, num_probes=num_probes)
+    # Shape: (batches, probes, samples per probe, x, y, z)
+    self.model = probe3d(self.X, stride=step_size, num_probes=num_probes)
 
-    self.model = tf.nn.conv3d(self.model, self.weights['conv3d_1'], strides=1, padding='SAME')
+    # Shape: (batches, probes, x, y, z)
+    self.model = dot_product(self.model)
+
+    self.model = tf.transpose(self.model, (0, 2, 3, 4, 1))
+
+    self.model = tf.layers.conv3d(self.model, filters=16, kernel_size=3, strides=1, padding='SAME',
+      activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+    self.model = tf.nn.max_pool3d(self.model, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1], padding='SAME')
 
     # Repeat more 3d convolutions
+    # TO DO
 
     self.model = tf.flatten(self.model)
 
     # Linear activation.
     self.model = self.fc_layer(self.model, num_classes)
 
+    # TO DO: Implement IoU loss
     # Probability error for each class, which is assumed to be independent.
     self.cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
                                 labels=self.y, logits=self.model))
@@ -71,22 +82,19 @@ class SSNN:
 
   def train_val(self, X_trn, y_trn, X_val=None, y_val=None, epochs=10, 
                 batch_size=1, display_step=100):
-    init = tf.global_variables_initializer()
 
-    with tf.Session() as sess:
-      sess.run(init)
-      for epoch in range(epochs):
-        for step in range(int(X_trn.shape[0]/batch_size)):
-          batch_x, batch_y = self.get_next_batch(X_trn, y_trn, batch_size)
-          sess.run(self.optimizer, feed_dict={x: batch_x, y: batch_y})
+    for epoch in range(epochs):
+      for step in range(int(X_trn.shape[0]/batch_size)):
+        batch_x, batch_y = self.get_next_batch(X_trn, y_trn, batch_size)
+        sess.run(self.optimizer, feed_dict={self.X_ph: batch_x, self.y_ph: batch_y})
 
-          if step % display_step == 0:
-            loss, acc = sess.run([self.cost, self.accuracy], 
-                                  feed_dict={x: batch_x, y: batch_y})
-            print("Iter {}, Batch Loss={:.6f}, Training Accuracy={:.5f}.".format(step, loss, acc))
+        if step % display_step == 0:
+          loss, acc = self.sess.run([self.cost, self.accuracy], 
+                                feed_dict={x: batch_x, y: batch_y})
+          print("Iter {}, Batch Loss={:.6f}, Training Accuracy={:.5f}.".format(step, loss, acc))
 
-        if X_val is not None and y_val is not None:
-          loss = sess.run(self.cost, feed_dict={x: X_val, y: y_val})
+      if X_val is not None and y_val is not None:
+        loss = sess.run(self.cost, feed_dict={x: X_val, y: y_val})
 
-        print("Epoch {}, Validation Loss={:6f}, Validation Accuracy={:.5f}.".format(loss, acc))
+      print("Epoch {}, Validation Loss={:6f}, Validation Accuracy={:.5f}.".format(loss, acc))
 
