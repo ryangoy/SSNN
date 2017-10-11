@@ -27,9 +27,12 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
     int num_intervals = steps * steps * steps;
 
     for (int batch = 0; batch < batches; batch++) {
-        for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < steps; i+= blockDim.x * gridDim.x){
-            for (int j = blockIdx.y * blockDim.y + threadIdx.y; j < steps; j+= blockDim.y * gridDim.y) {
-                for (int k = blockIdx.z * blockDim.z + threadIdx.z; k < steps; k+= blockDim.z * gridDim.z) {
+        for (int i = blockIdx.x; i < steps; i+= gridDim.x){
+        //for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < steps; i+= blockDim.x * gridDim.x){
+            for (int j = blockIdx.y; j < steps; j+= gridDim.y) {
+            // for (int j = blockIdx.y * blockDim.y + threadIdx.y; j < steps; j+= blockDim.y * gridDim.y) {
+                for (int k = blockIdx.z; k < steps; k+= gridDim.z) {
+                // for (int k = blockIdx.z * blockDim.z + threadIdx.z; k < steps; k+= blockDim.z * gridDim.z) {
                     // Convert step coordinates to world coordinates. 
                     float xc = dims[0] / steps * i;
                     float yc = dims[1] / steps * j;
@@ -42,6 +45,7 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
                                                     weights[sample_index+2] + zc};
                             float closest_dist = 1e38;
                             // This is where octree would be called:
+                            printf("num points is %d\n", points);
                             for (int point_index = 0; point_index < points; point_index++) {
                                 int curr_point_index = batch*points*3+point_index*3;
                                 float curr_point [] = {input[curr_point_index], input[curr_point_index+1],
@@ -65,12 +69,21 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
             }
         }
     }
+
 }
 
 void probeLauncher(int batches, int filters, int samples_per_probe, int points, const float* input_tensor, const float* weights,
       const float* dims, int steps, float* output_tensor){
-    int threads_per_block = 512;
-
-    ProbeKernel<<<dim3(steps, steps, steps), threads_per_block>>>
+    int threads_per_block = 1;
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
+    ProbeKernel<<<dim3(1, 1, 1), threads_per_block>>>
         (batches, filters, samples_per_probe, points, input_tensor, weights, dims, steps, output_tensor);
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("milliseconds to run: %f \n", milliseconds);
 }

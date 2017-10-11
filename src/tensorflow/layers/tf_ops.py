@@ -3,9 +3,8 @@ import numpy as np
 
 
 probe_module = tf.load_op_library('./probe.so')
-dot_product_module = tf.load_op_library('./dot_product.so')
 
-def probe3D(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_size=None, strides=None):
+def probe3D(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_size=None, strides=None, name='probe3D'):
 
     assert type(dims) is np.ndarray, "dims must be of type numpy.ndarray."
     assert steps is not None or strides is not None, "steps or strides must be defined."
@@ -23,14 +22,25 @@ def probe3D(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_s
     assert type(probes_per_kernel) is int, "probes_per_kernel must be of type int."
 
     steps = steps
-
+    print inp.shape
     # Initialize weights with given parameters.
-    weights = tf.Variable(tf.truncated_normal(shape=[num_kernels, probes_per_kernel, 3], stddev=kernel_size[0]/2), name='probe3D_weights')
+    weights = tf.Variable(tf.truncated_normal(shape=[num_kernels, probes_per_kernel, 3], stddev=kernel_size[0]/2), name='probe3D')
     return probe_module.probe(inp, weights, dims, steps=steps[0])
 
-def dot_product(inp, stddev=0.1):
+def dot_product(inp, stddev=0.1, name='dot_product'):
+    """
+    This layer weights the output of probe3D. This is what the network trains.
+    """
     assert len(inp.shape) == 6, "Dot product expects input of shape (batches, probes, samples_per_probe, x, y, z)"
-    weights = tf.Variable(tf.truncated_normal(shape=inp.shape[1:3], stddev=stddev), name='dot_product_weights')
+
+    # Initialize weights
+    weights = tf.Variable(tf.truncated_normal(shape=inp.shape[1:3], stddev=stddev), name=name)
+
+    # Dot product over input probe and samples per probe and weights
+    axes = tf.Tensor([[1, 2], [0, 1]])
+
+    # Hooray for Tensorflow methods :)
+    dot_product = tf.tensordot(inp, weights, axes=axes)
     return dot_product_module.dot_product(inp, weights)
 
 
