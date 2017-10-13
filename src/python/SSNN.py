@@ -5,13 +5,17 @@ from tf_ops import *
 
 class SSNN:
   
-  def __init__(self, input_dims):
+  def __init__(self, probe_steps=10, ):
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
-    self.init_model(input_dims, step_size)
+    self.init_probe_op()
+    self.init_model(step_size)
+
     self.sess = tf.Session()
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
+
+    self.probe_output = None
 
   def max_pool(self, x, kshape, name='conv2d'):
     """
@@ -36,25 +40,30 @@ class SSNN:
   def dropout(self, x, keep_prob):
     return tf.nn.dropout(x, keep_prob)
 
-  def init_model(self, input_dims, step_size, learning_rate=0.01, num_probes=1, num_classes=2):
+  def init_probe_op(self, steps, num_kernels=1, probes_per_kernel=1):
     """
     Args:
       input_dims: tuple [x_meters, y_meters, z_meters]
       step_size: tuple [x_stride, y_stride, z_stride]
     """
-    if type(step_size) is int:
-      step_size = [step_size, step_size, step_size]
+    if type(steps) is int:
+      steps = [steps, steps, steps]
     else:
-      assert len(step_size) == 3, "Must have a step size for each xyz dimension, or input an int."
+      assert len(steps) == 3, "Must have a step size for each xyz dimension, or input an int."
 
     # Shape: (batches, num_points, rgbxyz)
+    self.points_ph = tf.placeholder(tf.float32, (None, None, 6))
+
+    # Shape: (batches, probes, samples per probe, x, y, z)
+    self.probe_op = probe3d(self.X, steps=steps, num_kernels=num_kernels, probes_per_kernel=probes_per_kernel)
+
+  def init_model(self, learning_rate=0.01,  num_classes=2):
+
+    # Shape: (batches, probes, samples per probe, x, y, z)
     self.X_ph = tf.placeholder(tf.float32, (None, None, 6))
 
     # Shape: (batches, num_classes), in this case, it's a binary classifer.
     self.y_ph = tf.placeholder(tf.float32, [None, num_classes])
-    
-    # Shape: (batches, probes, samples per probe, x, y, z)
-    self.model = probe3d(self.X, stride=step_size, num_probes=num_probes)
 
     # Shape: (batches, probes, x, y, z)
     self.model = dot_product(self.model)
@@ -68,7 +77,6 @@ class SSNN:
 
     # Repeat more 3d convolutions
     # TO DO
-
     self.model = tf.flatten(self.model)
 
     # Linear activation.
@@ -81,7 +89,7 @@ class SSNN:
     self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
 
   def train_val(self, X_trn, y_trn, X_val=None, y_val=None, epochs=10, 
-                batch_size=1, display_step=100):
+                batch_size=1, display_step=10):
 
     for epoch in range(epochs):
       for step in range(int(X_trn.shape[0]/batch_size)):

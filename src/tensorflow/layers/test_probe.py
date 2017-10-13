@@ -20,7 +20,7 @@ def test():
 
   with tf.device('/gpu:0'):
     ph = tf.placeholder(tf.float32)
-    graph = probe3D(ph, dims, steps=steps, num_kernels=num_kernels, kernel_size=None,  
+    graph = probe3d(ph, dims, steps=steps, num_kernels=num_kernels, kernel_size=None,  
                 probes_per_kernel=probes_per_kernel, strides=None)
     
     sess = tf.Session()
