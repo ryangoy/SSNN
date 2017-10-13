@@ -40,22 +40,23 @@ def normalize_pointclouds(pointcloud_arr):
     shifted_pointclouds.append(np.array([xyz-mins]))
   return shifted_pointclouds
 
-def load_points(path=None, npy_path=None, load_from_npy=True):
+def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
+                load_from_npy=True):
   """
   Load data from preloaded npy files or from directory.
   """
-  if exists(npy_path) and load_from_npy:
-    assert npy_path is not None, "No path given for .npy file."
-    X, ys, yl = load_from_npy(X_NPY, YS_NPY, YL_NPY)
+  if exists(X_npy_path) and load_from_npy:
+    assert X_npy_path is not None, "No path given for .npy file."
+    X, ys, yl = load_npy(X_npy_path, ys_npy_path, yl_npy_path)
   else:
     assert path is not None, "No path given for pointcloud directory."
-    X, ys, yl = load_from_directory(FLAGS.data_dir)
-    np.save(X_NPY_PATH, X)
-    np.save(YS_NPY_PATH, ys)
-    np.save(YL_NPY_PATH, yl)
+    X, ys, yl = load_directory(FLAGS.data_dir)
+    np.save(X_npy_path, X)
+    np.save(ys_npy_path, ys)
+    np.save(yl_npy_path, yl)
   return X, ys, yl
 
-def load_from_directory(path):
+def load_directory(path):
   """
   Loads pointclouds from dataset.
 
@@ -84,8 +85,7 @@ def load_from_directory(path):
     for room in listdir(area_path):
       print "\tLoading room {}...".format(room)
       room_path = join(area_path, room)
-      if not isdir(room_path) or 
-         room.endswith('Angle.txt') or 
+      if not isdir(room_path) or room.endswith('Angle.txt') or \
          room == '.DS_Store':
         continue
         
@@ -96,7 +96,7 @@ def load_from_directory(path):
       annotation_pc = []
       annotation_label = []
       for annotation in listdir(join(room_path, 'Annotations')):
-        if annotation.startswith('wall') or annotation.startswith('ceiling') 
+        if annotation.startswith('wall') or annotation.startswith('ceiling') \
                                          or not annotation.endswith('.txt'):
           continue
         annotation_pc.append(np.loadtxt(
@@ -114,7 +114,7 @@ def load_from_directory(path):
 
   return input_data, segmentations, labels
 
-def load_from_npy(X_path, ys_path, yl_path):
+def load_npy(X_path, ys_path, yl_path):
   """
   Loads dataset from pre-loaded path if available.
   """

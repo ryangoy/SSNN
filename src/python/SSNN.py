@@ -1,15 +1,15 @@
 import numpy as np
 import tensorflow as tf
-import _probe_3d_grad
 from tf_ops import *
 
 class SSNN:
   
-  def __init__(self, probe_steps=10, ):
+  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, probe_steps=10):
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
-    self.init_probe_op()
-    self.init_model(step_size)
+    self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
+                       probes_per_kernel=probes_per_kernel)
+    #self.init_model(num_kernels, probes_per_kernel, probe_steps)
 
     self.sess = tf.Session()
     init_op = tf.global_variables_initializer()
@@ -17,15 +17,6 @@ class SSNN:
 
     self.probe_output = None
 
-  def max_pool(self, x, kshape, name='conv2d'):
-    """
-    Args:
-      x: an input tensor
-      kshape: a tuple with shape 
-        [batch_step, width_step, height_step, feature_step]
-      name: name of layer
-    """
-    return tf.nn.max_pool(x, ksize=kshape, strides=kshape, padding='SAME', name=name)
 
   def fc_layer(self, x, num_nodes, name='fc_layer', activation=tf.nn.relu):
     with tf.variable_scope(name, reuse=False):
@@ -40,8 +31,14 @@ class SSNN:
   def dropout(self, x, keep_prob):
     return tf.nn.dropout(x, keep_prob)
 
-  def init_probe_op(self, steps, num_kernels=1, probes_per_kernel=1):
+  def init_probe_op(self, dims, steps, num_kernels=1, probes_per_kernel=1):
     """
+    The idea behind having a separate probe op is that we are converting from
+    continuous space to discrete space here. Running backprop on this layer and
+    having it every iteration will be too slow, so hopefully the dot product
+    layer will be sufficient. Otherwise, we can look more into optimizing the
+    probe layer.
+
     Args:
       input_dims: tuple [x_meters, y_meters, z_meters]
       step_size: tuple [x_stride, y_stride, z_stride]
@@ -49,31 +46,40 @@ class SSNN:
     if type(steps) is int:
       steps = [steps, steps, steps]
     else:
-      assert len(steps) == 3, "Must have a step size for each xyz dimension, or input an int."
+      assert len(steps) == 3, \
+          "Must have a step size for each xyz dimension, or input an int."
 
-    # Shape: (batches, num_points, rgbxyz)
-    self.points_ph = tf.placeholder(tf.float32, (None, None, 6))
-
-    # Shape: (batches, probes, samples per probe, x, y, z)
-    self.probe_op = probe3d(self.X, steps=steps, num_kernels=num_kernels, probes_per_kernel=probes_per_kernel)
-
-  def init_model(self, learning_rate=0.01,  num_classes=2):
+    # Shape: (batches, num_points, xyz)
+    self.points_ph = tf.placeholder(tf.float32, (None, None, 3))
 
     # Shape: (batches, probes, samples per probe, x, y, z)
-    self.X_ph = tf.placeholder(tf.float32, (None, None, 6))
+    self.probe_op = probe3d(self.points_ph, dims, 
+                            steps=steps, 
+                            num_kernels=num_kernels, 
+                            probes_per_kernel=probes_per_kernel)
+
+  def init_model(self, num_kernels, probes_per_kernel, probe_steps, learning_rate=0.01, 
+                 num_classes=2):
+
+    # Shape: (batches, num_kernels, probes_per_kernel, x, y, z)
+    self.X_ph = tf.placeholder(tf.float32, 
+        (None, num_kernels, probes_per_kernel, probe_steps, probe_steps, probe_steps))
 
     # Shape: (batches, num_classes), in this case, it's a binary classifer.
-    self.y_ph = tf.placeholder(tf.float32, [None, num_classes])
+    self.y_ph = tf.placeholder(tf.float32, (None, num_classes))
 
     # Shape: (batches, probes, x, y, z)
-    self.model = dot_product(self.model)
+    self.model = dot_product(self.X_ph)
 
     self.model = tf.transpose(self.model, (0, 2, 3, 4, 1))
 
-    self.model = tf.layers.conv3d(self.model, filters=16, kernel_size=3, strides=1, padding='SAME',
-      activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.model = tf.nn.max_pool3d(self.model, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1], padding='SAME')
+    self.model = tf.layers.conv3d(self.model, filters=16, kernel_size=3, 
+                      strides=1, padding='SAME', activation=tf.nn.relu, 
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+    self.model = tf.nn.max_pool3d(self.model, ksize=[1, 2, 2, 2, 1], 
+                                  strides=[1, 1, 1, 1, 1], padding='SAME')
 
     # Repeat more 3d convolutions
     # TO DO
@@ -94,7 +100,8 @@ class SSNN:
     for epoch in range(epochs):
       for step in range(int(X_trn.shape[0]/batch_size)):
         batch_x, batch_y = self.get_next_batch(X_trn, y_trn, batch_size)
-        sess.run(self.optimizer, feed_dict={self.X_ph: batch_x, self.y_ph: batch_y})
+        sess.run(self.optimizer, feed_dict={self.X_ph: batch_x, 
+                                            self.y_ph: batch_y})
 
         if step % display_step == 0:
           loss, acc = self.sess.run([self.cost, self.accuracy], 
@@ -105,4 +112,14 @@ class SSNN:
         loss = sess.run(self.cost, feed_dict={x: X_val, y: y_val})
 
       print("Epoch {}, Validation Loss={:6f}, Validation Accuracy={:.5f}.".format(loss, acc))
+
+  def probe(self, X):
+    """
+    Args:
+      X (np.ndarray): array of pointclouds (batches, num_points, 3)
+    """
+    print X[0].shape
+    return self.sess.run(self.probe_op, feed_dict={self.points_ph: X[0]})
+
+
 

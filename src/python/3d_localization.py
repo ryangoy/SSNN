@@ -10,6 +10,8 @@ import numpy as np
 from os.path import join, isdir
 from os import listdir
 from utils import get_dims, normalize_pointclouds, load_points
+from SSNN import SSNN
+
 
 # Tensorflow flags boilerplate code.
 flags = tf.app.flags
@@ -20,6 +22,8 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/test',
                     'Path to base directory.')
 flags.DEFINE_integer('num_epochs', 1, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
+flags.DEFINE_integer('num_probe_steps', 10, 'Number of intervals to sample\
+                      from in each xyz direction.')
 
 # Define constant paths
 X_NPY         = join(FLAGS.data_dir, 'input_data.npy')
@@ -29,13 +33,14 @@ OUTPUT_PATH   = join(FLAGS.data_dir, 'predictions.npy')
 
 def main(_):
 
-  X_raw, ys, yl = load_points(path=None, npy_path=None, load_from_npy=True)
+  X_raw, ys, yl = load_points(path=FLAGS.data_dir, X_npy_path=X_NPY,
+    ys_npy_path = YS_NPY, yl_npy_path = YL_NPY, load_from_npy=True)
 
-  # Get the dimensions of the first room. 
+  # Get the dimensions of the first room. TODO: change this strategy.
   room_dims = get_dims(X_raw[0])
 
   # Shift to the same coordinate space between pointclouds.
-  X = normalize_pointclouds(X_raw)
+  X_cont = normalize_pointclouds(X_raw)
 
   # TODO: Preprocess input.
   # - remove outliers
@@ -44,7 +49,13 @@ def main(_):
   # - data augmentation
 
   # Initialize model. max_room_dims and step_size are in meters.
-  ssnn = SSNN(max_room_dims, step_size)
+  ssnn = SSNN(room_dims, num_kernels=1, probes_per_kernel=1, probe_steps=10)
+
+  # Probe processing.
+  X = ssnn.probe(X_cont)
+
+  print X.shape
+  exit(1)
 
   # Train model.
   train_split = (1-FLAGS.val_split) * X.shape[0]
