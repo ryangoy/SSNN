@@ -9,7 +9,7 @@ class SSNN:
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
                        probes_per_kernel=probes_per_kernel)
-    #self.init_model(num_kernels, probes_per_kernel, probe_steps)
+    self.init_model(num_kernels, probes_per_kernel, probe_steps)
 
     self.sess = tf.Session()
     init_op = tf.global_variables_initializer()
@@ -118,8 +118,9 @@ class SSNN:
     Args:
       X (np.ndarray): array of pointclouds (batches, num_points, 3)
     """
-    print X[0].shape
-    return self.sess.run(self.probe_op, feed_dict={self.points_ph: X[0]})
+
+    for pc in X:
+      return self.sess.run(self.probe_op, feed_dict={self.points_ph: pc[:, :1000]})
 
 
 

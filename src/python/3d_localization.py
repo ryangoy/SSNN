@@ -11,6 +11,7 @@ from os.path import join, isdir
 from os import listdir
 from utils import get_dims, normalize_pointclouds, load_points
 from SSNN import SSNN
+import time
 
 
 # Tensorflow flags boilerplate code.
@@ -52,7 +53,10 @@ def main(_):
   ssnn = SSNN(room_dims, num_kernels=1, probes_per_kernel=1, probe_steps=10)
 
   # Probe processing.
+  probe_start = time.time()
   X = ssnn.probe(X_cont)
+  probe_time = time.time() - probe_start
+  print("Probe operation took {:.4f} seconds to run.".format(probe_time))
 
   print X.shape
   exit(1)
