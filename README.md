@@ -1,4 +1,4 @@
-# 3D Localization Repo #
+# Sparse Sampling Neural Networks #
 
 Created by Ryan Goy, Arda Sahiner, and Avideh Zakhor from UC Berkeley
 
