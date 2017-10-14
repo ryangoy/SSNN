@@ -40,7 +40,8 @@ def dot_product(inp, stddev=0.1, name='dot_product'):
 
     # Hooray for Tensorflow methods :)
     dot_product = tf.tensordot(inp, weights, axes=axes)
-    print dot_product.shape
+    new_shape = [-1] + inp.shape[1:2].as_list() + inp.shape[3:].as_list()
+    dot_product = tf.reshape(dot_product, new_shape)
     return dot_product
 
 

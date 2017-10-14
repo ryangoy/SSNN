@@ -1,5 +1,6 @@
 
 #include <stdio.h>
+#include <vector>
 // #define EIGEN_USE_GPU
 // #define EIGEN_USE_THREADS
 
@@ -44,8 +45,8 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
                                                     weights[sample_index+1] + yc,
                                                     weights[sample_index+2] + zc};
                             float closest_dist = 1e38;
-                            // This is where octree would be called:
-                            printf("num points is %d\n", points);
+                            // This is where binned data would be called:
+                            // printf("num points is %d\n", points);
                             for (int point_index = 0; point_index < points; point_index++) {
                                 int curr_point_index = batch*points*3+point_index*3;
                                 float curr_point [] = {input[curr_point_index], input[curr_point_index+1],
@@ -72,6 +73,17 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
 
 }
 
+__global__ void BinPointsKernel(int points, int bin_size, const float* dims, const float* pointcloud, std::vector<float*>* output) {
+    for (int point_id=blockIdx.x * blockDim.x + threadIdx.x; point_id < points; point_id+= blockDim.x * gridDim.x) {
+        int x_bin = (int)(pointcloud[point_id * 3] / bin_size); 
+        int y_bin = (int)(pointcloud[point_id * 3 + 1] / bin_size); 
+        int z_bin = (int)(pointcloud[point_id * 3 + 2] / bin_size); 
+
+        //output[x_bin]
+
+    }
+}
+
 void probeLauncher(int batches, int filters, int samples_per_probe, int points, const float* input_tensor, const float* weights,
       const float* dims, int steps, float* output_tensor){
     int threads_per_block = 1;
@@ -85,5 +97,5 @@ void probeLauncher(int batches, int filters, int samples_per_probe, int points, 
     cudaEventSynchronize(stop);
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("milliseconds to run: %f \n", milliseconds);
+    //printf("milliseconds to run: %f \n", milliseconds);
 }

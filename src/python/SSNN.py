@@ -80,7 +80,15 @@ class SSNN:
     self.mp1 = tf.nn.max_pool3d(self.c1, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 1, 1, 1, 1], padding='SAME')
 
-    self.model = tf.layers.conv3d(self.model )
+    self.model = tf.layers.conv3d(self.mp1, filters=1, kernel_size=3,
+                      strides=1, padding='SAME')
+
+    # Find box size
+    box_size = dims / steps
+
+    # 
+
+
     # # Repeat more 3d convolutions
     # # TO DO
     # self.model = tf.flatten(self.model)
@@ -123,6 +131,21 @@ class SSNN:
       pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc[:, :1000]})
       pcs.append(pc_disc)
     return np.array(pcs)
+
+  def IoU(self, preds, labels):
+    """
+    Args:
+      preds (tensor): predicted confidence value for a certain box (batches, x, y, z)
+      labels (tensor): labeled boxes with (batches, box, 4), with the format for
+                       a box being min_x, min_y, max_x, max_y
+    """
+
+    vox_label = np.zeros((preds.shape))
+
+    for bbox in labels:
+      
+
+
 
 
 
