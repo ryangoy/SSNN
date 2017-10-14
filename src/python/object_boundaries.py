@@ -5,6 +5,21 @@
 import os
 import numpy as np
 
+
+def generate_bounding_boxes(pointcloud):
+    """
+    Generates bounding box labels from semantic labels.
+
+    Args:
+      pointcloud (np.ndarray): input semantic labels with shape (batches, sample, points, xyz).
+
+    Returns:
+      bounding_boxes (np.ndarray): output bounding box labels with shape (batches, sample, min_x, min_y, max_x, max_y)
+
+    Note: "batches" indexes the scene in the dataset, "sample" indexes the object in the scene.  
+    """
+    pass
+
 # create a label for a given point cloud representation of an object
 def create_label(data):
     # find bounding points in each dimension

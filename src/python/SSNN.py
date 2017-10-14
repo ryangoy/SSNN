@@ -69,24 +69,24 @@ class SSNN:
     self.y_ph = tf.placeholder(tf.float32, (None, num_classes))
 
     # Shape: (batches, probes, x, y, z)
-    self.model = dot_product(self.X_ph)
+    self.dot_product = dot_product(self.X_ph)
 
-    self.model = tf.transpose(self.model, (0, 2, 3, 4, 1))
+    self.dot_product = tf.transpose(self.dot_product, (0, 2, 3, 4, 1))
 
-
-    self.model = tf.layers.conv3d(self.model, filters=16, kernel_size=3, 
+    self.c1 = tf.layers.conv3d(self.dot_product, filters=16, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.model = tf.nn.max_pool3d(self.model, ksize=[1, 2, 2, 2, 1], 
+    self.mp1 = tf.nn.max_pool3d(self.c1, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 1, 1, 1, 1], padding='SAME')
 
-    # Repeat more 3d convolutions
-    # TO DO
-    self.model = tf.flatten(self.model)
+    self.model = tf.layers.conv3d(self.model )
+    # # Repeat more 3d convolutions
+    # # TO DO
+    # self.model = tf.flatten(self.model)
 
-    # Linear activation.
-    self.model = self.fc_layer(self.model, num_classes)
+    # # Linear activation.
+    # self.model = self.fc_layer(self.model, num_classes)
 
     # TO DO: Implement IoU loss
     # Probability error for each class, which is assumed to be independent.
@@ -118,9 +118,13 @@ class SSNN:
     Args:
       X (np.ndarray): array of pointclouds (batches, num_points, 3)
     """
-
+    pcs = []
     for pc in X:
-      return self.sess.run(self.probe_op, feed_dict={self.points_ph: pc[:, :1000]})
+      pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc[:, :1000]})
+      pcs.append(pc_disc)
+    return np.array(pcs)
+
+
 
 
 
