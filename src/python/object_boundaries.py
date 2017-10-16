@@ -11,10 +11,14 @@ def generate_bounding_boxes(pointcloud):
     Generates bounding box labels from semantic labels.
 
     Args:
-      pointcloud (np.ndarray): input semantic labels with shape (batches, sample, points, xyz).
+      pointcloud (np.array): input semantic labels with shape (batches, sample, points, xyzrgb).
+            Since number of samples per scene are variable and number of points are variable, 
+            it is a numpy array of numpy arrays of numpy ndarrays, i.e. to access an object, use
+            pointcloud[scene_id][object_id].
 
     Returns:
-      bounding_boxes (np.ndarray): output bounding box labels with shape (batches, sample, min_x, min_y, max_x, max_y)
+      bounding_boxes (np.array): output bounding box labels with shape (batches, sample, min_x/min_y/max_x/max_y).
+            Since samples is not constant per scene, output in a fashion similar to the input.
 
     Note: "batches" indexes the scene in the dataset, "sample" indexes the object in the scene.  
     """

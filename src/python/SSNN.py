@@ -6,9 +6,11 @@ class SSNN:
   
   def __init__(self, dims, num_kernels=1, probes_per_kernel=1, probe_steps=10):
 
-    # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
+    # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
                        probes_per_kernel=probes_per_kernel)
+
+    # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
     self.init_model(num_kernels, probes_per_kernel, probe_steps)
 
     self.sess = tf.Session()
@@ -58,15 +60,14 @@ class SSNN:
                             num_kernels=num_kernels, 
                             probes_per_kernel=probes_per_kernel)
 
-  def init_model(self, num_kernels, probes_per_kernel, probe_steps, learning_rate=0.01, 
-                 num_classes=2):
+  def init_model(self, num_kernels, probes_per_kernel, probe_steps, learning_rate=0.01):
 
     # Shape: (batches, num_kernels, probes_per_kernel, x, y, z)
     self.X_ph = tf.placeholder(tf.float32, 
         (None, num_kernels, probes_per_kernel, probe_steps, probe_steps, probe_steps))
 
     # Shape: (batches, num_classes), in this case, it's a binary classifer.
-    self.y_ph = tf.placeholder(tf.float32, (None, num_classes))
+    self.y_ph = tf.placeholder(tf.float32, (None, None, 4))
 
     # Shape: (batches, probes, x, y, z)
     self.dot_product = dot_product(self.X_ph)
@@ -81,29 +82,21 @@ class SSNN:
                                   strides=[1, 1, 1, 1, 1], padding='SAME')
 
     self.model = tf.layers.conv3d(self.mp1, filters=1, kernel_size=3,
-                      strides=1, padding='SAME')
+                      strides=1, padding='SAME', activation=tf.nn.relu,
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
 
     # Find box size
     box_size = dims / steps
 
     # 
+    self.loss = self.IoU_loss()
+    self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
-
-    # # Repeat more 3d convolutions
-    # # TO DO
-    # self.model = tf.flatten(self.model)
-
-    # # Linear activation.
-    # self.model = self.fc_layer(self.model, num_classes)
-
-    # TO DO: Implement IoU loss
-    # Probability error for each class, which is assumed to be independent.
-    self.cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-                                labels=self.y, logits=self.model))
-    self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
-
-  def train_val(self, X_trn, y_trn, X_val=None, y_val=None, epochs=10, 
+  def train_val(self, X_trn=None, y_trn=None, X_val=None, y_val=None, epochs=10, 
                 batch_size=1, display_step=10):
+    if X_trn is None:
+      X_trn = self.probe_ouput
+    assert y_trn is not None, "Labels must be defined for train_val call."
 
     for epoch in range(epochs):
       for step in range(int(X_trn.shape[0]/batch_size)):
@@ -130,6 +123,7 @@ class SSNN:
     for pc in X:
       pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc[:, :1000]})
       pcs.append(pc_disc)
+    self.probe_output = pcs
     return np.array(pcs)
 
   def IoU(self, preds, labels):
