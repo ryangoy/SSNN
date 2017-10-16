@@ -6,16 +6,16 @@ import time
 
 
 
-def get_dims(pointcloud):
-  """
-  Args:
-    pointcloud (np.ndarray): array of xyzrgb points (points, 6)
-  """
-  xyz = pointcloud[:, :3]
-  mins = xyz.min(axis=0)
-  maxes = xyz.max(axis=0)
-  dims = maxes-mins
-  return dims
+# def get_dims(pointcloud):
+#   """
+#   Args:
+#     pointcloud (np.ndarray): array of xyzrgb points (batches, points, 6)
+#   """
+#   xyz = pointcloud[:, :, :3]
+#   mins = xyz.amin(axis=(0, 1))
+#   maxes = xyz.amax(axis=(0, 1))
+#   dims = maxes-mins
+#   return dims
 
 def normalize_pointclouds(pointcloud_arr):
   """
@@ -32,13 +32,18 @@ def normalize_pointclouds(pointcloud_arr):
   """
   # Find the minimum x, y, and z values.
   shifted_pointclouds = []
+  gmax = None
   for pointcloud in pointcloud_arr:
     xyz = pointcloud[:, :3]
     mins = xyz.min(axis=0)
     maxes = xyz.max(axis=0)
     dims = maxes-mins
+    if gmax = None:
+      gmax = maxes
+    else:
+      gmax = np.array([maxes, gmax]).min(axis=0)
     shifted_pointclouds.append(np.array([xyz-mins]))
-  return shifted_pointclouds
+  return shifted_pointclouds, gmax
 
 def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
                 load_from_npy=True):

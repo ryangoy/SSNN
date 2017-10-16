@@ -11,17 +11,17 @@ def generate_bounding_boxes(pointcloud):
     Generates bounding box labels from semantic labels.
 
     Args:
-      pointcloud (np.ndarray): input semantic labels with shape (n_batches, n_samples, n_points, 3).
+      pointcloud (np.array): input semantic labels with shape (batches, sample, points, xyzrgb).
+            Since number of samples per scene are variable and number of points are variable, 
+            it is a numpy array of numpy arrays of numpy ndarrays, i.e. to access an object, use
+            pointcloud[scene_id][object_id].
 
     Returns:
-      bounding_boxes (np.ndarray): output bounding box labels with shape (n_batches, n_samples, 6)
-
-    Note: "batch" indexes the scene in the dataset, "sample" indexes the object in the scene.
-          The last dimension of the input array represents [x, y, z] coords; for the output array the last dimension
-          represents ['max_x', 'min_x', 'max_y', 'min_y', 'max_z', 'min_z'] values
+      bounding_boxes (np.array): output bounding box labels with shape (batches, sample, min_x/min_y/min_z/max_x/max_y/max_z).
+            Since samples is not constant per scene, output in a fashion similar to the input.
     """
 
-    return np.array([[create_bounds(pointcloud[i][j]) for j in range(len(pointcloud[i]))] for i in range(len(pointcloud))])
+    return np.array([np.array([np.array(create_bounds(pointcloud[i][j])) for j in range(len(pointcloud[i]))]) for i in range(len(pointcloud))])
 
 def create_bounds(data):
     x_vals = data[:, 0]
@@ -34,12 +34,12 @@ def create_bounds(data):
     max_z = max(z_vals)
     min_z = min(z_vals)
 
-    return [max_x, min_x, max_y, min_y, max_z, min_z]
+    return [min_x, min_y, min_z, max_x, max_y, max_z]
 
 # create a label for a given point cloud representation of an object
 def create_label(data):
     # find bounding points in each dimension
-    max_x, min_x, max_y, min_y, max_z, min_z = create_bounds(data)
+    min_x, min_y, min_z, max_x, max_y, max_z = create_bounds(data)
 
     # store midpoint of two ends, along with the length along each dimension
     bbox = [(max_x + min_x) / 2.0, (max_y + min_y) / 2.0, (max_z + min_z) / 2.0, max_x - min_x, max_y - min_y, max_z - min_z]
