@@ -17,6 +17,11 @@ class SSNN:
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
 
+    self.dims = dims
+    self.probe_steps = probe_steps
+    self.probe_size = dims / probe_steps
+
+
     self.probe_output = None
 
 
@@ -121,23 +126,46 @@ class SSNN:
     """
     pcs = []
     for pc in X:
-      pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc[:, :1000]})
+      pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       pcs.append(pc_disc)
     self.probe_output = pcs
     return np.array(pcs)
 
-  def IoU(self, preds, labels):
+  def IoU_loss(self, preds, labels):
     """
     Args:
       preds (tensor): predicted confidence value for a certain box (batches, x, y, z)
-      labels (tensor): labeled boxes with (batches, box, 4), with the format for
-                       a box being min_x, min_y, max_x, max_y
+      labels (tensor): labeled boxes with (batches, box, 6), with the format for
+                       a box being min_x, min_y, min_z, max_x, max_y, max_z
     """
 
     vox_label = np.zeros((preds.shape))
 
     for batch_id in labels.shape[0]:
       for bbox in labels[batch_id]:
+        # bbox is [min_x, min_y, max_x, max_y]
+        c1 = np.floor(bbox[:3] / self.probe_size)
+        c2 = np.ceil(bbox[3:] / self.probe_size)
+
+        diff = c2 - c1
+
+        for i in range(diff[0]):
+          for j in range(diff[1]):
+            for k in range(diff[2]):
+              label_coords = c1 + [i,j,k]
+              if vox_label[label_coords] != 0:
+              LL = np.max([bbox[:3]/self.probe_size, label_coords], axis=0)
+              UR = np.min([bbox[3:]/self.probe_size, label_coords+1], axis=0) 
+              intersection = np.sqrt(np.sum(np.square([LL, UR])))
+              vox_label[label_coords] = max(intersection, vox_label[label_coords])
+
+    return tf.metrics.mean_iou(vox_label, preds, 1)
+
+
+    
+
+
+
         
       
 

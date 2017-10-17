@@ -73,13 +73,18 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
 
 }
 
-__global__ void BinPointsKernel(int points, int bin_size, const float* dims, const float* pointcloud, std::vector<float*>* output) {
-    for (int point_id=blockIdx.x * blockDim.x + threadIdx.x; point_id < points; point_id+= blockDim.x * gridDim.x) {
-        int x_bin = (int)(pointcloud[point_id * 3] / bin_size); 
-        int y_bin = (int)(pointcloud[point_id * 3 + 1] / bin_size); 
-        int z_bin = (int)(pointcloud[point_id * 3 + 2] / bin_size); 
+__global__ void BinPointsKernel(int points, int step_size, const float* dims, const float* pointcloud, std::vector<float*>* output) {
+    x_bin_size = dims[0] / step_size;
+    y_bin_size = dims[1] / step_size;
+    z_bin_size = dims[2] / step_size;
 
-        //output[x_bin]
+    for (int point_id=blockIdx.x * blockDim.x + threadIdx.x; point_id < points; point_id+= blockDim.x * gridDim.x) {
+        int x_bin = (int)(pointcloud[point_id * 3] / x_bin_size); 
+        int y_bin = (int)(pointcloud[point_id * 3 + 1] / y_bin_size); 
+        int z_bin = (int)(pointcloud[point_id * 3 + 2] / z_bin_size); 
+
+        float pt[3] = {pointcloud[point_id * 3], pointcloud[point_id * 3 + 1], pointcloud[point_id * 3 + 2]};
+        output[x_bin*y_bin_size*z_bin_size + y_bin*z_bin_size + z_bin].push_back(pt);
 
     }
 }
