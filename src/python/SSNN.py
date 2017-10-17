@@ -136,7 +136,9 @@ class SSNN:
 
     vox_label = np.zeros((preds.shape))
 
-    for bbox in labels:
+    for batch_id in labels.shape[0]:
+      for bbox in labels[batch_id]:
+        
       
 
 

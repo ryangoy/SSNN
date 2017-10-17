@@ -12,6 +12,7 @@ from os import listdir
 from utils import get_dims, normalize_pointclouds, load_points
 from SSNN import SSNN
 import time
+from object_boundaries import generate_bounding_boxes
 
 
 # Tensorflow flags boilerplate code.
