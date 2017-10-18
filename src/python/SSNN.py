@@ -72,7 +72,8 @@ class SSNN:
         (None, num_kernels, probes_per_kernel, probe_steps, probe_steps, probe_steps))
 
     # Shape: (batches, num_classes), in this case, it's a binary classifer.
-    self.y_ph = tf.placeholder(tf.float32, (None, None, 4))
+    self.y_ph = tf.placeholder(tf.float32, (None, probe_steps, probe_steps, probe_steps))
+    self.y_ph = tf.expand_dims(self.y_ph, axis=-1)
 
     # Shape: (batches, probes, x, y, z)
     self.dot_product = dot_product(self.X_ph)
@@ -90,11 +91,9 @@ class SSNN:
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    # Find box size
-    box_size = dims / steps
 
-    # 
-    self.loss = self.IoU_loss()
+    # tf.metrics.mean_iou(vox_label, preds, 1)
+    self.loss = tf.reduce_mean(tf.square(tf.subtract(self.model, self.y_ph)))
     self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
   def train_val(self, X_trn=None, y_trn=None, X_val=None, y_val=None, epochs=10, 
@@ -131,35 +130,7 @@ class SSNN:
     self.probe_output = pcs
     return np.array(pcs)
 
-  def IoU_loss(self, preds, labels):
-    """
-    Args:
-      preds (tensor): predicted confidence value for a certain box (batches, x, y, z)
-      labels (tensor): labeled boxes with (batches, box, 6), with the format for
-                       a box being min_x, min_y, min_z, max_x, max_y, max_z
-    """
 
-    vox_label = np.zeros((preds.shape))
-
-    for batch_id in labels.shape[0]:
-      for bbox in labels[batch_id]:
-        # bbox is [min_x, min_y, max_x, max_y]
-        c1 = np.floor(bbox[:3] / self.probe_size)
-        c2 = np.ceil(bbox[3:] / self.probe_size)
-
-        diff = c2 - c1
-
-        for i in range(diff[0]):
-          for j in range(diff[1]):
-            for k in range(diff[2]):
-              label_coords = c1 + [i,j,k]
-              if vox_label[label_coords] != 0:
-              LL = np.max([bbox[:3]/self.probe_size, label_coords], axis=0)
-              UR = np.min([bbox[3:]/self.probe_size, label_coords+1], axis=0) 
-              intersection = np.sqrt(np.sum(np.square([LL, UR])))
-              vox_label[label_coords] = max(intersection, vox_label[label_coords])
-
-    return tf.metrics.mean_iou(vox_label, preds, 1)
 
 
     

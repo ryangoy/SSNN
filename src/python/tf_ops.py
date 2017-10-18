@@ -29,12 +29,9 @@ def dot_product(inp, stddev=0.1, name='dot_product'):
     """
     This layer weights the output of probe3D. This is what the network trains.
     """
-    print inp.shape
     assert len(inp.shape) == 6, "Dot product expects input of shape (batches, kernels, probes_per_kernel, x, y, z)"
-    print inp.shape
     # Initialize weights
     weights = tf.Variable(tf.truncated_normal(shape=inp.shape[1:3], stddev=stddev), name=name)
-    print weights.shape
     # Dot product over input probe and samples per probe and weights
     axes = tf.constant([[1, 2], [0, 1]])
 

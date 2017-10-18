@@ -9,7 +9,7 @@ import tensorflow as tf
 import numpy as np
 from os.path import join, isdir
 from os import listdir
-from utils import get_dims, normalize_pointclouds, load_points
+from utils import normalize_pointclouds, load_points, voxelize_labels
 from SSNN import SSNN
 import time
 from object_boundaries import generate_bounding_boxes
@@ -24,8 +24,11 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/test',
                     'Path to base directory.')
 flags.DEFINE_integer('num_epochs', 1, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
-flags.DEFINE_integer('num_probe_steps', 10, 'Number of intervals to sample\
+flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
+flags.DEFINE_integer('num_kernels', 1, 'Number of kernels to probe with.')
+flags.DEFINE_integer('probes_per_kernel', 1, 'Number of sample points each\
+                      kernel has.')
 
 # Define constant paths
 X_NPY         = join(FLAGS.data_dir, 'input_data.npy')
@@ -35,13 +38,15 @@ OUTPUT_PATH   = join(FLAGS.data_dir, 'predictions.npy')
 
 def main(_):
 
-  X_raw, ys, yl = load_points(path=FLAGS.data_dir, X_npy_path=X_NPY,
+  X_raw, ys_raw, yl = load_points(path=FLAGS.data_dir, X_npy_path=X_NPY,
     ys_npy_path = YS_NPY, yl_npy_path = YL_NPY, load_from_npy=True)
 
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
-  X_cont, dims = normalize_pointclouds(X_raw)
+  X_cont, dims, ys = normalize_pointclouds(X_raw, ys_raw)
+  kernel_size = dims / FLAGS.num_steps
   bboxes = generate_bounding_boxes(ys)
+  y = voxelize_labels(bboxes, FLAGS.num_steps, kernel_size)
 
   # TODO: Preprocess input.
   # - remove outliers
@@ -50,9 +55,12 @@ def main(_):
   # - data augmentation
 
   # Initialize model. max_room_dims and step_size are in meters.
-  ssnn = SSNN(dims, num_kernels=1, probes_per_kernel=1, probe_steps=10)
+  ssnn = SSNN(dims, num_kernels=FLAGS.num_kernels, 
+                    probes_per_kernel=FLAGS.probes_per_kernel, 
+                    probe_steps=FLAGS.num_steps)
 
   # Probe processing.
+  print("Running probe operation...")
   probe_start = time.time()
   X = ssnn.probe(X_cont)
   probe_time = time.time() - probe_start
@@ -61,9 +69,9 @@ def main(_):
   # Train model.
   train_split = (1-FLAGS.val_split) * X.shape[0]
   X_trn = X[:train_split]
-  y_trn = bboxes[:train_split]
+  y_trn = y[:train_split]
   X_val = X[train_split:]
-  y_val = bboxes[train_split:]
+  y_val = y[train_split:]
   ssnn.train_val(X_trn, y_trn) #y_l not used yet for localization
 
   # Test model. Using validation since we won't be using real 

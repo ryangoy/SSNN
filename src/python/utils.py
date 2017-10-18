@@ -17,7 +17,37 @@ import time
 #   dims = maxes-mins
 #   return dims
 
-def normalize_pointclouds(pointcloud_arr):
+def voxelize_labels(labels, steps, kernel_size):
+  """
+  Args:
+    preds (tensor): predicted confidence value for a certain box (batches, x, y, z)
+    labels (tensor): labeled boxes with (batches, box, 6), with the format for
+                     a box being min_x, min_y, min_z, max_x, max_y, max_z
+  """
+  vox_label = np.zeros((len(labels), steps, steps, steps))
+
+  for scene_id in range(len(labels)):
+    for bbox in labels[scene_id]:
+      # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
+      c1 = np.floor(bbox[:3] / kernel_size).astype(int)
+      c2 = np.ceil(bbox[3:] / kernel_size).astype(int)
+      diff = c2 - c1
+      for i in range(diff[0]):
+        for j in range(diff[1]):
+          for k in range(diff[2]):
+            coords = c1 + [i,j,k]
+            
+            LL = np.max([bbox[:3]/kernel_size, coords], axis=0)
+            UR = np.min([bbox[3:]/kernel_size, coords+1], axis=0) 
+            intersection = np.sqrt(np.sum(np.square([LL, UR])))
+
+            prev_val = vox_label[scene_id, coords[0], coords[1], coords[2]]
+            vox_label[scene_id, coords[0], coords[1], coords[2]] = \
+                    np.max([intersection, prev_val])
+
+  return vox_label
+
+def normalize_pointclouds(pointcloud_arr, seg_arr):
   """
   Shifts pointclouds so the smallest xyz values map to the origin. We want to 
   preserve relative scale, but this also leads to excess or missed computation
@@ -32,18 +62,28 @@ def normalize_pointclouds(pointcloud_arr):
   """
   # Find the minimum x, y, and z values.
   shifted_pointclouds = []
+  shifted_segmentations = []
   gmax = None
-  for pointcloud in pointcloud_arr:
+
+  # Loop through scenes.
+  for pointcloud, seg in zip(pointcloud_arr, seg_arr):
     xyz = pointcloud[:, :3]
     mins = xyz.min(axis=0)
     maxes = xyz.max(axis=0)
     dims = maxes-mins
-    if gmax = None:
+    if gmax is None:
       gmax = maxes
     else:
-      gmax = np.array([maxes, gmax]).min(axis=0)
+      gmax = np.array([dims, gmax]).max(axis=0)
+
+    shifted_objs = []
+    # Loop through each object label in this scene.
+    for obj in seg:
+      shifted_objs.append(np.array(obj[:,:3]-mins))
+    shifted_segmentations.append(shifted_objs)
+
     shifted_pointclouds.append(np.array([xyz-mins]))
-  return shifted_pointclouds, gmax
+  return shifted_pointclouds, gmax, shifted_segmentations
 
 def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
                 load_from_npy=True):
@@ -52,9 +92,14 @@ def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
   """
   if exists(X_npy_path) and load_from_npy:
     assert X_npy_path is not None, "No path given for .npy file."
+    print("Loading points from npy file...")
     X, ys, yl = load_npy(X_npy_path, ys_npy_path, yl_npy_path)
+    # np.save(X_npy_path, X[:10])
+    # np.save(ys_npy_path, ys[:10])
+    # np.save(yl_npy_path, yl[:10])
   else:
     assert path is not None, "No path given for pointcloud directory."
+    print("Loading points from directory...")
     X, ys, yl = load_directory(FLAGS.data_dir)
     np.save(X_npy_path, X)
     np.save(ys_npy_path, ys)
