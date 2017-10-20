@@ -1,21 +1,17 @@
 import numpy as np
 import sys
 import paths
-from os.path import join, exists
+from os.path import join, exists, isdir, isfile
+from os import makedirs
 import time
 from scipy.misc import imsave
 
 
 
-def save_output(save_dir, image_batch):
-  batch_id = 0
-  assert len(image_batch.shape) == 5
-  for output in image_batch:
-    ts = 0
-    for image in output:
-      imsave(join(save_dir, "i{}_t{}.png"), image)
-      ts += 1
-    batch_id += 1
+def save_output(output_path, output):
+  print('Saving predictions to {}'.format(output_path))
+  np.save(output_path, output)
+
 
 def voxelize_labels(labels, steps, kernel_size):
   """

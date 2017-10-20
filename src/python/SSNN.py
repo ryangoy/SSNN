@@ -135,9 +135,8 @@ class SSNN:
       batch_x = X_test[i:i+batch_size]
       batch = self.sess.run(self.model, feed_dict={self.X_ph: batch_x})
       preds.append(batch)
-    preds = np.array(preds).squeeze(axis=1)
-    if save_dir is not None:
-      save_batch(save_dir, batch)
+    preds = np.array(preds)
+    preds = preds.reshape((-1,) + preds.shape[2:])
     return preds
 
   def probe(self, X):

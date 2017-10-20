@@ -9,7 +9,7 @@ import tensorflow as tf
 import numpy as np
 from os.path import join, isdir
 from os import listdir
-from utils import normalize_pointclouds, load_points, voxelize_labels
+from utils import normalize_pointclouds, load_points, voxelize_labels, save_output
 from SSNN import SSNN
 import time
 from object_boundaries import generate_bounding_boxes
@@ -41,7 +41,7 @@ def main(_):
   X_raw, ys_raw, yl = load_points(path=FLAGS.data_dir, X_npy_path=X_NPY,
     ys_npy_path = YS_NPY, yl_npy_path = YL_NPY, load_from_npy=True)
 
-
+  print("Loaded {} pointclouds.".format(len(X_raw)))
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
   print("Normalizing pointlcouds...")
@@ -91,7 +91,7 @@ def main(_):
   preds = ssnn.test(X_val)
 
   # Save output.
-  np.save(OUTPUT_PATH, preds)
+  save_output(OUTPUT_PATH, preds)
 
 # Tensorflow boilerplate code.
 if __name__ == '__main__':

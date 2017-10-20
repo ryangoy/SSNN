@@ -76,6 +76,40 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
 
 }
 
+
+__global__ void GenerateGridList(int batches, int points, int num_steps, int step_size, const float* pointcloud, float* output_indices, float* output_points) {
+    //__device__ int curr_index = 0;
+    for (int b=0; b < batches; b++) {
+        for (int i = blockIdx.z * blockDim.z + threadIdx.z; i < steps; i+= blockDim.z * gridDim.z) {
+            int x_min = i*step_size;
+            int x_max = (i+1)*step_size;
+            for (int j = blockIdx.y * blockDim.y + threadIdx.y; j < steps; j+= blockDim.y * gridDim.y) {
+                int y_min = j*step_size;
+                int y_max = (j+1)*step_size;
+                for (int k = blockIdx.x * blockDim.x + threadIdx.x; k < steps; k+= blockDim.x * gridDim.x) {
+                    int z_min = k*step_size;
+                    int z_max = (k+1)*step_size;
+                    output_indices[b*step_size*step_size*step_size+i*step_size*step_size+j*step_size+k] = curr_index;
+                    //output_indices[curr_voxel] = curr_index;
+                    for (int p=0; p < points; p++) {
+                        float x_val = output_points[batches*points*3+p*3];
+                        float y_val = output_points[batches*points*3+p*3+1];
+                        float z_val = output_points[batches*points*3+p*3+2];
+                        if (x_val >= x_min and x_val < x_max and 
+                            y_val >= y_min and y_val < y_max and 
+                            z_val >= z_min and z_val < z_max){
+                            curr_index = atomicAdd(&grid_index, 1)
+                            output_points[curr_index*3] = x_val;
+                            output_points[curr_index*3+1] = y_val;
+                            output_points[curr_index*3+2] = z_val;
+                        }
+                    }
+                    // curr_voxel++;
+                }
+            }
+        }
+    }
+}
 // void BinPointsKernel(int points, int step_size, const float* dims, const float* pointcloud, std::vector<float>* output) {
 //     float x_bin_size = dims[0] / step_size;
 //     float y_bin_size = dims[1] / step_size;
@@ -99,7 +133,7 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
 void probeLauncher(int batches, int filters, int samples_per_probe, int points, const float* input_tensor, const float* weights,
       const float* dims, int steps, float* output_tensor){
 
-
+    __device__ int grid_index = -1;
     // std::list<float> vox_ds [3*steps*steps*steps]; 
     // // cudaMallocManaged(&vox_ds, steps*steps*steps*sizeof(std::list<float>*));
     // BinPointsKernel(points, steps, dims, input_tensor[0], vox_ds);
