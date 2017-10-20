@@ -41,10 +41,13 @@ def main(_):
   X_raw, ys_raw, yl = load_points(path=FLAGS.data_dir, X_npy_path=X_NPY,
     ys_npy_path = YS_NPY, yl_npy_path = YL_NPY, load_from_npy=True)
 
+
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
+  print("Normalizing pointlcouds...")
   X_cont, dims, ys = normalize_pointclouds(X_raw, ys_raw)
   kernel_size = dims / FLAGS.num_steps
+  print("Generating labels...")
   bboxes = generate_bounding_boxes(ys)
   y = voxelize_labels(bboxes, FLAGS.num_steps, kernel_size)
 
@@ -53,11 +56,18 @@ def main(_):
   # - align to nearest 90 degree angle
   # - remove walls?
   # - data augmentation
+  X_ = []
+  for sc in X_cont:
+    X_.append([sc[0][:10000]])
+  X_cont = np.array(X_)
 
+  print X_cont.shape
   # Initialize model. max_room_dims and step_size are in meters.
   ssnn = SSNN(dims, num_kernels=FLAGS.num_kernels, 
                     probes_per_kernel=FLAGS.probes_per_kernel, 
                     probe_steps=FLAGS.num_steps)
+
+
 
   # Probe processing.
   print("Running probe operation...")
@@ -66,8 +76,10 @@ def main(_):
   probe_time = time.time() - probe_start
   print("Probe operation took {:.4f} seconds to run.".format(probe_time))
 
+  X = np.squeeze(X, axis=1)
+
   # Train model.
-  train_split = (1-FLAGS.val_split) * X.shape[0]
+  train_split = int((1-FLAGS.val_split) * X.shape[0])
   X_trn = X[:train_split]
   y_trn = y[:train_split]
   X_val = X[train_split:]

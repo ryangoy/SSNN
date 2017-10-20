@@ -3,19 +3,19 @@ import sys
 import paths
 from os.path import join, exists
 import time
+from scipy.misc import imsave
 
 
 
-# def get_dims(pointcloud):
-#   """
-#   Args:
-#     pointcloud (np.ndarray): array of xyzrgb points (batches, points, 6)
-#   """
-#   xyz = pointcloud[:, :, :3]
-#   mins = xyz.amin(axis=(0, 1))
-#   maxes = xyz.amax(axis=(0, 1))
-#   dims = maxes-mins
-#   return dims
+def save_output(save_dir, image_batch):
+  batch_id = 0
+  assert len(image_batch.shape) == 5
+  for output in image_batch:
+    ts = 0
+    for image in output:
+      imsave(join(save_dir, "i{}_t{}.png"), image)
+      ts += 1
+    batch_id += 1
 
 def voxelize_labels(labels, steps, kernel_size):
   """

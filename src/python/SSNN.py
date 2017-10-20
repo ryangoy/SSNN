@@ -65,15 +65,18 @@ class SSNN:
                             num_kernels=num_kernels, 
                             probes_per_kernel=probes_per_kernel)
 
-  def init_model(self, num_kernels, probes_per_kernel, probe_steps, learning_rate=0.01):
+  def init_model(self, num_kernels, probes_per_kernel, probe_steps, 
+                 learning_rate=0.01):
 
     # Shape: (batches, num_kernels, probes_per_kernel, x, y, z)
-    self.X_ph = tf.placeholder(tf.float32, 
-        (None, num_kernels, probes_per_kernel, probe_steps, probe_steps, probe_steps))
+    self.X_ph = tf.placeholder(tf.float32, (None, num_kernels, 
+                                            probes_per_kernel, probe_steps, 
+                                            probe_steps, probe_steps))
 
     # Shape: (batches, num_classes), in this case, it's a binary classifer.
-    self.y_ph = tf.placeholder(tf.float32, (None, probe_steps, probe_steps, probe_steps))
-    self.y_ph = tf.expand_dims(self.y_ph, axis=-1)
+    self.y_ph = tf.placeholder(tf.float32, (None, probe_steps, 
+                                            probe_steps, probe_steps))
+    # self.y_ph = tf.expand_dims(self.y_ph, axis=-1)
 
     # Shape: (batches, probes, x, y, z)
     self.dot_product = dot_product(self.X_ph)
@@ -103,20 +106,39 @@ class SSNN:
     assert y_trn is not None, "Labels must be defined for train_val call."
 
     for epoch in range(epochs):
-      for step in range(int(X_trn.shape[0]/batch_size)):
-        batch_x, batch_y = self.get_next_batch(X_trn, y_trn, batch_size)
-        sess.run(self.optimizer, feed_dict={self.X_ph: batch_x, 
+      for step in range(0, X_trn.shape[0], batch_size): 
+        # batch_x, batch_y = self.get_next_batch(X_trn, y_trn, batch_size)
+        batch_x = X_trn[step:step+batch_size]
+        batch_y = y_trn[step:step+batch_size]
+        self.sess.run(self.optimizer, feed_dict={self.X_ph: batch_x, 
                                             self.y_ph: batch_y})
 
         if step % display_step == 0:
-          loss, acc = self.sess.run([self.cost, self.accuracy], 
-                                feed_dict={x: batch_x, y: batch_y})
-          print("Iter {}, Batch Loss={:.6f}, Training Accuracy={:.5f}.".format(step, loss, acc))
+          loss = self.sess.run(self.loss, 
+                             feed_dict={self.X_ph: batch_x, self.y_ph: batch_y})
+          print("Epoch: {}, Iter: {}, Loss: {:.6f}.".format(epoch, step, loss))
 
       if X_val is not None and y_val is not None:
-        loss = sess.run(self.cost, feed_dict={x: X_val, y: y_val})
+        val_loss = 0
+        for step in range(0, X_val.shape[0], batch_size):
+          val_batch_x = X_val[step:step+batch_size]
+          val_batch_y = y_val[step:step+batch_size]
+          val_loss += self.sess.run(self.loss, 
+                      feed_dict={self.X_ph: val_batch_x, sef.y_ph: val_batch_y})
 
-      print("Epoch {}, Validation Loss={:6f}, Validation Accuracy={:.5f}.".format(loss, acc))
+        print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
+                                                       val_loss/X_val.shape[0]))
+
+  def test(self, X_test, save_dir=None, batch_size=1):
+    preds = []
+    for i in range(0, X_test.shape[0], batch_size):
+      batch_x = X_test[i:i+batch_size]
+      batch = self.sess.run(self.model, feed_dict={self.X_ph: batch_x})
+      preds.append(batch)
+    preds = np.array(preds).squeeze(axis=1)
+    if save_dir is not None:
+      save_batch(save_dir, batch)
+    return preds
 
   def probe(self, X):
     """
