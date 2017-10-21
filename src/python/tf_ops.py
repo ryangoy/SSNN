@@ -22,7 +22,7 @@ def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_s
     assert type(probes_per_kernel) is int, "probes_per_kernel must be of type int."
 
     # Initialize weights with given parameters.
-    weights = tf.Variable(tf.truncated_normal(shape=[num_kernels, probes_per_kernel, 3], stddev=kernel_size[0]/2), name='probe3D')
+    weights = tf.Variable(tf.random_uniform(shape=[num_kernels, probes_per_kernel, 3], minval=0, maxval=kernel_size), name='probe3D')
     return probe_module.probe(inp, weights, dims, steps=steps[0])
 
 def dot_product(inp, stddev=0.1, name='dot_product'):

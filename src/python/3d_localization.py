@@ -27,7 +27,7 @@ flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
 flags.DEFINE_integer('num_kernels', 1, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 1, 'Number of sample points each\
+flags.DEFINE_integer('probes_per_kernel', 16, 'Number of sample points each\
                       kernel has.')
 
 # Define constant paths
