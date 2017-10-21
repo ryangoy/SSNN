@@ -16,7 +16,7 @@
 
 
 __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int points, 
-    const float* input, const float* weights, const float* dims, int steps, float* output) {
+    float* gl_points, float* gl_indices, const float* weights, const float* dims, int steps, float* output) {
 	// PSEUDO CODE
     // input: point cloud with size [n, p, 3]
     //        weights with size [n, c, 3]
@@ -30,14 +30,33 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
 
     int num_intervals = steps * steps * steps;
 
+
+    // for block x
+    // N threads
+    // batch = N / (steps*steps*steps);
+    // int x_step = N % (steps*steps*steps) / (steps*steps);
+    // int y_step = N % (steps*steps) / steps;
+    // int z_step = N % steps;
+
+    // for block y
+    // iter over kernels
+
+    // for block z
+    // iter over probes
+
+
     for (int batch = 0; batch < batches; batch++) {
-        for (int i = blockIdx.x; i < steps; i+= gridDim.x){
-        //for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < steps; i+= blockDim.x * gridDim.x){
-            for (int j = blockIdx.y; j < steps; j+= gridDim.y) {
-            // for (int j = blockIdx.y * blockDim.y + threadIdx.y; j < steps; j+= blockDim.y * gridDim.y) {
-                for (int k = blockIdx.z; k < steps; k+= gridDim.z) {
-                // for (int k = blockIdx.z * blockDim.z + threadIdx.z; k < steps; k+= blockDim.z * gridDim.z) {
+        //for (int i = blockIdx.x; i < steps; i+= gridDim.x){
+        for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < steps; i+= blockDim.x * gridDim.x){
+            //for (int j = blockIdx.y; j < steps; j+= gridDim.y) {
+            for (int j = blockIdx.y * blockDim.y + threadIdx.y; j < steps; j+= blockDim.y * gridDim.y) {
+                //for (int k = blockIdx.z; k < steps; k+= gridDim.z) {
+                for (int k = blockIdx.z * blockDim.z + threadIdx.z; k < steps; k+= blockDim.z * gridDim.z) {
                     // Convert step coordinates to world coordinates. 
+                    float start_index = gl_indices[batch*steps*steps*steps+i*steps*steps+j*steps+k];
+                    float end_index = gl_indices[batch*steps*steps*steps+i*steps*steps+j*steps+k+1];
+                    int num_vox_points = end_index - start_index;
+                    float* vox_gl_points = gl_points+start_index;
                     float xc = dims[0] / steps * i;
                     float yc = dims[1] / steps * j;
                     float zc = dims[2] / steps * k;
@@ -50,10 +69,9 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
                             float closest_dist = 1e38;
                             // This is where binned data would be called:
                             // printf("num points is %d\n", points);
-                            for (int point_index = 0; point_index < points; point_index++) {
-                                int curr_point_index = batch*points*3+point_index*3;
-                                float curr_point [] = {input[curr_point_index], input[curr_point_index+1],
-                                                       input[curr_point_index+2]};
+                            for (int point_index = 0; point_index < num_vox_points; point_index++) {
+                                float curr_point [] = {vox_gl_points[point_index], vox_gl_points[point_index+1],
+                                                       vox_gl_points[point_index+2]};
                                 float dist = (sample_coord[0]-curr_point[0])*(sample_coord[0]-curr_point[0]) 
                                             +(sample_coord[1]-curr_point[1])*(sample_coord[1]-curr_point[1]) 
                                             +(sample_coord[2]-curr_point[2])*(sample_coord[2]-curr_point[2]);
@@ -77,19 +95,19 @@ __global__ void ProbeKernel(int batches, int filters, int samples_per_probe, int
 }
 
 
-__global__ void GenerateGridList(int batches, int points, int num_steps, int step_size, const float* pointcloud, float* output_indices, float* output_points) {
+__global__ void GenerateGridList(int batches, int points, int num_steps, float x_step_size, float y_step_size, float z_step_size, const float* pointcloud, float* output_indices, float* output_points) {
     //__device__ int curr_index = 0;
     for (int b=0; b < batches; b++) {
         for (int i = blockIdx.z * blockDim.z + threadIdx.z; i < steps; i+= blockDim.z * gridDim.z) {
-            int x_min = i*step_size;
-            int x_max = (i+1)*step_size;
+            float x_min = i*x_step_size;
+            float x_max = (i+1)*x_step_size;
             for (int j = blockIdx.y * blockDim.y + threadIdx.y; j < steps; j+= blockDim.y * gridDim.y) {
-                int y_min = j*step_size;
-                int y_max = (j+1)*step_size;
+                float y_min = j*y_step_size;
+                float y_max = (j+1)*y_step_size;
                 for (int k = blockIdx.x * blockDim.x + threadIdx.x; k < steps; k+= blockDim.x * gridDim.x) {
-                    int z_min = k*step_size;
-                    int z_max = (k+1)*step_size;
-                    output_indices[b*step_size*step_size*step_size+i*step_size*step_size+j*step_size+k] = curr_index;
+                    float z_min = k*z_step_size;
+                    float z_max = (k+1)*z_step_size;
+                    output_indices[b*num_steps*num_steps*num_steps+i*num_steps*num_steps+j*num_steps+k] = curr_index;
                     //output_indices[curr_voxel] = curr_index;
                     for (int p=0; p < points; p++) {
                         float x_val = output_points[batches*points*3+p*3];
@@ -132,26 +150,39 @@ __global__ void GenerateGridList(int batches, int points, int num_steps, int ste
 
 void probeLauncher(int batches, int filters, int samples_per_probe, int points, const float* input_tensor, const float* weights,
       const float* dims, int steps, float* output_tensor){
-
+    dim3 nb (2, 2, 2);
+    dim3 threads_per_block(8, 8, 8);
     __device__ int grid_index = -1;
+
     // std::list<float> vox_ds [3*steps*steps*steps]; 
     // // cudaMallocManaged(&vox_ds, steps*steps*steps*sizeof(std::list<float>*));
     // BinPointsKernel(points, steps, dims, input_tensor[0], vox_ds);
 
+    float x_step_size = dims[0] / steps;
+    float y_step_size = dims[1] / steps;
+    float x_step_size = dims[2] / steps;
+    float* gl_indices;
+    float* gl_points;
+    cudaMallocManaged(&output_indices, steps*steps*steps*sizeof(int));
+    cudaMallocManaged(&output_points, points*sizeof(float));
 
-
-    // thrust::device_vector<float> D_vox_ds = 
-
-    int threads_per_block = 512;
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start);
-    ProbeKernel<<<dim3(16, 16, 16), threads_per_block>>>
-        (batches, filters, samples_per_probe, points, input_tensor, weights, dims, steps, output_tensor);
+    GenerateGridList<<<nb, threads_per_block>>>(batches, points, steps, x_step_size, y_step_size, z_step_size, input_tensor, gl_indices, gl_points);
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
-    //printf("milliseconds to run: %f \n", milliseconds);
+    printf("Milliseconds to run gridlist datastructure: %f \n", milliseconds);
+    ProbeKernel<<<nb, threads_per_block>>>
+        (batches, filters, samples_per_probe, points, gl_points, gl_indices, weights, dims, steps, output_tensor);
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("Milliseconds to run probe filter: %f \n", milliseconds);
+
+    cudaFree(gl_indices);
+    cudaFree(gl_points);
 }
