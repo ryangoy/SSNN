@@ -60,7 +60,7 @@ def main(_):
   for sc in X_cont:
     X_.append([sc[0][:10000]])
   X_cont = np.array(X_)
-
+  
   print X_cont.shape
   # Initialize model. max_room_dims and step_size are in meters.
   ssnn = SSNN(dims, num_kernels=FLAGS.num_kernels, 

@@ -23,7 +23,8 @@ def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_s
 
     # Initialize weights with given parameters.
     weights = tf.Variable(tf.random_uniform(shape=[num_kernels, probes_per_kernel, 3], minval=0, maxval=kernel_size), name='probe3D')
-    return probe_module.probe(inp, weights, dims, steps=steps[0])
+    output = probe_module.probe(inp, weights, xdim=dims[0], ydim=dims[1], zdim=dims[2], steps=steps[0])
+    return output
 
 def dot_product(inp, stddev=0.1, name='dot_product'):
     """
