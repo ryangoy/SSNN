@@ -170,8 +170,8 @@ void probeLauncher(int batches, int filters, int samples_per_probe, int points, 
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("Milliseconds to run probe filter: %f \n", milliseconds);
 
-    // cudaFree(gl_indices);
-    // cudaFree(gl_points);
+    cudaFree(gl_indices);
+    cudaFree(gl_points);
     printf("Freed gridlist datastructure.\n");
 }
 
