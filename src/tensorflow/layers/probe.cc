@@ -9,7 +9,7 @@
 // #include <cuda_runtime.h>
 // #include <iostream>
 
-
+#include <stdio.h>
 using namespace tensorflow;
 // using CPUDevice = Eigen::ThreadPoolDevice;
 // using GPUDevice = Eigen::GpuDevice;
@@ -18,9 +18,11 @@ using namespace tensorflow;
 // Define Probe interface.
 REGISTER_OP("Probe")
   .Attr("steps: int = 10")
+  .Attr("xdim: float = 10.0")
+  .Attr("ydim: float = 10.0")
+  .Attr("zdim: float = 10.0")
   .Input("input: float32")
   .Input("weights: float32")
-  .Input("dims: float32")
   .Output("output: float32")
   // .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
   //   shape_inference::ShapeHandle input_shape;
@@ -62,28 +64,33 @@ REGISTER_OP("Probe")
 // CPU specialization of actual computation.
 // template <typename Device, typename T>
 void probeLauncher(int batches, int kernels, int samples_per_probe, int points, const float* input_tensor, const float* weights,
-      const float* dims, int steps, float* output_tensor);
+      float xdim, float ydim, float zdim, int steps, float* output_tensor);
 class ProbeOp : public OpKernel {
 public:
   explicit ProbeOp(OpKernelConstruction* context) : OpKernel(context) {
     OP_REQUIRES_OK(context, context->GetAttr("steps", &steps_));
+    OP_REQUIRES_OK(context, context->GetAttr("xdim", &xdim_));
+    OP_REQUIRES_OK(context, context->GetAttr("ydim", &ydim_));
+    OP_REQUIRES_OK(context, context->GetAttr("zdim", &zdim_));
   }
 
   void Compute(OpKernelContext* context) override {
-
     // Grab the input tensor
     const Tensor& input_tensor = context->input(0);
     const Tensor& weights = context->input(1);
-    const Tensor& dims = context->input(2);
+    // const Tensor& dims = context->input(2);
     OP_REQUIRES(context, input_tensor.dims()==3, 
       errors::InvalidArgument("Probe expects (batches, points, 3) input shape"));
     OP_REQUIRES(context, weights.dims()==3, 
       errors::InvalidArgument("Probe expects (filters, probes, 3) weights shape"));
-    OP_REQUIRES(context, dims.dims()==1, 
-      errors::InvalidArgument("Probe expects dims to be of dimension 1"));
+    // OP_REQUIRES(context, dims.dims()==1, 
+    //   errors::InvalidArgument("Probe expects dims to be of dimension 1"));
 
 
     int steps = steps_;
+    float xdim = xdim_;
+    float ydim = ydim_;
+    float zdim = zdim_;
     // TF_RETURN_IF_ERROR(c->GetAttr("steps", &steps));
     // Create an output tensor with the correct output shape
     // [num_batches, num_filters, x_steps, y_steps, z_steps]
@@ -92,7 +99,7 @@ public:
     int npoints = input_tensor.shape().dim_size(1);
     int nkernels = weights.shape().dim_size(0);
     int nsamples = weights.shape().dim_size(1);
-
+    // printf("batches %d kernels %d samples per probe %d points %d\n", nbatches, nkernels, nsamples, npoints);
 
     OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{nbatches,nkernels,nsamples,steps,steps,steps},
                                                      &output_tensor));
@@ -107,12 +114,14 @@ public:
     const float* inp = &(input_tensor.flat<float>()(0));
     float* out = &(output_tensor->flat<float>()(0));
     const float* cweights = &(weights.flat<float>()(0));
-    const float* cdims = &(dims.flat<float>()(0));
-    
-    probeLauncher(nbatches, nkernels, nsamples, npoints, inp, cweights, cdims, steps, out);
+    // const float* cdims = &(dims.flat<float>()(0));
+    probeLauncher(nbatches, nkernels, nsamples, npoints, inp, cweights, xdim, ydim, zdim, steps, out);
   }
 private:
   int steps_;
+  float xdim_;
+  float ydim_;
+  float zdim_;
 };
 
 // Register the CPU kernels.

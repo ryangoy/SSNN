@@ -133,20 +133,21 @@ __global__ void GenerateGridList(int batches, int points, int num_steps, float x
 
 
 void probeLauncher(int batches, int filters, int samples_per_probe, int points, const float* input_tensor, const float* weights,
-      const float* dims, int steps, float* output_tensor){
+      float xdim, float ydim, float zdim, int steps, float* output_tensor){
     dim3 nb (2, 2, 2);
     dim3 threads_per_block(8, 8, 8);
-
 
     // std::list<float> vox_ds [3*steps*steps*steps]; 
     // // cudaMallocManaged(&vox_ds, steps*steps*steps*sizeof(std::list<float>*));
     // BinPointsKernel(points, steps, dims, input_tensor[0], vox_ds);
-
-    float x_step_size = dims[0] / steps;
-    float y_step_size = dims[1] / steps;
-    float z_step_size = dims[2] / steps;
+    float x_step_size = xdim / steps;
+    float y_step_size = ydim / steps;
+    float z_step_size = zdim / steps;
     float* gl_indices;
     float* gl_points;
+    float dims[3] =  {xdim, ydim, zdim};
+
+    printf("[Probe] CUDA arrays successfully allocated.\n");
 
     cudaMallocManaged(&gl_indices, steps*steps*steps*sizeof(int));
     cudaMallocManaged(&gl_points, points*sizeof(float));
@@ -169,8 +170,9 @@ void probeLauncher(int batches, int filters, int samples_per_probe, int points, 
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("Milliseconds to run probe filter: %f \n", milliseconds);
 
-    cudaFree(gl_indices);
-    cudaFree(gl_points);
+    // cudaFree(gl_indices);
+    // cudaFree(gl_points);
+    printf("Freed gridlist datastructure.\n");
 }
 
 // void BinPointsKernel(int points, int step_size, const float* dims, const float* pointcloud, std::vector<float>* output) {
