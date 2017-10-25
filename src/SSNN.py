@@ -92,22 +92,20 @@ class SSNN:
     self.y_ph = tf.placeholder(tf.float32, (None, probe_steps, 
                                             probe_steps, probe_steps))
 
-    # Shape: (batches, probes, x, y, z)
+    # Shape: (batches, x, y, z, features)
     self.dot_product = dot_product(self.X_ph, filters=1)
 
-    self.dot_product = tf.transpose(self.dot_product, (0, 2, 3, 4, 1))
-
-    self.c1 = tf.layers.conv3d(self.dot_product, filters=16, kernel_size=3, 
+    self.c1 = tf.layers.conv3d(self.dot_product, filters=32, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-    self.mp1 = tf.nn.max_pool3d(self.c1, ksize=[1, 2, 2, 2, 1], 
-                                  strides=[1, 1, 1, 1, 1], padding='SAME')
-
-    self.model = tf.layers.conv3d(self.mp1, filters=1, kernel_size=3,
+    # print self.c1.shape
+    # self.mp1 = tf.nn.max_pool3d(self.c1, ksize=[1, 2, 2, 2, 1], 
+    #                               strides=[1, 2, 2, 2, 1], padding='SAME')
+    # print self.mp1.shape
+    self.model = tf.layers.conv3d(self.c1, filters=1, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
-
+    self.model = tf.squeeze(self.model, -1)
     self.loss = tf.reduce_mean(tf.square(tf.subtract(self.model, self.y_ph)))
     self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
@@ -156,10 +154,14 @@ class SSNN:
       X (np.ndarray): array of pointclouds (batches, num_points, 3)
     """
     pcs = []
+    counter = 0
     for pc in X:
       pc = np.array([pc[0]])
       pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       pcs.append(pc_disc)
+      if counter % 10 == 0 and counter != 0:
+        print('Finished probing {} pointclouds'.format(counter))
+      counter += 1
     self.probe_output = pcs
     return np.array(pcs)
 

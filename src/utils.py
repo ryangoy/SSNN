@@ -2,7 +2,7 @@ import numpy as np
 import sys
 import paths
 from os.path import join, exists, isdir, isfile
-from os import makedirs
+from os import makedirs, listdir
 import time
 from scipy.misc import imsave
 
@@ -90,13 +90,10 @@ def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
     assert X_npy_path is not None, "No path given for .npy file."
     print("Loading points from npy file...")
     X, ys, yl = load_npy(X_npy_path, ys_npy_path, yl_npy_path)
-    # np.save(X_npy_path, X[:10])
-    # np.save(ys_npy_path, ys[:10])
-    # np.save(yl_npy_path, yl[:10])
   else:
     assert path is not None, "No path given for pointcloud directory."
     print("Loading points from directory...")
-    X, ys, yl = load_directory(FLAGS.data_dir)
+    X, ys, yl = load_directory(path)
     np.save(X_npy_path, X)
     np.save(ys_npy_path, ys)
     np.save(yl_npy_path, yl)

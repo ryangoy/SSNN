@@ -162,7 +162,7 @@ void probeLauncher(int batches, int filters, int probes_per_filter, int points, 
     cudaMallocManaged(&gl_indices, batches*steps*steps*steps*sizeof(int));
     cudaMallocManaged(&gl_points, batches*points*3*sizeof(float));
 
-    printf("[Probe] CUDA arrays successfully allocated.\n");
+    //printf("[Probe] CUDA arrays successfully allocated.\n");
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -186,7 +186,7 @@ void probeLauncher(int batches, int filters, int probes_per_filter, int points, 
     cudaEventSynchronize(stop);
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("[Probe] Milliseconds to run gridlist datastructure: %f \n", milliseconds);
+    //printf("[Probe] Milliseconds to run gridlist datastructure: %f \n", milliseconds);
 
     cudaEvent_t start_2, stop_2;
     cudaEventCreate(&start_2);
@@ -198,9 +198,9 @@ void probeLauncher(int batches, int filters, int probes_per_filter, int points, 
     cudaEventSynchronize(stop_2);
     float milliseconds_2 = 0;
     cudaEventElapsedTime(&milliseconds_2, start_2, stop_2);
-    printf("[Probe] Milliseconds to run probe filter: %f \n", milliseconds_2);
+    //printf("[Probe] Milliseconds to run probe filter: %f \n", milliseconds_2);
 
     cudaFree(gl_indices);
     cudaFree(gl_points);
-    printf("[Probe] Freed gridlist datastructure.\n");
+    //printf("[Probe] Freed gridlist datastructure.\n");
 }

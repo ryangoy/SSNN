@@ -22,15 +22,15 @@ FLAGS = flags.FLAGS
 # Define user inputs.
 flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/test', 
                     'Path to base directory.')
-flags.DEFINE_integer('num_epochs', 1, 'Number of epochs to train.')
+flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
+                    dataset')
+flags.DEFINE_integer('num_epochs', 10, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
 flags.DEFINE_integer('num_kernels', 16, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 128, 'Number of sample points each\
+flags.DEFINE_integer('probes_per_kernel', 512, 'Number of sample points each\
                       kernel has.')
-flags.DEFINE_integer('max_points_per_cloud', 100000, 'Max number of points each \
-                      cloud passes into the pipeline.')
 
 # Define constant paths
 X_NPY         = join(FLAGS.data_dir, 'input_data.npy')
@@ -41,7 +41,8 @@ OUTPUT_PATH   = join(FLAGS.data_dir, 'predictions.npy')
 def main(_):
 
   X_raw, ys_raw, yl = load_points(path=FLAGS.data_dir, X_npy_path=X_NPY,
-    ys_npy_path = YS_NPY, yl_npy_path = YL_NPY, load_from_npy=True)
+                                  ys_npy_path = YS_NPY, yl_npy_path = YL_NPY, 
+                                  load_from_npy=FLAGS.load_from_npy)
 
   print("Loaded {} pointclouds.".format(len(X_raw)))
   
@@ -54,6 +55,9 @@ def main(_):
   bboxes = generate_bounding_boxes(ys)
   y = voxelize_labels(bboxes, FLAGS.num_steps, kernel_size)
 
+  np.save('vox_labels.npy', y)
+  exit()
+
   # TODO: Preprocess input.
   # - remove outliers
   # - align to nearest 90 degree angle
@@ -62,7 +66,7 @@ def main(_):
 
   X_ = []
   for sc in X_cont:
-    X_.append([sc[0][:FLAGS.max_points_per_cloud]])
+    X_.append([sc[0]])
 
   X_cont = np.array(X_)
 
