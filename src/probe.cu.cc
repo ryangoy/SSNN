@@ -64,16 +64,13 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
 
 }
 
-__global__ void GenerateGridList(int batches, int points, int steps, float x_step_size, float y_step_size, 
+__global__ void GenerateGridListIndices(int batches, int points, int steps, float x_step_size, float y_step_size, 
                                  float z_step_size, const float* pointcloud, float* output_indices, 
                                  float* output_points) {
-    int grid_index = 0;
 
-    // TODO: parallelize this
-    // Extremely inefficient code that can only use one core due to the use of grid_index. Need to figure out a better
-    // way to do this.
-    //for (int n = blockIdx.x * blockDim.x + threadIdx.x; n < batches*steps*steps*steps*filters*probes_per_filter; n+= blockDim.x * gridDim.x){
-    for (int n = 0; n < batches*steps*steps*steps; n++) {
+    for (int n = blockIdx.x * blockDim.x + threadIdx.x; n < batches*steps*steps*steps; n+= blockDim.x * gridDim.x){
+    //for (int n = 0; n < batches*steps*steps*steps; n++) {
+        int grid_index = 0;
         int b = n / (steps*steps*steps);
         int i = n % (steps*steps*steps) / (steps*steps);
         int j = n % (steps*steps) / steps;
@@ -98,9 +95,6 @@ __global__ void GenerateGridList(int batches, int points, int steps, float x_ste
                 y_val >= y_min and y_val < y_max and 
                 z_val >= z_min and z_val < z_max){
 
-                output_points[grid_index*3] = x_val;
-                output_points[grid_index*3+1] = y_val;
-                output_points[grid_index*3+2] = z_val;
                 grid_index += 1;
             }
         }
@@ -108,6 +102,45 @@ __global__ void GenerateGridList(int batches, int points, int steps, float x_ste
     }
 }
 
+__global__ void GenerateGridList(int batches, int points, int steps, float x_step_size, float y_step_size, 
+                                 float z_step_size, const float* pointcloud, float* output_indices, 
+                                 float* output_points) {
+    for (int n = blockIdx.x * blockDim.x + threadIdx.x; n < batches*steps*steps*steps; n+= blockDim.x * gridDim.x){
+    //for (int n = 0; n < batches*steps*steps*steps; n++) {
+        int b = n / (steps*steps*steps);
+        int i = n % (steps*steps*steps) / (steps*steps);
+        int j = n % (steps*steps) / steps;
+        int k = n % steps;
+        
+        // Compute bounds for the given voxel
+        float x_min = i*x_step_size;
+        float x_max = (i+1)*x_step_size;
+        float y_min = j*y_step_size;
+        float y_max = (j+1)*y_step_size;
+        float z_min = k*z_step_size;
+        float z_max = (k+1)*z_step_size;
+
+        int grid_index = output_indices[b*steps*steps*steps+i*steps*steps+j*steps+k];
+
+        // For each point, add it to the voxel if it's within range
+        for (int p = 0; p < points; p++) {
+
+            float x_val = pointcloud[b*points*3+p*3];
+            float y_val = pointcloud[b*points*3+p*3+1];
+            float z_val = pointcloud[b*points*3+p*3+2];
+
+            if (x_val >= x_min and x_val < x_max and 
+                y_val >= y_min and y_val < y_max and 
+                z_val >= z_min and z_val < z_max){
+
+                output_points[grid_index*3] = x_val;
+                output_points[grid_index*3+1] = y_val;
+                output_points[grid_index*3+2] = z_val;
+                grid_index += 1;
+            }
+        }
+    }
+}
 
 void probeLauncher(int batches, int filters, int probes_per_filter, int points, const float* input_tensor, const float* weights,
       float xdim, float ydim, float zdim, int steps, float* output_tensor){
@@ -135,7 +168,19 @@ void probeLauncher(int batches, int filters, int probes_per_filter, int points, 
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start);
-    GenerateGridList<<<1, 1>>>(batches, points, steps, x_step_size, y_step_size, z_step_size, 
+    GenerateGridListIndices<<<nb, threads_per_block>>>(batches, points, steps, x_step_size, y_step_size, z_step_size, 
+                        input_tensor, gl_indices, gl_points);
+
+    int prev_index = 0;
+    int grid_index = gl_indices[0];
+    gl_indices[0] = 0;
+    for (int i = 1; i < batches*steps*steps*steps; i++) {
+        prev_index = grid_index;
+        grid_index += gl_indices[i];
+        gl_indices[i] = prev_index; 
+    }
+
+    GenerateGridList<<<nb, threads_per_block>>>(batches, points, steps, x_step_size, y_step_size, z_step_size, 
                         input_tensor, gl_indices, gl_points);
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);

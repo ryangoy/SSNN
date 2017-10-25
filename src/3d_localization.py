@@ -29,7 +29,7 @@ flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
 flags.DEFINE_integer('num_kernels', 16, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 128, 'Number of sample points each\
                       kernel has.')
-flags.DEFINE_integer('max_points_per_cloud', 10000, 'Max number of points each \
+flags.DEFINE_integer('max_points_per_cloud', 100000, 'Max number of points each \
                       cloud passes into the pipeline.')
 
 # Define constant paths
