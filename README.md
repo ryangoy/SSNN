@@ -11,6 +11,12 @@ See the doc <a href="https://docs.google.com/document/d/1E5_oou9kKTJgE75LKNbSj97
  - scipy
  - numpy
 
+# Run instructions #
+```
+cd src
+bash compile_probe.sh
+```
+
 # Bugs and how to resolve them #
 ## Fatal error: nsync_cv.h: No such file or directory ##
 ```

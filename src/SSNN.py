@@ -1,3 +1,9 @@
+####################################################
+# Defines the SSNN model.
+#                        
+# @author Ryan Goy
+####################################################
+
 import numpy as np
 import tensorflow as tf
 from tf_ops import *
@@ -13,6 +19,11 @@ class SSNN:
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
     self.init_model(num_kernels, probes_per_kernel, probe_steps)
 
+    # config = tf.ConfigProto()
+    # config.gpu_options.allow_growth = True
+
+    # Initialize variables
+    # TODO: add support for checkpoints
     self.sess = tf.Session()
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
@@ -21,11 +32,12 @@ class SSNN:
     self.probe_steps = probe_steps
     self.probe_size = dims / probe_steps
 
-
     self.probe_output = None
 
-
-  def fc_layer(self, x, num_nodes, name='fc_layer', activation=tf.nn.relu):
+  def fc_layer(self, x, num_nodes, name='fc_layer', activation=tf.nn.elu):
+    """
+    Dense layer.
+    """
     with tf.variable_scope(name, reuse=False):
       W = tf.Variable(shape=[x.shape[-1], num_nodes], 
                       initializer=tf.contrib.layers.xavier_initializer())
@@ -46,9 +58,11 @@ class SSNN:
     layer will be sufficient. Otherwise, we can look more into optimizing the
     probe layer.
 
+    After self.init_probe_op is called, self.probe can be called to run the op.
+
     Args:
       input_dims: tuple [x_meters, y_meters, z_meters]
-      step_size: tuple [x_stride, y_stride, z_stride]
+      step_size: int or tuple [x_stride, y_stride, z_stride]
     """
     if type(steps) is int:
       steps = [steps, steps, steps]
@@ -59,7 +73,7 @@ class SSNN:
     # Shape: (batches, num_points, xyz)
     self.points_ph = tf.placeholder(tf.float32, (None, None, 3))
 
-    # Shape: (batches, probes, samples per probe, x, y, z)
+    # Shape: (batches, x, y, z, probes, samples per probe)
     self.probe_op = probe3d(self.points_ph, dims, 
                             steps=steps, 
                             num_kernels=num_kernels, 
@@ -68,18 +82,18 @@ class SSNN:
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, 
                  learning_rate=0.01):
 
-    # Shape: (batches, num_kernels, probes_per_kernel, x, y, z)
-    self.X_ph = tf.placeholder(tf.float32, (None, num_kernels, 
-                                            probes_per_kernel, probe_steps, 
-                                            probe_steps, probe_steps))
+    # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
+    #         probes_per_kernel)
+    self.X_ph = tf.placeholder(tf.float32, (None, probe_steps, probe_steps, 
+                                            probe_steps, num_kernels, 
+                                            probes_per_kernel,))
 
-    # Shape: (batches, num_classes), in this case, it's a binary classifer.
+    # Shape: (batches, x_steps, y_steps, z_steps)
     self.y_ph = tf.placeholder(tf.float32, (None, probe_steps, 
                                             probe_steps, probe_steps))
-    # self.y_ph = tf.expand_dims(self.y_ph, axis=-1)
 
     # Shape: (batches, probes, x, y, z)
-    self.dot_product = dot_product(self.X_ph)
+    self.dot_product = dot_product(self.X_ph, filters=1)
 
     self.dot_product = tf.transpose(self.dot_product, (0, 2, 3, 4, 1))
 
@@ -94,8 +108,6 @@ class SSNN:
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-
-    # tf.metrics.mean_iou(vox_label, preds, 1)
     self.loss = tf.reduce_mean(tf.square(tf.subtract(self.model, self.y_ph)))
     self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
@@ -107,7 +119,6 @@ class SSNN:
 
     for epoch in range(epochs):
       for step in range(0, X_trn.shape[0], batch_size): 
-        # batch_x, batch_y = self.get_next_batch(X_trn, y_trn, batch_size)
         batch_x = X_trn[step:step+batch_size]
         batch_y = y_trn[step:step+batch_size]
         self.sess.run(self.optimizer, feed_dict={self.X_ph: batch_x, 
@@ -146,6 +157,7 @@ class SSNN:
     """
     pcs = []
     for pc in X:
+      pc = np.array([pc[0]])
       pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       pcs.append(pc_disc)
     self.probe_output = pcs

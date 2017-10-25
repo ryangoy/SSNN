@@ -26,9 +26,11 @@ flags.DEFINE_integer('num_epochs', 1, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
-flags.DEFINE_integer('num_kernels', 1, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 16, 'Number of sample points each\
+flags.DEFINE_integer('num_kernels', 16, 'Number of kernels to probe with.')
+flags.DEFINE_integer('probes_per_kernel', 128, 'Number of sample points each\
                       kernel has.')
+flags.DEFINE_integer('max_points_per_cloud', 10000, 'Max number of points each \
+                      cloud passes into the pipeline.')
 
 # Define constant paths
 X_NPY         = join(FLAGS.data_dir, 'input_data.npy')
@@ -42,6 +44,7 @@ def main(_):
     ys_npy_path = YS_NPY, yl_npy_path = YL_NPY, load_from_npy=True)
 
   print("Loaded {} pointclouds.".format(len(X_raw)))
+  
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
   print("Normalizing pointlcouds...")
@@ -56,12 +59,13 @@ def main(_):
   # - align to nearest 90 degree angle
   # - remove walls?
   # - data augmentation
+
   X_ = []
   for sc in X_cont:
-    X_.append([sc[0][:10000]])
+    X_.append([sc[0][:FLAGS.max_points_per_cloud]])
+
   X_cont = np.array(X_)
-  
-  print X_cont.shape
+
   # Initialize model. max_room_dims and step_size are in meters.
   ssnn = SSNN(dims, num_kernels=FLAGS.num_kernels, 
                     probes_per_kernel=FLAGS.probes_per_kernel, 

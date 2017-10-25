@@ -26,19 +26,30 @@ def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_s
     output = probe_module.probe(inp, weights, xdim=dims[0], ydim=dims[1], zdim=dims[2], steps=steps[0])
     return output
 
-def dot_product(inp, stddev=0.1, name='dot_product'):
+def dot_product(inputs, filters=1, stddev=0.1, name='dot_product'):
     """
     This layer weights the output of probe3D. This is what the network trains.
     """
-    assert len(inp.shape) == 6, "Dot product expects input of shape (batches, kernels, probes_per_kernel, x, y, z)"
-    # Initialize weights
-    weights = tf.Variable(tf.truncated_normal(shape=inp.shape[1:3], stddev=stddev), name=name)
+
+    assert filters == 1, "Support for more than one filter is still in progress."
+    assert len(inputs.shape) == 6, "Dot product expects input of shape (batches, x, y, z, kernels, probes_per_kernel)"
+    
+    # Weight dims are similar to convolutional weights:
+    #   Convolutional weights are (kernel_width, kernel_height, num_input_features, num_output_features)
+    #   Dot product weights are (probes, num_input_features, num_output_features)
+    shape = inputs.shape[-2:].as_list() + [filters]
+    weights = tf.Variable(tf.truncated_normal(shape=inputs.shape[-2:].as_list() + [filters], stddev=stddev), name=name)
+    
+    # TODO: loop through output features from weights vector to support filters > 1
+
     # Dot product over input probe and samples per probe and weights
-    axes = tf.constant([[1, 2], [0, 1]])
+    axes = tf.constant([[4, 5], [0, 1]])
 
     # Hooray for Tensorflow methods :)
-    dot_product = tf.tensordot(inp, weights, axes=axes)
-    new_shape = [-1] + inp.shape[1:2].as_list() + inp.shape[3:].as_list()
+    dot_product = tf.tensordot(inputs, weights, axes=axes)
+
+    # Output shape should be (batches, x, y, z, output_features)
+    new_shape = [-1] + inputs.shape[1:4].as_list() + [filters]
     dot_product = tf.reshape(dot_product, new_shape)
     return dot_product
 
