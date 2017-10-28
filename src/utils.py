@@ -119,14 +119,14 @@ def load_directory(path):
   labels = []
   # Loop through Areas
   for area in listdir(path):
-    print "Loading area {}...".format(area)
+    print("Loading area {}...".format(area))
     area_path = join(path, area)
     if not isdir(area_path):
       continue
       
     # Loop through rooms
     for room in listdir(area_path):
-      print "\tLoading room {}...".format(room)
+      print("\tLoading room {}...".format(room))
       room_path = join(area_path, room)
       if not isdir(room_path) or room.endswith('Angle.txt') or \
          room == '.DS_Store':
