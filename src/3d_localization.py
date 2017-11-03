@@ -7,6 +7,7 @@
 
 import tensorflow as tf
 import numpy as np
+import os
 from os.path import join, isdir
 from os import listdir
 from utils import normalize_pointclouds, load_points, voxelize_labels, save_output
@@ -14,6 +15,7 @@ from SSNN import SSNN
 import time
 from object_boundaries import generate_bounding_boxes
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 # Tensorflow flags boilerplate code.
 flags = tf.app.flags
@@ -28,8 +30,8 @@ flags.DEFINE_integer('num_epochs', 10, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
-flags.DEFINE_integer('num_kernels', 16, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 512, 'Number of sample points each\
+flags.DEFINE_integer('num_kernels', 1, 'Number of kernels to probe with.')
+flags.DEFINE_integer('probes_per_kernel', 1, 'Number of sample points each\
                       kernel has.')
 
 # Define constant paths
@@ -56,7 +58,7 @@ def main(_):
   y = voxelize_labels(bboxes, FLAGS.num_steps, kernel_size)
 
   np.save('vox_labels.npy', y)
-  exit()
+#  exit()
 
   # TODO: Preprocess input.
   # - remove outliers
