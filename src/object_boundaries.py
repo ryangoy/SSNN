@@ -24,7 +24,7 @@ def pts_single_bbox(pcl, bbox):
                bbox: 6-dim array, [min_x, min_y, min_z, max_x, max_y, max_z]
         Returns: X x 6 ndarray, where X is number of points within bbox for the particular pointcloud
     '''
-    indices = np.where(pcl[0] >= bbox[0] and pcl[0] <= bbox[3] and pcl[1] >= bbox[1] and pcl[1] <= bbox[4] and pcl[2] >= bbox[2] and pcl[2] <= bbox[5])
+    indices = np.where((pcl[:, 0] >= bbox[0]) & (pcl[:,0] <= bbox[3]) & (pcl[:,1] >= bbox[1]) & (pcl[:,1] <= bbox[4]) & (pcl[:,2] >= bbox[2]) & (pcl[:,2] <= bbox[5]))
     return pcl[indices]
 
 def generate_bounding_boxes(pointcloud):
