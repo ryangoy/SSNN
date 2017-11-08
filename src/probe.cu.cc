@@ -163,8 +163,8 @@ void probeLauncher(int batches, int filters, int probes_per_filter, int points, 
 
     // nb is the number of SM's we want to use
     // threads_per_block are number of threads per SM
-    int nb = 64;
-    int threads_per_block = 512;
+    int nb = 32;
+    int threads_per_block = 256;
 
     float x_step_size = xdim / steps;
     float y_step_size = ydim / steps;

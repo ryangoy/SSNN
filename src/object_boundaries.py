@@ -5,6 +5,27 @@
 import os
 import numpy as np
 
+def generate_bbox_points(pcl, bboxes):
+    '''
+        Given a pointcloud and a set of bounding boxes, returns an array of an  array of points that appear in the bbox
+
+        Args: pcl: N x 6 ndarray, where N is number of pts in pointcloud
+               bboxes: M x 6 ndarray representing M bboxes
+        Returns:
+              M x X x 6 array,  X can be of varying size
+    '''
+    return np.array([pts_single_bbox(pcl, bbox) for bbox in bboxes])
+
+def pts_single_bbox(pcl, bbox):
+    '''
+        Generates points residing in coordinates defined by bbox in pointcloud
+
+        Args: pcl: N x 6 ndarray, where N is number of points in pointcloud
+               bbox: 6-dim array, [min_x, min_y, min_z, max_x, max_y, max_z]
+        Returns: X x 6 ndarray, where X is number of points within bbox for the particular pointcloud
+    '''
+    indices = np.where((pcl[:, 0] >= bbox[0]) & (pcl[:,0] <= bbox[3]) & (pcl[:,1] >= bbox[1]) & (pcl[:,1] <= bbox[4]) & (pcl[:,2] >= bbox[2]) & (pcl[:,2] <= bbox[5]))
+    return pcl[indices]
 
 def generate_bounding_boxes(pointcloud):
     """

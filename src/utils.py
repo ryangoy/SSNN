@@ -134,7 +134,6 @@ def load_directory(path):
       
     # Loop through rooms
     for room in sorted(listdir(area_path)):
-      
       room_path = join(area_path, room)
       if not isdir(room_path) or room.endswith('Angle.txt') or \
          room == '.DS_Store':
