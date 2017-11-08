@@ -96,7 +96,7 @@ class SSNN:
     # Shape: (batches, x, y, z, features)
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=1)
 
-    self.c1 = tf.layers.conv3d(self.dot_product, filters=4, kernel_size=3, 
+    self.c1 = tf.layers.conv3d(self.dot_product, filters=16, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # print self.c1.shape
@@ -111,31 +111,24 @@ class SSNN:
     self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
   def train_val(self, X_trn=None, y_trn=None, X_val=None, y_val=None, epochs=10, 
-                batch_size=1, display_step=10):
+                batch_size=4, display_step=10):
     if X_trn is None:
       X_trn = self.probe_ouput
     assert y_trn is not None, "Labels must be defined for train_val call."
 
     for epoch in range(epochs):
+      indices = range(X_trn.shape[0])
+      shuffle(indices)
+      X_trn = X_trn[indices]
+      y_trn = y_trn[indices]
+
       for step in range(0, X_trn.shape[0], batch_size): 
         batch_x = X_trn[step:step+batch_size]
         batch_y = y_trn[step:step+batch_size]
-        _, xph, intermediate = self.sess.run([self.optimizer, self.X_ph, self.dot_product], feed_dict={self.X_ph: batch_x, 
+        _, loss, xph, intermediate = self.sess.run([self.optimizer, self.loss, self.X_ph, self.dot_product], feed_dict={self.X_ph: batch_x, 
                                             self.y_ph: batch_y})
 
-
-       #  print 'xph stats (mean, max, min):'
-       #  print xph.mean()
-       #  print xph.max()
-       #  print xph.min()
-       #  print 'dot product stats (mean, max, min):'
-      	# print intermediate.mean()
-      	# print intermediate.max()
-      	# print intermediate.min()
-
         if step % display_step == 0:
-          loss = self.sess.run(self.loss, 
-                             feed_dict={self.X_ph: batch_x, self.y_ph: batch_y})
           print("Epoch: {}, Iter: {}, Loss: {:.6f}.".format(epoch, step, loss))
 
       if X_val is not None and y_val is not None:
@@ -148,9 +141,9 @@ class SSNN:
 
         print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
                                                        val_loss/X_val.shape[0]))
-      indices = range(X_trn.shape[0])
-      shuffle(indices)
-      X_trn = X_trn[indices]
+      
+
+      
 
   def test(self, X_test, save_dir=None, batch_size=1):
     preds = []

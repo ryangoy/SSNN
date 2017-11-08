@@ -30,8 +30,8 @@ flags.DEFINE_integer('num_epochs', 50, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
-flags.DEFINE_integer('num_kernels', 1, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 1, 'Number of sample points each\
+flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
+flags.DEFINE_integer('probes_per_kernel', 512, 'Number of sample points each\
                       kernel has.')
 
 # Define constant paths
@@ -93,11 +93,11 @@ def main(_):
   np.save('probe_output.npy', p_mean)
 
   # Train model.
-  train_split = int((1-FLAGS.val_split) * X.shape[0])
-  X_trn = X[:train_split]
-  y_trn = y[:train_split]
-  X_val = X[train_split:]
-  y_val = y[train_split:]
+  train_split = int((FLAGS.val_split) * X.shape[0])
+  X_trn = X[train_split:]
+  y_trn = y[train_split:]
+  X_val = X[:train_split]
+  y_val = y[:train_split]
   ssnn.train_val(X_trn, y_trn, epochs=FLAGS.num_epochs) #y_l not used yet for localization
 
   # Test model. Using validation since we won't be using real 

@@ -5,7 +5,7 @@ import numpy as np
 probe_module = tf.load_op_library('./probe.so')
 
 def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_size=None, strides=None, name='probe3D'):
-
+    print("Initializing probe op with {} kernels and {} probes per kernel.".format(num_kernels, probes_per_kernel))
     assert type(dims) is np.ndarray, "dims must be of type numpy.ndarray."
     assert steps is not None or strides is not None, "steps or strides must be defined."
     if strides is None:

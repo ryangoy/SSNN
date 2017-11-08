@@ -175,8 +175,8 @@ void probeLauncher(int batches, int filters, int probes_per_filter, int points, 
     // printf("batches: %d, filters: %d, probes_per_filter: %d, points: %d, xdim: %f, ydim: %f, zdim: %f, steps: %d\n", batches, filters, probes_per_filter,points, xdim, ydim, zdim, steps);
 
     // Allocate arrays for gridlist
-    cudaMallocManaged(&gl_indices, batches*steps*steps*steps*sizeof(int) + 100);
-    cudaMallocManaged(&gl_points, batches*points*3*sizeof(float) + 100);
+    cudaMallocManaged(&gl_indices, batches*steps*steps*steps*sizeof(int));
+    cudaMallocManaged(&gl_points, batches*points*3*sizeof(float));
 
     /*** Generate list indices ***/
     cudaEvent_t start, stop;
