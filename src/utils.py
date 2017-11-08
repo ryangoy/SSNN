@@ -25,9 +25,12 @@ def voxelize_labels(labels, steps, kernel_size):
   for scene_id in range(len(labels)):
     for bbox in labels[scene_id]:
       # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
+
       c1 = np.floor(bbox[:3] / kernel_size).astype(int)
       c2 = np.ceil(bbox[3:] / kernel_size).astype(int)
       diff = c2 - c1
+
+
       for i in range(diff[0]):
         for j in range(diff[1]):
           for k in range(diff[2]):
@@ -35,9 +38,14 @@ def voxelize_labels(labels, steps, kernel_size):
             
             LL = np.max([bbox[:3]/kernel_size, coords], axis=0)
             UR = np.min([bbox[3:]/kernel_size, coords+1], axis=0) 
-            intersection = np.sqrt(np.sum(np.square([LL, UR])))
+
+            intersection = np.prod(UR-LL)
+
+            if coords[0] >= steps or coords[1] >= steps or coords[2] >= steps:
+              continue
 
             prev_val = vox_label[scene_id, coords[0], coords[1], coords[2]]
+            
             vox_label[scene_id, coords[0], coords[1], coords[2]] = \
                     np.max([intersection, prev_val])
 
@@ -118,19 +126,21 @@ def load_directory(path):
   segmentations = []
   labels = []
   # Loop through Areas
-  for area in listdir(path):
-    print "Loading area {}...".format(area)
+  for area in sorted(listdir(path)):
+    print("Loading area {}...".format(area))
     area_path = join(path, area)
     if not isdir(area_path):
       continue
       
     # Loop through rooms
-    for room in listdir(area_path):
-      print "\tLoading room {}...".format(room)
+    for room in sorted(listdir(area_path)):
+      
       room_path = join(area_path, room)
       if not isdir(room_path) or room.endswith('Angle.txt') or \
          room == '.DS_Store':
         continue
+      print "\tLoading room {}...".format(room)
+
         
       # Load point cloud
       input_pc = np.loadtxt(join(room_path, room+'.txt'), dtype=np.float32)

@@ -7,6 +7,7 @@
 import numpy as np
 import tensorflow as tf
 from tf_ops import *
+from random import shuffle
 
 class SSNN:
   
@@ -80,7 +81,7 @@ class SSNN:
                             probes_per_kernel=probes_per_kernel)
 
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, 
-                 learning_rate=0.01):
+                 learning_rate=0.0001):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
@@ -93,9 +94,9 @@ class SSNN:
                                             probe_steps, probe_steps))
 
     # Shape: (batches, x, y, z, features)
-    self.dot_product = dot_product(self.X_ph, filters=1)
+    self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=1)
 
-    self.c1 = tf.layers.conv3d(self.dot_product, filters=32, kernel_size=3, 
+    self.c1 = tf.layers.conv3d(self.dot_product, filters=4, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # print self.c1.shape
@@ -119,8 +120,18 @@ class SSNN:
       for step in range(0, X_trn.shape[0], batch_size): 
         batch_x = X_trn[step:step+batch_size]
         batch_y = y_trn[step:step+batch_size]
-        self.sess.run(self.optimizer, feed_dict={self.X_ph: batch_x, 
+        _, xph, intermediate = self.sess.run([self.optimizer, self.X_ph, self.dot_product], feed_dict={self.X_ph: batch_x, 
                                             self.y_ph: batch_y})
+
+
+       #  print 'xph stats (mean, max, min):'
+       #  print xph.mean()
+       #  print xph.max()
+       #  print xph.min()
+       #  print 'dot product stats (mean, max, min):'
+      	# print intermediate.mean()
+      	# print intermediate.max()
+      	# print intermediate.min()
 
         if step % display_step == 0:
           loss = self.sess.run(self.loss, 
@@ -137,6 +148,9 @@ class SSNN:
 
         print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
                                                        val_loss/X_val.shape[0]))
+      indices = range(X_trn.shape[0])
+      shuffle(indices)
+      X_trn = X_trn[indices]
 
   def test(self, X_test, save_dir=None, batch_size=1):
     preds = []

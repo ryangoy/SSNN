@@ -26,12 +26,12 @@ def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_s
     output = probe_module.probe(inp, weights, xdim=dims[0], ydim=dims[1], zdim=dims[2], steps=steps[0])
     return output
 
-def dot_product(inputs, filters=1, stddev=0.1, name='dot_product'):
+def dot_product(inputs, filters=1, stddev=0.01, name='dot_product'):
     """
     This layer weights the output of probe3D. This is what the network trains.
     """
 
-    assert filters == 1, "Support for more than one filter is still in progress."
+    assert filters == 1, "Support for more than one dot product filter is still in progress."
     assert len(inputs.shape) == 6, "Dot product expects input of shape (batches, x, y, z, kernels, probes_per_kernel)"
     
     # Weight dims are similar to convolutional weights:
@@ -51,6 +51,6 @@ def dot_product(inputs, filters=1, stddev=0.1, name='dot_product'):
     # Output shape should be (batches, x, y, z, output_features)
     new_shape = [-1] + inputs.shape[1:4].as_list() + [filters]
     dot_product = tf.reshape(dot_product, new_shape)
-    return dot_product
+    return dot_product, weights
 
 
