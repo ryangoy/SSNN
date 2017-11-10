@@ -13,9 +13,17 @@ class SSNN:
   
   def __init__(self, dims, num_kernels=1, probes_per_kernel=1, probe_steps=10):
 
+    self.hook_num = 1
+    self.dims = dims
+    self.probe_steps = probe_steps
+    self.probe_size = dims / probe_steps
+
+    self.probe_output = None
+
     # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
                        probes_per_kernel=probes_per_kernel)
+
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
     self.init_model(num_kernels, probes_per_kernel, probe_steps)
@@ -29,11 +37,8 @@ class SSNN:
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
 
-    self.dims = dims
-    self.probe_steps = probe_steps
-    self.probe_size = dims / probe_steps
-
-    self.probe_output = None
+    
+    
 
   def fc_layer(self, x, num_nodes, name='fc_layer', activation=tf.nn.elu):
     """
@@ -81,7 +86,7 @@ class SSNN:
                             probes_per_kernel=probes_per_kernel)
 
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, 
-                 learning_rate=0.0001):
+                 learning_rate=0.0001, loc_loss_lambda=0.5, reuse_hook=False):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
@@ -89,58 +94,150 @@ class SSNN:
                                             probe_steps, num_kernels, 
                                             probes_per_kernel,))
 
+
+    num_features = 0
+    dim_size = probe_steps
+    for i in range(3):
+        num_features += dim_size**3
+        dim_size /= 2
+
     # Shape: (batches, x_steps, y_steps, z_steps)
-    self.y_ph = tf.placeholder(tf.float32, (None, probe_steps, 
-                                            probe_steps, probe_steps))
+    self.y_ph_cls = tf.placeholder(tf.float32, (None, num_features, 1))
+
+    self.y_ph_loc = tf.placeholder(tf.float32, (None, num_features, 6))
 
     # Shape: (batches, x, y, z, features)
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=1)
 
-    self.c1 = tf.layers.conv3d(self.dot_product, filters=16, kernel_size=3, 
+    self.conv1_1 = tf.layers.conv3d(self.dot_product, filters=32, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
-    # print self.c1.shape
-    # self.mp1 = tf.nn.max_pool3d(self.c1, ksize=[1, 2, 2, 2, 1], 
-    #                               strides=[1, 2, 2, 2, 1], padding='SAME')
-    # print self.mp1.shape
-    self.model = tf.layers.conv3d(self.c1, filters=1, kernel_size=3,
+
+    self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=32, kernel_size=3, 
+                      strides=1, padding='SAME', activation=tf.nn.relu, 
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+    # First hook layer.
+    cls_hook1, loc_hook1 = self.hook_layer(self.conv1_2, reuse=reuse_hook)
+
+    self.pool1 = tf.nn.max_pool3d(self.conv1_2, ksize=[1, 2, 2, 2, 1], 
+                                  strides=[1, 2, 2, 2, 1], padding='SAME')
+
+    self.conv2_1 = tf.layers.conv3d(self.pool1, filters=32, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
-    self.model = tf.squeeze(self.model, -1)
-    self.loss = tf.reduce_mean(tf.square(tf.subtract(self.model, self.y_ph)))
+
+    self.conv2_2 = tf.layers.conv3d(self.conv2_1 , filters=32, kernel_size=3,
+                      strides=1, padding='SAME', activation=tf.nn.relu,
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+    # Second hook layer, resolution is 1/2 the first
+    cls_hook2, loc_hook2 = self.hook_layer(self.conv2_2, reuse=reuse_hook)
+
+    self.pool2 = tf.nn.max_pool3d(self.conv2_2, ksize=[1, 2, 2, 2, 1], 
+                                  strides=[1, 2, 2, 2, 1], padding='SAME')
+
+    self.conv3_1 = tf.layers.conv3d(self.pool2, filters=32, kernel_size=3,
+                      strides=1, padding='SAME', activation=tf.nn.relu,
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=32, kernel_size=3,
+                      strides=1, padding='SAME', activation=tf.nn.relu,
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+    # Third hook layer, resolution is 1/4th the first
+    cls_hook3, loc_hook3 = self.hook_layer(self.conv3_2, reuse=reuse_hook)
+
+    self.cls_hooks = [cls_hook1, cls_hook2, cls_hook3]
+    self.loc_hooks = [loc_hook1, loc_hook2, loc_hook3]
+
+
+    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv1_2.shape[1]*self.conv1_2.shape[2]*self.conv1_2.shape[3], 1)),
+                               tf.reshape(cls_hook2, (-1, self.conv2_2.shape[1]*self.conv2_2.shape[2]*self.conv2_2.shape[3], 1)),
+                               tf.reshape(cls_hook3, (-1, self.conv3_2.shape[1]*self.conv3_2.shape[2]*self.conv3_2.shape[3], 1))],
+                               axis=1)
+    loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv1_2.shape[1]*self.conv1_2.shape[2]*self.conv1_2.shape[3], 6)),
+                               tf.reshape(loc_hook2, (-1, self.conv2_2.shape[1]*self.conv2_2.shape[2]*self.conv2_2.shape[3], 6)),
+                               tf.reshape(loc_hook3, (-1, self.conv3_2.shape[1]*self.conv3_2.shape[2]*self.conv3_2.shape[3], 6))],
+                               axis=1)
+
+    # Define cls loss.
+    cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=cls_hooks_flat)
+    cls_loss = tf.reduce_mean(cls_loss)
+
+    # Define loc loss.
+    diff = self.y_ph_loc - loc_hooks_flat
+    loc_loss_L2 = 0.5*(diff**2)
+    loc_loss_L1 = tf.abs(diff) - 0.5
+    smooth_cond = tf.less(tf.abs(diff), 1.0)
+    loc_loss = tf.where(smooth_cond, loc_loss_L1, loc_loss_L2)
+    loc_loss = tf.reduce_mean(loc_loss)
+
+
+    # Combine losses linearly.
+    self.loss = cls_loss + loc_loss_lambda * loc_loss
+
     self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
-  def train_val(self, X_trn=None, y_trn=None, X_val=None, y_val=None, epochs=10, 
+  def hook_layer(self, input_layer, reuse=False, activation=None):
+    # Note that we have a linear activation (no activation fn)
+    if reuse == True:
+      scope_name = 'hook' 
+    else:
+      scope_name = 'hook_' + str(self.hook_num)
+    with tf.variable_scope(scope_name) as scope:
+      
+      # If reuse is True, then we share the weights of the hook layer.
+      if reuse and self.hook_num != 1:
+        scope.reuse_variables()
+
+      # Predicts the confidence of whether or not an objects exists per feature.
+      conf = tf.layers.conv3d(input_layer, filters=1, kernel_size=3, padding='SAME',
+                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+      # Predicts the center coordinate and relative scale of the box
+      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=3, padding='SAME',
+                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+      self.hook_num += 1
+
+      return conf, loc
+
+
+  def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val=None, epochs=10, 
                 batch_size=4, display_step=10):
     if X_trn is None:
       X_trn = self.probe_ouput
-    assert y_trn is not None, "Labels must be defined for train_val call."
+    assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
 
     for epoch in range(epochs):
       indices = range(X_trn.shape[0])
       shuffle(indices)
       X_trn = X_trn[indices]
-      y_trn = y_trn[indices]
+      y_trn_cls = y_trn_cls[indices]
+      y_trn_loc = y_trn_loc[indices]
 
       for step in range(0, X_trn.shape[0], batch_size): 
         batch_x = X_trn[step:step+batch_size]
-        batch_y = y_trn[step:step+batch_size]
-        _, loss, xph, intermediate = self.sess.run([self.optimizer, self.loss, self.X_ph, self.dot_product], feed_dict={self.X_ph: batch_x, 
-                                            self.y_ph: batch_y})
+        batch_y_cls = y_trn_cls[step:step+batch_size]
+        batch_y_loc = y_trn_loc[step:step+batch_size]
+        _, loss, hooks = self.sess.run([self.optimizer, self.loss, self.cls_hooks[0]], feed_dict={self.X_ph: batch_x, 
+                                            self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc})
 
         if step % display_step == 0:
+          print hooks.mean()
           print("Epoch: {}, Iter: {}, Loss: {:.6f}.".format(epoch, step, loss))
 
-      if X_val is not None and y_val is not None:
-        val_loss = 0
-        for step in range(0, X_val.shape[0], batch_size):
-          val_batch_x = X_val[step:step+batch_size]
-          val_batch_y = y_val[step:step+batch_size]
-          val_loss += self.sess.run(self.loss, 
-                      feed_dict={self.X_ph: val_batch_x, sef.y_ph: val_batch_y})
+      # if X_val is not None and y_val is not None:
+      #   val_loss = 0
+      #   for step in range(0, X_val.shape[0], batch_size):
+      #     val_batch_x = X_val[step:step+batch_size]
+      #     val_batch_y = y_val[step:step+batch_size]
+      #     val_loss += self.sess.run(self.loss, 
+      #                 feed_dict={self.X_ph: val_batch_x, sef.y_ph: val_batch_y})
 
-        print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
-                                                       val_loss/X_val.shape[0]))
+      #   print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
+      #                                                  val_loss/X_val.shape[0]))
       
 
       

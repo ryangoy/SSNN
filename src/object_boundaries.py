@@ -27,7 +27,7 @@ def pts_single_bbox(pcl, bbox):
     indices = np.where((pcl[:, 0] >= bbox[0]) & (pcl[:,0] <= bbox[3]) & (pcl[:,1] >= bbox[1]) & (pcl[:,1] <= bbox[4]) & (pcl[:,2] >= bbox[2]) & (pcl[:,2] <= bbox[5]))
     return pcl[indices]
 
-def generate_bounding_boxes(pointcloud):
+def generate_bounding_boxes(pointcloud, npy_path):
     """
     Generates bounding box labels from semantic labels.
 
@@ -41,8 +41,12 @@ def generate_bounding_boxes(pointcloud):
       bounding_boxes (np.array): output bounding box labels with shape (batches, sample, min_x/min_y/min_z/max_x/max_y/max_z).
             Since samples is not constant per scene, output in a fashion similar to the input.
     """
+    if os.path.exists(npy_path):
+        return np.load(npy_path)
 
-    return np.array([np.array([np.array(create_bounds(pointcloud[i][j])) for j in range(len(pointcloud[i]))]) for i in range(len(pointcloud))])
+    bboxes = np.array([np.array([np.array(create_bounds(pointcloud[i][j])) for j in range(len(pointcloud[i]))]) for i in range(len(pointcloud))])
+    np.save(npy_path, bboxes)
+    return bboxes
 
 def create_bounds(data):
     x_vals = data[:, 0]

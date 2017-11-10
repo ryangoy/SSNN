@@ -51,6 +51,59 @@ def voxelize_labels(labels, steps, kernel_size):
 
   return vox_label
 
+def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3):
+  """
+  Args:
+    preds (tensor): predicted confidence value for a certain box (batches, x, y, z)
+    labels (tensor): labeled boxes with (batches, box, 6), with the format for
+                     a box being min_x, min_y, min_z, max_x, max_y, max_z
+  """
+  cls_labels = []
+  loc_labels = []
+  for d in range(num_downsamples):
+    cls_labels.append(np.zeros((len(labels), steps/(2**d), steps/(2**d), steps/(2**d))))
+    loc_labels.append(np.zeros((len(labels), steps/(2**d), steps/(2**d), steps/(2**d), 6)))
+
+  # First phase: for each GT box, set the closest feature box to 1.
+  for scene_id in range(len(labels)):
+    for bbox in labels[scene_id]:
+      # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
+      bbox_dims = (bbox[3:] - bbox[:3]) / kernel_size
+      bbox_loc = (bbox[3:] + bbox[:3]) / 2 / kernel_size
+      max_dim = np.max(bbox_dims)
+      scale = 0
+      for _ in range(num_downsamples-1):
+        if max_dim < 1.5:
+          break
+        max_dim /= 2
+        bbox_dims /= 2
+        bbox_loc /= 2
+        scale += 1
+
+      best_kernel_size = kernel_size * 2**scale
+      best_num_steps = steps / (2**scale)
+
+      coords = np.trunc(bbox_loc).astype(int)
+
+      if coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps:
+        continue
+
+      cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1.0
+      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
+      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims
+
+  cls_labels_flat = []
+  loc_labels_flat = []
+  res_factor = 0
+
+  for cls_label, loc_label in zip(cls_labels, loc_labels):
+    cls_labels_flat.append(np.reshape(cls_label, (-1, (steps/(2**res_factor))**3, 1)))
+    loc_labels_flat.append(np.reshape(loc_label, (-1, (steps/(2**res_factor))**3, 6)))
+    res_factor += 1
+
+  return np.concatenate(cls_labels_flat, axis=1), np.concatenate(loc_labels_flat, axis=1)
+
+
 def normalize_pointclouds(pointcloud_arr, seg_arr):
   """
   Shifts pointclouds so the smallest xyz values map to the origin. We want to 

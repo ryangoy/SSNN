@@ -10,7 +10,7 @@ import numpy as np
 import os
 from os.path import join, isdir
 from os import listdir
-from utils import normalize_pointclouds, load_points, voxelize_labels, save_output
+from utils import normalize_pointclouds, load_points, create_jaccard_labels, save_output
 from SSNN import SSNN
 import time
 from object_boundaries import generate_bounding_boxes
@@ -39,6 +39,7 @@ X_NPY         = join(FLAGS.data_dir, 'input_data.npy')
 YS_NPY        = join(FLAGS.data_dir, 'segmentation_data.npy')
 YL_NPY        = join(FLAGS.data_dir, 'label_data.npy')
 OUTPUT_PATH   = join(FLAGS.data_dir, 'predictions.npy')
+BBOX_PATH     = join(FLAGS.data_dir, 'bboxes.npy')
 
 def main(_):
 
@@ -50,16 +51,19 @@ def main(_):
   
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
-  print("Normalizing pointlcouds...")
+  print("Normalizing pointclouds...")
   X_cont, dims, ys = normalize_pointclouds(X_raw, ys_raw)
   dims = np.array([7.5, 7.5, 7.5])
   kernel_size = dims / FLAGS.num_steps
-  print("Generating labels...")
-  bboxes = generate_bounding_boxes(ys)
+  print("Generating bboxes...")
+  bboxes = generate_bounding_boxes(ys, BBOX_PATH)
   
-  y = voxelize_labels(bboxes, FLAGS.num_steps, kernel_size)
+  print("Processing labels...")
+  y_cls, y_loc = create_jaccard_labels(bboxes, FLAGS.num_steps, kernel_size)
 
-  np.save('vox_labels.npy', y)
+  np.save('cls_labels.npy', y_cls)
+  np.save('loc_labels.npy', y_loc)
+
 
   # TODO: Preprocess input.
   # - remove outliers
@@ -82,12 +86,15 @@ def main(_):
 
   # Probe processing.
   print("Running probe operation...")
-  probe_start = time.time()
-  X = ssnn.probe(X_cont)
-  probe_time = time.time() - probe_start
-  print("Probe operation took {:.4f} seconds to run.".format(probe_time))
+  # probe_start = time.time()
+  # X = ssnn.probe(X_cont)
+  # probe_time = time.time() - probe_start
+  # print("Probe operation took {:.4f} seconds to run.".format(probe_time))
 
-  X = np.squeeze(X, axis=1)
+  # X = np.squeeze(X, axis=1)
+
+  # np.save('X.npy', X)
+  X = np.load('X.npy')
   p_mean = X.mean(axis=(4,5))
 
   np.save('probe_output.npy', p_mean)
@@ -95,10 +102,13 @@ def main(_):
   # Train model.
   train_split = int((FLAGS.val_split) * X.shape[0])
   X_trn = X[train_split:]
-  y_trn = y[train_split:]
+  y_trn_cls = y_cls[train_split:]
+  y_trn_loc = y_loc[train_split:]
   X_val = X[:train_split]
-  y_val = y[:train_split]
-  ssnn.train_val(X_trn, y_trn, epochs=FLAGS.num_epochs) #y_l not used yet for localization
+  y_val_cls = y_cls[:train_split]
+  y_val_loc = y_loc[:train_split]
+
+  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, epochs=FLAGS.num_epochs) #y_l not used yet for localization
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
