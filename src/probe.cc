@@ -71,5 +71,3 @@ private:
 
 // Register the kernel
 REGISTER_KERNEL_BUILDER(Name("Probe").Device(DEVICE_GPU), ProbeOp);
-
-

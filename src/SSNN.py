@@ -24,21 +24,14 @@ class SSNN:
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
                        probes_per_kernel=probes_per_kernel)
 
-
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
     self.init_model(num_kernels, probes_per_kernel, probe_steps)
-
-    # config = tf.ConfigProto()
-    # config.gpu_options.allow_growth = True
 
     # Initialize variables
     # TODO: add support for checkpoints
     self.sess = tf.Session()
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
-
-    
-    
 
   def fc_layer(self, x, num_nodes, name='fc_layer', activation=tf.nn.elu):
     """
@@ -85,8 +78,36 @@ class SSNN:
                             num_kernels=num_kernels, 
                             probes_per_kernel=probes_per_kernel)
 
+  def hook_layer(self, input_layer, reuse=False, activation=None):
+    # As defined in Singleshot Multibox Detector, hook layers process
+    # intermediates at different scales.
+
+    # Note that we have a linear activation (no activation fn). tf.nn.softmax
+    # will be applied to the output.
+    if reuse == True:
+      scope_name = 'hook' 
+    else:
+      scope_name = 'hook_' + str(self.hook_num)
+    with tf.variable_scope(scope_name) as scope:
+      
+      # If reuse is True, then we share the weights of the hook layer.
+      if reuse and self.hook_num != 1:
+        scope.reuse_variables()
+
+      # Predicts the confidence of whether or not an objects exists per feature.
+      conf = tf.layers.conv3d(input_layer, filters=2, kernel_size=3, padding='SAME',
+                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+      # Predicts the center coordinate and relative scale of the box
+      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=3, padding='SAME',
+                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+      self.hook_num += 1
+
+      return conf, loc
+
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, 
-                 learning_rate=0.0001, loc_loss_lambda=0.5, reuse_hook=False):
+                 learning_rate=0.0001, loc_loss_lambda=0.0, reuse_hook=False):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
@@ -102,7 +123,7 @@ class SSNN:
         dim_size /= 2
 
     # Shape: (batches, x_steps, y_steps, z_steps)
-    self.y_ph_cls = tf.placeholder(tf.float32, (None, num_features, 1))
+    self.y_ph_cls = tf.placeholder(tf.int32, (None, num_features, 2))
 
     self.y_ph_loc = tf.placeholder(tf.float32, (None, num_features, 6))
 
@@ -152,9 +173,9 @@ class SSNN:
     self.loc_hooks = [loc_hook1, loc_hook2, loc_hook3]
 
 
-    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv1_2.shape[1]*self.conv1_2.shape[2]*self.conv1_2.shape[3], 1)),
-                               tf.reshape(cls_hook2, (-1, self.conv2_2.shape[1]*self.conv2_2.shape[2]*self.conv2_2.shape[3], 1)),
-                               tf.reshape(cls_hook3, (-1, self.conv3_2.shape[1]*self.conv3_2.shape[2]*self.conv3_2.shape[3], 1))],
+    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv1_2.shape[1]*self.conv1_2.shape[2]*self.conv1_2.shape[3], 2)),
+                               tf.reshape(cls_hook2, (-1, self.conv2_2.shape[1]*self.conv2_2.shape[2]*self.conv2_2.shape[3], 2)),
+                               tf.reshape(cls_hook3, (-1, self.conv3_2.shape[1]*self.conv3_2.shape[2]*self.conv3_2.shape[3], 2))],
                                axis=1)
     loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv1_2.shape[1]*self.conv1_2.shape[2]*self.conv1_2.shape[3], 6)),
                                tf.reshape(loc_hook2, (-1, self.conv2_2.shape[1]*self.conv2_2.shape[2]*self.conv2_2.shape[3], 6)),
@@ -177,80 +198,9 @@ class SSNN:
     # Combine losses linearly.
     self.loss = cls_loss + loc_loss_lambda * loc_loss
 
+    # Define optimizer.
     self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
-  def hook_layer(self, input_layer, reuse=False, activation=None):
-    # Note that we have a linear activation (no activation fn)
-    if reuse == True:
-      scope_name = 'hook' 
-    else:
-      scope_name = 'hook_' + str(self.hook_num)
-    with tf.variable_scope(scope_name) as scope:
-      
-      # If reuse is True, then we share the weights of the hook layer.
-      if reuse and self.hook_num != 1:
-        scope.reuse_variables()
-
-      # Predicts the confidence of whether or not an objects exists per feature.
-      conf = tf.layers.conv3d(input_layer, filters=1, kernel_size=3, padding='SAME',
-                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-      # Predicts the center coordinate and relative scale of the box
-      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=3, padding='SAME',
-                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-      self.hook_num += 1
-
-      return conf, loc
-
-
-  def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val=None, epochs=10, 
-                batch_size=4, display_step=10):
-    if X_trn is None:
-      X_trn = self.probe_ouput
-    assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
-
-    for epoch in range(epochs):
-      indices = range(X_trn.shape[0])
-      shuffle(indices)
-      X_trn = X_trn[indices]
-      y_trn_cls = y_trn_cls[indices]
-      y_trn_loc = y_trn_loc[indices]
-
-      for step in range(0, X_trn.shape[0], batch_size): 
-        batch_x = X_trn[step:step+batch_size]
-        batch_y_cls = y_trn_cls[step:step+batch_size]
-        batch_y_loc = y_trn_loc[step:step+batch_size]
-        _, loss, hooks = self.sess.run([self.optimizer, self.loss, self.cls_hooks[0]], feed_dict={self.X_ph: batch_x, 
-                                            self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc})
-
-        if step % display_step == 0:
-          print hooks.mean()
-          print("Epoch: {}, Iter: {}, Loss: {:.6f}.".format(epoch, step, loss))
-
-      # if X_val is not None and y_val is not None:
-      #   val_loss = 0
-      #   for step in range(0, X_val.shape[0], batch_size):
-      #     val_batch_x = X_val[step:step+batch_size]
-      #     val_batch_y = y_val[step:step+batch_size]
-      #     val_loss += self.sess.run(self.loss, 
-      #                 feed_dict={self.X_ph: val_batch_x, sef.y_ph: val_batch_y})
-
-      #   print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
-      #                                                  val_loss/X_val.shape[0]))
-      
-
-      
-
-  def test(self, X_test, save_dir=None, batch_size=1):
-    preds = []
-    for i in range(0, X_test.shape[0], batch_size):
-      batch_x = X_test[i:i+batch_size]
-      batch = self.sess.run(self.model, feed_dict={self.X_ph: batch_x})
-      preds.append(batch)
-    preds = np.array(preds)
-    preds = preds.reshape((-1,) + preds.shape[2:])
-    return preds
 
   def probe(self, X):
     """
@@ -270,18 +220,49 @@ class SSNN:
     return np.array(pcs)
 
 
+  def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val=None, epochs=10, 
+                batch_size=4, display_step=10):
+    if X_trn is None:
+      X_trn = self.probe_ouput
+    assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
 
+    for epoch in range(epochs):
+      indices = range(X_trn.shape[0])
+      shuffle(indices)
+      X_trn = X_trn[indices]
+      y_trn_cls = y_trn_cls[indices]
+      y_trn_loc = y_trn_loc[indices]
 
-    
+      for step in range(0, X_trn.shape[0], batch_size): 
+        batch_x = X_trn[step:step+batch_size]
+        batch_y_cls = y_trn_cls[step:step+batch_size]
+        batch_y_loc = y_trn_loc[step:step+batch_size]
+        _, loss = self.sess.run([self.optimizer, self.loss], feed_dict={self.X_ph: batch_x, 
+                                            self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc})
 
+        if step % display_step == 0:
+          print("Epoch: {}, Iter: {}, Loss: {:.6f}.".format(epoch, step, loss))
 
+      if X_val is not None and y_val is not None:
+        val_loss = 0
+        for step in range(0, X_val.shape[0], batch_size):
+          val_batch_x = X_val[step:step+batch_size]
+          val_batch_y = y_val[step:step+batch_size]
+          val_loss += self.sess.run(self.loss, 
+                      feed_dict={self.X_ph: val_batch_x, sef.y_ph: val_batch_y})
 
-        
-      
+        print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
+                                                       val_loss/X_val.shape[0]))
 
+  def test(self, X_test, save_dir=None, batch_size=1):
+    cls_preds = []
+    loc_preds = []
+    for i in range(0, X_test.shape[0], batch_size):
+      batch_x = X_test[i:i+batch_size]
+      hooks = self.sess.run(self.cls_hooks + self.loc_hooks, feed_dict={self.X_ph: batch_x})
+      cls_preds.append(hooks[:3])
+      loc_preds.append(hooks[3:])
 
-
-
-
-
-
+    # preds = np.array(preds)
+    # preds = preds.reshape((-1,) + preds.shape[2:])
+    # return preds

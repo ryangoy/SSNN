@@ -42,6 +42,12 @@ OUTPUT_PATH   = join(FLAGS.data_dir, 'predictions.npy')
 BBOX_PATH     = join(FLAGS.data_dir, 'bboxes.npy')
 
 def main(_):
+  
+  # TODO: Preprocess input.
+  # - remove outliers
+  # - align to nearest 90 degree angle
+  # - remove walls?
+  # - data augmentation
 
   X_raw, ys_raw, yl = load_points(path=FLAGS.data_dir, X_npy_path=X_NPY,
                                   ys_npy_path = YS_NPY, yl_npy_path = YL_NPY, 
@@ -64,13 +70,6 @@ def main(_):
   np.save('cls_labels.npy', y_cls)
   np.save('loc_labels.npy', y_loc)
 
-
-  # TODO: Preprocess input.
-  # - remove outliers
-  # - align to nearest 90 degree angle
-  # - remove walls?
-  # - data augmentation
-
   X_ = []
   for sc in X_cont:
     X_.append([sc[0]])
@@ -82,19 +81,19 @@ def main(_):
                     probes_per_kernel=FLAGS.probes_per_kernel, 
                     probe_steps=FLAGS.num_steps)
 
-
-
   # Probe processing.
   print("Running probe operation...")
-  # probe_start = time.time()
-  # X = ssnn.probe(X_cont)
-  # probe_time = time.time() - probe_start
-  # print("Probe operation took {:.4f} seconds to run.".format(probe_time))
+  probe_start = time.time()
+  X = ssnn.probe(X_cont)
+  probe_time = time.time() - probe_start
+  print("Probe operation took {:.4f} seconds to run.".format(probe_time))
 
-  # X = np.squeeze(X, axis=1)
+  X = np.squeeze(X, axis=1)
 
+  # Used for developing so redudant calculations are omitted.
   # np.save('X.npy', X)
-  X = np.load('X.npy')
+  # X = np.load('X.npy')
+
   p_mean = X.mean(axis=(4,5))
 
   np.save('probe_output.npy', p_mean)

@@ -70,7 +70,6 @@ def create_label(data):
     bbox = [(max_x + min_x) / 2.0, (max_y + min_y) / 2.0, (max_z + min_z) / 2.0, max_x - min_x, max_y - min_y, max_z - min_z]
     return bbox
 
-
 if __name__ =='__main__':
     boxes = []
     labels = []

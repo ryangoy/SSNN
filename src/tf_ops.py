@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-
+# Load probe operations.
 probe_module = tf.load_op_library('./probe.so')
 
 def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_size=None, strides=None, name='probe3D'):
@@ -52,5 +52,3 @@ def dot_product(inputs, filters=1, stddev=0.01, name='dot_product'):
     new_shape = [-1] + inputs.shape[1:4].as_list() + [filters]
     dot_product = tf.reshape(dot_product, new_shape)
     return dot_product, weights
-
-

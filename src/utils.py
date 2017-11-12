@@ -6,19 +6,17 @@ from os import makedirs, listdir
 import time
 from scipy.misc import imsave
 
-
-
 def save_output(output_path, output):
   print('Saving predictions to {}'.format(output_path))
   np.save(output_path, output)
 
-
 def voxelize_labels(labels, steps, kernel_size):
   """
   Args:
-    preds (tensor): predicted confidence value for a certain box (batches, x, y, z)
     labels (tensor): labeled boxes with (batches, box, 6), with the format for
                      a box being min_x, min_y, min_z, max_x, max_y, max_z
+    steps (int): dimension of grid to be explored
+    kernel_size (float): size of a grid in meters
   """
   vox_label = np.zeros((len(labels), steps, steps, steps))
 
@@ -48,15 +46,16 @@ def voxelize_labels(labels, steps, kernel_size):
             
             vox_label[scene_id, coords[0], coords[1], coords[2]] = \
                     np.max([intersection, prev_val])
-
   return vox_label
 
 def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3):
   """
   Args:
-    preds (tensor): predicted confidence value for a certain box (batches, x, y, z)
     labels (tensor): labeled boxes with (batches, box, 6), with the format for
                      a box being min_x, min_y, min_z, max_x, max_y, max_z
+    steps (int): dimension of grid to be explored
+    kernel_size (float): size of a grid in meters
+    num_downsamples (int): number of hook layers
   """
   cls_labels = []
   loc_labels = []
@@ -88,7 +87,7 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3):
       if coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps:
         continue
 
-      cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1.0
+      cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims
 
@@ -101,8 +100,12 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3):
     loc_labels_flat.append(np.reshape(loc_label, (-1, (steps/(2**res_factor))**3, 6)))
     res_factor += 1
 
-  return np.concatenate(cls_labels_flat, axis=1), np.concatenate(loc_labels_flat, axis=1)
+  cls_concat = np.concatenate(cls_labels_flat, axis=1).astype(np.int32)
+  cls_no_class = np.ones_like(cls_concat) - cls_concat
+  cls_concat = np.concatenate([cls_no_class, cls_concat], axis=-1)
 
+  loc_concat = np.concatenate(loc_labels_flat, axis=1)
+  return cls_concat, loc_concat 
 
 def normalize_pointclouds(pointcloud_arr, seg_arr):
   """
@@ -193,7 +196,6 @@ def load_directory(path):
         continue
       print "\tLoading room {}...".format(room)
 
-        
       # Load point cloud
       input_pc = np.loadtxt(join(room_path, room+'.txt'), dtype=np.float32)
       
