@@ -30,8 +30,8 @@ flags.DEFINE_integer('num_epochs', 50, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
-flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 512, 'Number of sample points each\
+flags.DEFINE_integer('num_kernels', 16, 'Number of kernels to probe with.')
+flags.DEFINE_integer('probes_per_kernel', 256, 'Number of sample points each\
                       kernel has.')
 
 # Define constant paths
@@ -66,7 +66,6 @@ def main(_):
   
   print("Processing labels...")
   y_cls, y_loc = create_jaccard_labels(bboxes, FLAGS.num_steps, kernel_size)
-
   np.save('cls_labels.npy', y_cls)
   np.save('loc_labels.npy', y_loc)
 
@@ -91,8 +90,8 @@ def main(_):
   X = np.squeeze(X, axis=1)
 
   # Used for developing so redudant calculations are omitted.
-  # np.save('X.npy', X)
-  # X = np.load('X.npy')
+  np.save('X.npy', X)
+  #X = np.load('X.npy')
 
   p_mean = X.mean(axis=(4,5))
 
@@ -111,11 +110,10 @@ def main(_):
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
-  preds = ssnn.test(X_val)
-  print preds.mean()
+  cls_preds, loc_preds = ssnn.test(X_val)
 
   # Save output.
-  save_output('predictions.npy', preds)
+  save_output('cls_predictions.npy', 'loc_predictions.npy', cls_preds, loc_preds, 16, 3)
 
 # Tensorflow boilerplate code.
 if __name__ == '__main__':

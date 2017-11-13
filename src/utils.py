@@ -6,9 +6,35 @@ from os import makedirs, listdir
 import time
 from scipy.misc import imsave
 
-def save_output(output_path, output):
-  print('Saving predictions to {}'.format(output_path))
-  np.save(output_path, output)
+def softmax(x):
+  exp = np.exp(x)
+  return exp / np.sum(exp)
+
+def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor):
+  cls_output = []
+  loc_output = []
+  assert len(cls_preds) == len(loc_preds), "Cls and loc prediction arrays are not the same size."
+  for scene in range(len(cls_preds)):
+    res_factor = 0
+    cls_preds_flat = []
+    loc_preds_flat = []
+    for cls_pred, loc_pred in zip(cls_preds[scene], loc_preds[scene]):
+      cls_preds_flat.append(np.reshape(cls_pred, ((steps/(2**res_factor))**3, 2)))
+      loc_preds_flat.append(np.reshape(loc_pred, ((steps/(2**res_factor))**3, 6)))
+      res_factor += 1
+    cls_output.append(np.concatenate(cls_preds_flat, axis=0))
+    loc_output.append(np.concatenate(loc_preds_flat, axis=0))
+
+  cls_output = np.array(cls_output)
+  loc_output = np.array(loc_output)
+
+  print cls_output.shape
+  cls_output = np.apply_along_axis(softmax, 2, cls_output)
+  print cls_output.shape
+  print('Saving cls predictions to {}'.format(cls_path))
+  np.save(cls_path, cls_output)
+  print('Saving loc predictions to {}'.format(loc_path))
+  np.save(loc_path, loc_output)
 
 def voxelize_labels(labels, steps, kernel_size):
   """
@@ -27,7 +53,6 @@ def voxelize_labels(labels, steps, kernel_size):
       c1 = np.floor(bbox[:3] / kernel_size).astype(int)
       c2 = np.ceil(bbox[3:] / kernel_size).astype(int)
       diff = c2 - c1
-
 
       for i in range(diff[0]):
         for j in range(diff[1]):
@@ -63,8 +88,9 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3):
     cls_labels.append(np.zeros((len(labels), steps/(2**d), steps/(2**d), steps/(2**d))))
     loc_labels.append(np.zeros((len(labels), steps/(2**d), steps/(2**d), steps/(2**d), 6)))
 
-  # First phase: for each GT box, set the closest feature box to 1.
+  
   for scene_id in range(len(labels)):
+    # First phase: for each GT box, set the closest feature box to 1.
     for bbox in labels[scene_id]:
       # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
       bbox_dims = (bbox[3:] - bbox[:3]) / kernel_size
@@ -72,7 +98,7 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3):
       max_dim = np.max(bbox_dims)
       scale = 0
       for _ in range(num_downsamples-1):
-        if max_dim < 1.5:
+        if max_dim < 10:
           break
         max_dim /= 2
         bbox_dims /= 2
@@ -91,6 +117,34 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3):
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims
 
+    # Second phase: for each feature box, if the jaccard overlap is > 0.5, set it equal to 1 as well.
+    """
+    for s in range(num_downsamples):
+      for i in range(steps):
+        for j in range(steps):
+          for k in range(steps):
+            for bbox in labels[scene_id]:
+              bbox_loc = bbox / 2 / (2**s)
+              bbox_LL = bbox_loc[:3]/ kernel_size
+              bbox_UR = bbox_loc[3:]/ kernel_size
+              fb_LL = np.array([i, j, k])
+              fb_UR = np.array([i+1, j+1, k+1])
+              if max(fb_UR - bbox_LL) < 0 or min(bbox_UR - fb_LL) < 0:
+                continue
+              # print fb_UR
+              # print bbox_LL
+              # print bbox_UR
+              # print fb_LL
+              max_UR = np.maximum(fb_UR, bbox_UR)
+              max_LL = np.maximum(fb_LL, bbox_LL)
+              min_UR = np.minimum(fb_UR, bbox_UR)
+              min_LL = np.minimum(fb_LL, bbox_LL)
+              ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
+              if ji > 0.5:
+                cls_labels[scale][scene_id, i, j, k] = 1
+                loc_labels[scale][scene_id, i, j, k, :3] = (bbox_UR + bbox_LL)/2 - [i,j,k]
+                loc_labels[scale][scene_id, i, j, k, 3:] = bbox_UR - bbox_LL - [i,j,k]
+  """
   cls_labels_flat = []
   loc_labels_flat = []
   res_factor = 0

@@ -12,12 +12,10 @@ from random import shuffle
 class SSNN:
   
   def __init__(self, dims, num_kernels=1, probes_per_kernel=1, probe_steps=10):
-
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
     self.probe_size = dims / probe_steps
-
     self.probe_output = None
 
     # Defines self.probe_op
@@ -107,14 +105,13 @@ class SSNN:
       return conf, loc
 
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, 
-                 learning_rate=0.0001, loc_loss_lambda=0.0, reuse_hook=False):
+                 learning_rate=0.0001, loc_loss_lambda=0.5, reuse_hook=False):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
     self.X_ph = tf.placeholder(tf.float32, (None, probe_steps, probe_steps, 
                                             probe_steps, num_kernels, 
                                             probes_per_kernel,))
-
 
     num_features = 0
     dim_size = probe_steps
@@ -188,19 +185,18 @@ class SSNN:
 
     # Define loc loss.
     diff = self.y_ph_loc - loc_hooks_flat
-    loc_loss_L2 = 0.5*(diff**2)
-    loc_loss_L1 = tf.abs(diff) - 0.5
-    smooth_cond = tf.less(tf.abs(diff), 1.0)
-    loc_loss = tf.where(smooth_cond, loc_loss_L1, loc_loss_L2)
+    # loc_loss_L2 = 0.5*(diff**2)
+    # loc_loss_L1 = tf.abs(diff) - 0.5
+    # smooth_cond = tf.less(tf.abs(diff), 1.0)
+    # loc_loss = tf.where(smooth_cond, loc_loss_L1, loc_loss_L2)
+    loc_loss = tf.abs(diff)
     loc_loss = tf.reduce_mean(loc_loss)
-
 
     # Combine losses linearly.
     self.loss = cls_loss + loc_loss_lambda * loc_loss
 
     # Define optimizer.
     self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
-
 
   def probe(self, X):
     """
@@ -218,7 +214,6 @@ class SSNN:
       counter += 1
     self.probe_output = pcs
     return np.array(pcs)
-
 
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val=None, epochs=10, 
                 batch_size=4, display_step=10):
@@ -262,7 +257,4 @@ class SSNN:
       hooks = self.sess.run(self.cls_hooks + self.loc_hooks, feed_dict={self.X_ph: batch_x})
       cls_preds.append(hooks[:3])
       loc_preds.append(hooks[3:])
-
-    # preds = np.array(preds)
-    # preds = preds.reshape((-1,) + preds.shape[2:])
-    # return preds
+    return cls_preds, loc_preds
