@@ -104,31 +104,34 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3):
 
       # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
       bbox_dims = (bbox[3:] - bbox[:3]) / kernel_size
-      bbox_loc = (bbox[3:] + bbox[:3]) / 2 / kernel_size
+      bbox_loc = ((bbox[3:] + bbox[:3]) / 2) / kernel_size
+      print bbox_loc
       max_dim = np.max(bbox_dims)
       scale = 0
 
       #print "bbox_dims: {} bbox_loc: {}, max_dim: {}".format(bbox_dims, bbox_loc, max_dim)
-      for _ in range(num_downsamples-1):
-        if max_dim < 2:
-          break
-        max_dim /= 2
-        bbox_dims /= 2
-        bbox_loc /= 2
-        scale += 1
+      # for _ in range(num_downsamples-1):
+      #   if max_dim < 2:
+      #     break
+      #   max_dim /= 2
+      #   bbox_dims /= 2
+      #   bbox_loc /= 2
+      #   scale += 1
       #print scale
       best_kernel_size = kernel_size * 2**scale
       best_num_steps = steps / (2**scale)
 
       coords = np.trunc(bbox_loc).astype(int)
+      print coords
 
       if coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps:
         continue
 
+      print coords[2]
+
       cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims
-
       # Second phase: for each feature box, if the jaccard overlap is > 0.5, set it equal to 1 as well.
 
 

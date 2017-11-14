@@ -27,7 +27,7 @@ def visualize_scales(voxels_path, n_steps, n_scale):
       d_slice = np.reshape(d_slice, (num_steps, num_steps, num_steps))
 
       for z_dim in range(num_steps):
-        axarr[curr_index/4, curr_index%4].imshow(d_slice[z_dim], interpolation='nearest', cmap='hot')
+        axarr[curr_index/4, curr_index%4].imshow(d_slice[:, :, z_dim], interpolation='nearest', cmap='hot')
         axarr[curr_index/4, curr_index%4].invert_yaxis()
         curr_index += 1
 
