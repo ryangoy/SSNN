@@ -11,7 +11,7 @@ from random import shuffle
 
 class SSNN:
   
-  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, probe_steps=10):
+  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, probe_steps=10, num_scales=3):
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
@@ -23,7 +23,7 @@ class SSNN:
                        probes_per_kernel=probes_per_kernel)
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
-    self.init_model(num_kernels, probes_per_kernel, probe_steps)
+    self.init_model(num_kernels, probes_per_kernel, probe_steps, num_scales)
 
     # Initialize variables
     # TODO: add support for checkpoints
@@ -104,7 +104,7 @@ class SSNN:
 
       return conf, loc
 
-  def init_model(self, num_kernels, probes_per_kernel, probe_steps, 
+  def init_model(self, num_kernels, probes_per_kernel, probe_steps, num_scales,
                  learning_rate=0.0001, loc_loss_lambda=0.5, reuse_hook=False):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 

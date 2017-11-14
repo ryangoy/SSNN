@@ -73,6 +73,8 @@ def voxelize_labels(labels, steps, kernel_size):
                     np.max([intersection, prev_val])
   return vox_label
 
+
+
 def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3):
   """
   Args:
@@ -90,21 +92,31 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3):
 
   
   for scene_id in range(len(labels)):
-    # First phase: for each GT box, set the closest feature box to 1.
+    # if scene_id == 0:
+    #   continue
+    # elif scene_id >1:
+    #   exit()
+
+    
     for bbox in labels[scene_id]:
+
+      # First phase: for each GT box, set the closest feature box to 1.
+
       # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
       bbox_dims = (bbox[3:] - bbox[:3]) / kernel_size
       bbox_loc = (bbox[3:] + bbox[:3]) / 2 / kernel_size
       max_dim = np.max(bbox_dims)
       scale = 0
+
+      #print "bbox_dims: {} bbox_loc: {}, max_dim: {}".format(bbox_dims, bbox_loc, max_dim)
       for _ in range(num_downsamples-1):
-        if max_dim < 10:
+        if max_dim < 2:
           break
         max_dim /= 2
         bbox_dims /= 2
         bbox_loc /= 2
         scale += 1
-
+      #print scale
       best_kernel_size = kernel_size * 2**scale
       best_num_steps = steps / (2**scale)
 
@@ -117,7 +129,10 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3):
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims
 
-    # Second phase: for each feature box, if the jaccard overlap is > 0.5, set it equal to 1 as well.
+      # Second phase: for each feature box, if the jaccard overlap is > 0.5, set it equal to 1 as well.
+
+
+
     """
     for s in range(num_downsamples):
       for i in range(steps):
@@ -257,8 +272,9 @@ def load_directory(path):
       annotation_pc = []
       annotation_label = []
       for annotation in listdir(join(room_path, 'Annotations')):
-        if annotation.startswith('wall') or annotation.startswith('ceiling') \
-                                         or not annotation.endswith('.txt'):
+        if annotation.startswith('wall') or annotation.startswith('ceiling') or\
+           annotation.startswith('beam') or annotation.startswith('floor') or\
+           annotation.startswith('door') or not annotation.endswith('.txt'):
           continue
         annotation_pc.append(np.loadtxt(
                   join(room_path, 'Annotations', annotation), dtype=np.float32))

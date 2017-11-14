@@ -34,6 +34,9 @@ flags.DEFINE_integer('num_kernels', 16, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 256, 'Number of sample points each\
                       kernel has.')
 
+# DO NOT CHANGE
+NUM_SCALES = 3
+
 # Define constant paths
 X_NPY         = join(FLAGS.data_dir, 'input_data.npy')
 YS_NPY        = join(FLAGS.data_dir, 'segmentation_data.npy')
@@ -63,7 +66,7 @@ def main(_):
   kernel_size = dims / FLAGS.num_steps
   print("Generating bboxes...")
   bboxes = generate_bounding_boxes(ys, BBOX_PATH)
-  
+  np.save('bboxes.npy', bboxes)
   print("Processing labels...")
   y_cls, y_loc = create_jaccard_labels(bboxes, FLAGS.num_steps, kernel_size)
   np.save('cls_labels.npy', y_cls)
@@ -78,7 +81,7 @@ def main(_):
   # Initialize model. max_room_dims and step_size are in meters.
   ssnn = SSNN(dims, num_kernels=FLAGS.num_kernels, 
                     probes_per_kernel=FLAGS.probes_per_kernel, 
-                    probe_steps=FLAGS.num_steps)
+                    probe_steps=FLAGS.num_steps, num_scales=NUM_SCALES)
 
   # Probe processing.
   print("Running probe operation...")
@@ -89,9 +92,9 @@ def main(_):
 
   X = np.squeeze(X, axis=1)
 
-  # Used for developing so redudant calculations are omitted.
-  np.save('X.npy', X)
-  #X = np.load('X.npy')
+  # # Used for developing so redudant calculations are omitted.
+  # np.save('X.npy', X)
+  # X = np.load('X.npy')
 
   p_mean = X.mean(axis=(4,5))
 
@@ -113,7 +116,7 @@ def main(_):
   cls_preds, loc_preds = ssnn.test(X_val)
 
   # Save output.
-  save_output('cls_predictions.npy', 'loc_predictions.npy', cls_preds, loc_preds, 16, 3)
+  save_output('cls_predictions.npy', 'loc_predictions.npy', cls_preds, loc_preds, FLAGS.num_steps, NUM_SCALES)
 
 # Tensorflow boilerplate code.
 if __name__ == '__main__':
