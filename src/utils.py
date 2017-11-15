@@ -214,6 +214,8 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
           for j in range(diff[1]):
             for k in range(diff[2]):
               curr_coord = np.floor(bbox_loc[:3]).astype(int) + [i,j,k]
+              if max(curr_coord -(steps / (2**s))) >= 0:
+                continue
               bbox_LL = bbox_loc[:3]
               bbox_UR = bbox_loc[3:]
               fb_LL = np.array(curr_coord)
@@ -226,7 +228,7 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
               min_LL = np.minimum(fb_LL, bbox_LL)
               ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
 
-              if ji > 0.25:
+              if ji > 0.1:
                 cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - [i,j,k]
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = bbox_UR - bbox_LL - [i,j,k]
@@ -297,6 +299,7 @@ def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
     assert X_npy_path is not None, "No path given for .npy file."
     print("Loading points from npy file...")
     X, ys, yl = load_npy(X_npy_path, ys_npy_path, yl_npy_path)
+    new_ds = False
   else:
     assert path is not None, "No path given for pointcloud directory."
     print("Loading points from directory...")
@@ -304,7 +307,8 @@ def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
     np.save(X_npy_path, X)
     np.save(ys_npy_path, ys)
     np.save(yl_npy_path, yl)
-  return X, ys, yl
+    new_ds = True
+  return X, ys, yl, new_ds
 
 def load_directory(path):
   """
