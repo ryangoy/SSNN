@@ -35,20 +35,51 @@ def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor):
   np.save(loc_path, loc_output)
   return cls_output, loc_output
 
-def nms(cls_preds, loc_preds, num_steps, num_downsamples):
-  all_bboxes = []
-  for scene in range(predictions.shape[0]):
-    dim = num_steps
-    for scale in range(num_downsamples):
-      hook = predictions[scene, :dim**3, 1]
-      hook = np.reshape(hook, (dim, dim, dim))
-      for i in range(dim):
-        for j in range(dim):
-          for k in range(dim):
-            if hook[i, j, k] > 0.5:
-              pass
+# adapted from https://github.com/rbgirshick/voc-dpm/blob/master/test/nms.m
+def nms(cls_preds, loc_preds, overlap_thresh):
+    # coordinates of the bounding boxes
+    x1 = loc_preds[:,0]
+    y1 = loc_preds[:,1]
+    z1 = loc_preds[:, 2]
+    x2 = loc_preds[:,3]
+    y2 = loc_preds[:,4]
+    z2 = loc_preds[:,5]
+ 
+    # scores are probability of being class 1
+    score = cls_preds[:, 1] 
+    volume = (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1)
+    idxs = np.argsort(score)
+    pick = []
+    count = 1 
 
-      dim /= 2
+    while len(idxs) > 0:
+
+        # index of the bbox with the highest remaining score
+        last = len(idxs) - 1
+        i = idxs[last]
+        pick.append(i)
+ 
+        xx1 = np.maximum(x1[i], x1[idxs[:last]])
+        yy1 = np.maximum(y1[i], y1[idxs[:last]])
+        zz1 = np.maximum(z1[i], z1[idxs[:last]])
+        xx2 = np.minimum(x2[i], x2[idxs[:last]])
+        yy2 = np.minimum(y2[i], y2[idxs[:last]])
+        zz2 = np.minimum(z2[i], z2[idxs[:last]])
+
+        w = np.maximum(0, xx2 - xx1 + 1)
+        h = np.maximum(0, yy2 - yy1 + 1)
+        t = np.maximum(0, zz2 - zz1 + 1)
+ 
+        # compute the ratio of overlap
+        o = (w * h * t) / volume[idxs[:last]]
+ 
+        # delete all indexes from the index list that have
+        idxs = np.delete(idxs, np.concatenate(([last],
+            np.where(o > overlap_thresh)[0])))
+ 
+    # return only the bounding boxes that were picked using the
+    # integer data type
+    return loc_preds[pick]
 
 def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples, 
                      kernel_size, bbox_path, cls_path, conf_threshold=0.5):
@@ -139,8 +170,9 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
   cls_labels = []
   loc_labels = []
   for d in range(num_downsamples):
-    cls_labels.append(np.zeros((len(labels), steps/(2**d), steps/(2**d), steps/(2**d))))
-    loc_labels.append(np.zeros((len(labels), steps/(2**d), steps/(2**d), steps/(2**d), 6)))
+    k = int(steps/(2**d))
+    cls_labels.append(np.zeros((len(labels), k, k, k)))
+    loc_labels.append(np.zeros((len(labels), k, k, k, 6)))
 
   
   for scene_id in range(len(labels)):
@@ -207,8 +239,8 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
   res_factor = 0
 
   for cls_label, loc_label in zip(cls_labels, loc_labels):
-    cls_labels_flat.append(np.reshape(cls_label, (-1, (steps/(2**res_factor))**3, 1)))
-    loc_labels_flat.append(np.reshape(loc_label, (-1, (steps/(2**res_factor))**3, 6)))
+    cls_labels_flat.append(np.reshape(cls_label, (-1, int((steps/(2**res_factor))**3), 1)))
+    loc_labels_flat.append(np.reshape(loc_label, (-1, int((steps/(2**res_factor))**3), 6)))
     res_factor += 1
 
   cls_concat = np.concatenate(cls_labels_flat, axis=1).astype(np.int32)
@@ -305,7 +337,7 @@ def load_directory(path):
       if not isdir(room_path) or room.endswith('Angle.txt') or \
          room == '.DS_Store':
         continue
-      print "\tLoading room {}...".format(room)
+      print("\tLoading room {}...".format(room))
 
       # Load point cloud
       input_pc = np.loadtxt(join(room_path, room+'.txt'), dtype=np.float32)
