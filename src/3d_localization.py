@@ -9,7 +9,7 @@ import tensorflow as tf
 import numpy as np
 import os
 from os.path import join, isdir, exists
-from os import listdir
+from os import listdir, makedirs
 from utils import normalize_pointclouds, load_points, create_jaccard_labels, save_output, output_to_bboxes
 from SSNN import SSNN
 import time
@@ -22,7 +22,7 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 # Define user inputs.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/test', 
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/other', 
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
@@ -35,26 +35,37 @@ flags.DEFINE_integer('probes_per_kernel', 256, 'Number of sample points each\
                       kernel has.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
+flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
+
 
 # DO NOT CHANGE
 NUM_SCALES = 3
 
 # Define constant paths
-X_NPY         = join(FLAGS.data_dir, 'input_data.npy')
-YS_NPY        = join(FLAGS.data_dir, 'segmentation_data.npy')
-YL_NPY        = join(FLAGS.data_dir, 'label_data.npy')
-OUTPUT_PATH   = join(FLAGS.data_dir, 'predictions.npy')
-BBOX_PATH     = join(FLAGS.data_dir, 'bboxes.npy')
+intermediate_dir = join(FLAGS.data_dir, 'intermediates')
+if not exists(intermediate_dir):
+  makedirs(intermediate_dir)
+X_NPY         = join(intermediate_dir, 'input_data.npy')
+YS_NPY        = join(intermediate_dir, 'segmentation_data.npy')
+YL_NPY        = join(intermediate_dir, 'label_data.npy')
+OUTPUT_PATH   = join(intermediate_dir, 'predictions.npy')
+BBOX_PATH     = join(intermediate_dir, 'bboxes.npy')
+PROBE_NPY     = join(intermediate_dir, 'probe_out.npy')
+CLS_LABELS    = 'cls_labels.npy'
+LOC_LABELS    = 'loc_labels.npy'
+BBOX_LABELS   = 'bbox_labels.npy'
+CLS_PREDS     = 'cls_predictions.npy'
+LOC_PREDS     = 'loc_predictions.npy'
+BBOX_PREDS    = 'bbox_predictions.npy'
+BBOX_CLS_PREDS= 'bbox_cls_predictions.npy'
 
 def main(_):
   
   # TODO: Preprocess input.
   # - remove outliers
   # - align to nearest 90 degree angle
-  # - remove walls?
   # - data augmentation
-
-  X_raw, ys_raw, yl = load_points(path=FLAGS.data_dir, X_npy_path=X_NPY,
+  X_raw, ys_raw, yl, new_ds = load_points(path=FLAGS.data_dir, X_npy_path=X_NPY,
                                   ys_npy_path = YS_NPY, yl_npy_path = YL_NPY, 
                                   load_from_npy=FLAGS.load_from_npy)
 
@@ -68,16 +79,17 @@ def main(_):
   kernel_size = dims / FLAGS.num_steps
   print("Generating bboxes...")
   bboxes = generate_bounding_boxes(ys, BBOX_PATH)
-  np.save('bboxes.npy', bboxes)
+  np.save(BBOX_LABELS, bboxes)
   print("Processing labels...")
   y_cls, y_loc = create_jaccard_labels(bboxes, FLAGS.num_steps, kernel_size)
-  np.save('cls_labels.npy', y_cls)
-  np.save('loc_labels.npy', y_loc)
+  np.save(CLS_LABELS, y_cls)
+  np.save(LOC_LABELS, y_loc)
 
+  # Hack-y way of combining samples into one array since each sample has a
+  # different number of points.
   X_ = []
   for sc in X_cont:
     X_.append([sc[0]])
-
   X_cont = np.array(X_)
 
   # Initialize model. max_room_dims and step_size are in meters.
@@ -86,9 +98,10 @@ def main(_):
                     probe_steps=FLAGS.num_steps, num_scales=NUM_SCALES)
 
   # Probe processing.
-  if exists('X.npy'):
+  if exists(PROBE_NPY) and FLAGS.load_probe_output and not new_ds:
     # Used for developing so redudant calculations are omitted.
-    X = np.load('X.npy')
+    print ("Loading previous probe output...")
+    X = np.load(PROBE_NPY)
   else:
     print("Running probe operation...")
     probe_start = time.time()
@@ -96,10 +109,7 @@ def main(_):
     probe_time = time.time() - probe_start
     print("Probe operation took {:.4f} seconds to run.".format(probe_time))
     X = np.squeeze(X, axis=1)
-    np.save('X.npy', X)
-
-  p_mean = X.mean(axis=(4,5))
-  np.save('probe_output.npy', p_mean)
+    np.save(PROBE_NPY, X)
 
   # Train model.
   train_split = int((FLAGS.val_split) * X.shape[0])
@@ -109,7 +119,6 @@ def main(_):
   X_val = X[:train_split]
   y_val_cls = y_cls[:train_split]
   y_val_loc = y_loc[:train_split]
-
   ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, epochs=FLAGS.num_epochs) #y_l not used yet for localization
 
   # Test model. Using validation since we won't be using real 
@@ -117,8 +126,10 @@ def main(_):
   cls_preds, loc_preds = ssnn.test(X_val)
 
   # Save output.
-  cls_formatted, loc_formatted = save_output('cls_predictions.npy', 'loc_predictions.npy', cls_preds, loc_preds, FLAGS.num_steps, NUM_SCALES)
-  bboxes = output_to_bboxes(cls_formatted, loc_formatted, FLAGS.num_steps, NUM_SCALES, kernel_size, 'bbox_preds.npy', 'bbox_cls_preds.npy')
+  cls_f, loc_f = save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
+                             FLAGS.num_steps, NUM_SCALES)
+  bboxes = output_to_bboxes(cls_f, loc_f, FLAGS.num_steps, NUM_SCALES, 
+                            kernel_size, BBOX_PREDS, BBOX_CLS_PREDS)
 
 # Tensorflow boilerplate code.
 if __name__ == '__main__':

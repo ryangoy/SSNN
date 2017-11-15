@@ -111,7 +111,7 @@ class SSNN:
       return conf, loc
 
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, num_scales,
-                 learning_rate=0.0001, loc_loss_lambda=0.5, reuse_hook=False):
+                 learning_rate=0.001, loc_loss_lambda=0.5, reuse_hook=False):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
