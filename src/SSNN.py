@@ -11,12 +11,14 @@ from random import shuffle
 
 class SSNN:
   
-  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, probe_steps=10, num_scales=3):
+  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, probe_steps=10, num_scales=3, ckpt_load=None, ckpt_save=None):
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
     self.probe_size = dims / probe_steps
     self.probe_output = None
+    self.ckpt_save = ckpt_save
+    self.ckpt_load = ckpt_load
 
     # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
@@ -26,10 +28,14 @@ class SSNN:
     self.init_model(num_kernels, probes_per_kernel, probe_steps, num_scales)
 
     # Initialize variables
-    # TODO: add support for checkpoints
+    self.saver = tf.train.Saver()
     self.sess = tf.Session()
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
+    if self.ckpt_load and self.load_checkpoint(self.ckpt_load):
+      print('Loaded model from checkpoint successfully.')
+    else:
+      print('Initialized new model.')
 
   def fc_layer(self, x, num_nodes, name='fc_layer', activation=tf.nn.elu):
     """
@@ -216,7 +222,7 @@ class SSNN:
     return np.array(pcs)
 
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val=None, epochs=10, 
-                batch_size=4, display_step=10):
+                batch_size=4, display_step=10, save_interval=10):
     if X_trn is None:
       X_trn = self.probe_ouput
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
@@ -248,6 +254,8 @@ class SSNN:
 
         print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
                                                        val_loss/X_val.shape[0]))
+      if epoch % save_interval and epoch != 0 and self.ckpt_save is not None:
+        self.save_checkpoint(self.ckpt_save, epoch)
 
   def test(self, X_test, save_dir=None, batch_size=1):
     cls_preds = []
@@ -258,3 +266,14 @@ class SSNN:
       cls_preds.append(hooks[:3])
       loc_preds.append(hooks[3:])
     return cls_preds, loc_preds
+
+  def save_checkpoint(self, checkpoint_dir, step, name='ssnn.model'):
+    if not isdir(checkpoint_dir):
+      makedirs(checkpoint_dir)
+    self.saver.save(self.sess, os.path.join(checkpoint_dir, name), global_step=step)
+
+  def load_checkpoint(self, checkpoint_dir):
+    ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+    if ckpt and ckpt.model_checkpoint_path:
+      ckpt_name = basename(ckpt.model_checkpoint_path)
+      self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))

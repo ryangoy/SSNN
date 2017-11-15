@@ -8,9 +8,9 @@
 import tensorflow as tf
 import numpy as np
 import os
-from os.path import join, isdir
+from os.path import join, isdir, exists
 from os import listdir
-from utils import normalize_pointclouds, load_points, create_jaccard_labels, save_output
+from utils import normalize_pointclouds, load_points, create_jaccard_labels, save_output, output_to_bboxes
 from SSNN import SSNN
 import time
 from object_boundaries import generate_bounding_boxes
@@ -26,13 +26,15 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/test',
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
-flags.DEFINE_integer('num_epochs', 50, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
 flags.DEFINE_integer('num_kernels', 16, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 256, 'Number of sample points each\
                       kernel has.')
+flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
+flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 
 # DO NOT CHANGE
 NUM_SCALES = 3
@@ -84,20 +86,19 @@ def main(_):
                     probe_steps=FLAGS.num_steps, num_scales=NUM_SCALES)
 
   # Probe processing.
-  print("Running probe operation...")
-  probe_start = time.time()
-  X = ssnn.probe(X_cont)
-  probe_time = time.time() - probe_start
-  print("Probe operation took {:.4f} seconds to run.".format(probe_time))
-
-  X = np.squeeze(X, axis=1)
-
-  # # Used for developing so redudant calculations are omitted.
-  # np.save('X.npy', X)
-  # X = np.load('X.npy')
+  if exists('X.npy'):
+    # Used for developing so redudant calculations are omitted.
+    X = np.load('X.npy')
+  else:
+    print("Running probe operation...")
+    probe_start = time.time()
+    X = ssnn.probe(X_cont)
+    probe_time = time.time() - probe_start
+    print("Probe operation took {:.4f} seconds to run.".format(probe_time))
+    X = np.squeeze(X, axis=1)
+    np.save('X.npy', X)
 
   p_mean = X.mean(axis=(4,5))
-
   np.save('probe_output.npy', p_mean)
 
   # Train model.
@@ -116,7 +117,8 @@ def main(_):
   cls_preds, loc_preds = ssnn.test(X_val)
 
   # Save output.
-  save_output('cls_predictions.npy', 'loc_predictions.npy', cls_preds, loc_preds, FLAGS.num_steps, NUM_SCALES)
+  cls_formatted, loc_formatted = save_output('cls_predictions.npy', 'loc_predictions.npy', cls_preds, loc_preds, FLAGS.num_steps, NUM_SCALES)
+  bboxes = output_to_bboxes(cls_formatted, loc_formatted, FLAGS.num_steps, NUM_SCALES, kernel_size, 'bbox_preds.npy', 'bbox_cls_preds.npy')
 
 # Tensorflow boilerplate code.
 if __name__ == '__main__':

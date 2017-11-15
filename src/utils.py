@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 import paths
-from os.path import join, exists, isdir, isfile
+from os.path import join, exists, isdir, isfile, basename
 from os import makedirs, listdir
 import time
 from scipy.misc import imsave
@@ -28,13 +28,65 @@ def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor):
   cls_output = np.array(cls_output)
   loc_output = np.array(loc_output)
 
-  print cls_output.shape
   cls_output = np.apply_along_axis(softmax, 2, cls_output)
-  print cls_output.shape
   print('Saving cls predictions to {}'.format(cls_path))
   np.save(cls_path, cls_output)
   print('Saving loc predictions to {}'.format(loc_path))
   np.save(loc_path, loc_output)
+  return cls_output, loc_output
+
+def nms(cls_preds, loc_preds, num_steps, num_downsamples):
+  all_bboxes = []
+  for scene in range(predictions.shape[0]):
+    dim = num_steps
+    for scale in range(num_downsamples):
+      hook = predictions[scene, :dim**3, 1]
+      hook = np.reshape(hook, (dim, dim, dim))
+      for i in range(dim):
+        for j in range(dim):
+          for k in range(dim):
+            if hook[i, j, k] > 0.5:
+              pass
+
+      dim /= 2
+
+def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples, 
+                     kernel_size, bbox_path, cls_path, conf_threshold=0.5):
+  all_bboxes = []
+  all_cls_vals = []
+  for scene in range(cls_preds.shape[0]):
+    bboxes = []
+    cls_vals = []
+    dim = num_steps
+    for scale in range(num_downsamples):
+      cls_hook = cls_preds[scene, :dim**3, 1]
+      cls_hook = np.reshape(cls_hook, (dim, dim, dim))
+      loc_hook = loc_preds[scene, :dim**3]
+      loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6))
+      for i in range(dim):
+        for j in range(dim):
+          for k in range(dim):
+            if cls_hook[i, j, k] > conf_threshold:
+              center_pt = np.array([i, j, k]) + loc_hook[i, j, k, :3]
+              half_dims = loc_hook[i, j, k, 3:]
+              LL = (center_pt - half_dims) * kernel_size
+              UR = (center_pt + half_dims) * kernel_size
+              bbox = np.concatenate([LL, UR], axis=0)
+              cls_vals.append(cls_hook[i, j, k])
+              bboxes.append(bbox)
+      dim /= 2  
+    all_bboxes.append(np.array(bboxes))
+    all_cls_vals.append(np.array(cls_vals))
+
+  all_bboxes = np.array(all_bboxes)
+  all_cls_vals = np.array(all_cls_vals)
+
+  print('Saving bbox predictions to {}'.format(bbox_path))
+  np.save(bbox_path, all_bboxes)
+  print('Saving bbox cls predictions to {}'.format(cls_path))
+  np.save(cls_path, all_cls_vals)
+
+  return all_bboxes, all_cls_vals
 
 def voxelize_labels(labels, steps, kernel_size):
   """
@@ -111,7 +163,7 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
         scale += 1
       best_kernel_size = kernel_size * 2**scale
       best_num_steps = steps / (2**scale)
-      coords = np.trunc(bbox_loc).astype(int)
+      coords = np.floor(bbox_loc).astype(int)
 
       if coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps:
         continue
@@ -121,36 +173,35 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.5, set it equal to 1 as well.
-
-
-
-    """
-    for s in range(num_downsamples):
-      for i in range(steps):
-        for j in range(steps):
-          for k in range(steps):
-            for bbox in labels[scene_id]:
-              bbox_loc = bbox / 2 / (2**s)
-              bbox_LL = bbox_loc[:3]/ kernel_size
-              bbox_UR = bbox_loc[3:]/ kernel_size
-              fb_LL = np.array([i, j, k])
-              fb_UR = np.array([i+1, j+1, k+1])
-              if max(fb_UR - bbox_LL) < 0 or min(bbox_UR - fb_LL) < 0:
+      # This is kind of hacky for now until I debug it.
+      bbox_dims = (bbox[3:] - bbox[:3]) / kernel_size
+      bbox_loc = np.concatenate([bbox[:3] / kernel_size, bbox[3:] / kernel_size], axis=0)
+      for s in range(num_downsamples):
+        diff = (np.ceil(bbox_loc[3:]) - np.floor(bbox_loc[:3])).astype(int)
+        for i in range(diff[0]):
+          for j in range(diff[1]):
+            for k in range(diff[2]):
+              curr_coord = np.floor(bbox_loc[:3]).astype(int) + [i,j,k]
+              bbox_LL = bbox_loc[:3]
+              bbox_UR = bbox_loc[3:]
+              fb_LL = np.array(curr_coord)
+              fb_UR = np.array(curr_coord+1)
+              if min(fb_UR - bbox_LL) < 0 or min(bbox_UR - fb_LL) < 0:
                 continue
-              # print fb_UR
-              # print bbox_LL
-              # print bbox_UR
-              # print fb_LL
               max_UR = np.maximum(fb_UR, bbox_UR)
               max_LL = np.maximum(fb_LL, bbox_LL)
               min_UR = np.minimum(fb_UR, bbox_UR)
               min_LL = np.minimum(fb_LL, bbox_LL)
               ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
-              if ji > 0.5:
-                cls_labels[scale][scene_id, i, j, k] = 1
-                loc_labels[scale][scene_id, i, j, k, :3] = (bbox_UR + bbox_LL)/2 - [i,j,k]
-                loc_labels[scale][scene_id, i, j, k, 3:] = bbox_UR - bbox_LL - [i,j,k]
-  """
+
+              if ji > 0.25:
+                cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
+                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - [i,j,k]
+                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = bbox_UR - bbox_LL - [i,j,k]
+        bbox_dims /= 2
+        bbox_loc /= 2
+
+  # Format into the correct sized array for passing in labels to model.
   cls_labels_flat = []
   loc_labels_flat = []
   res_factor = 0
