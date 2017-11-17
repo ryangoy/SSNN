@@ -344,7 +344,7 @@ def load_directory(path):
       print("\tLoading room {}...".format(room))
 
       # Load point cloud
-      input_pc = np.loadtxt(join(room_path, room+'.txt'), dtype=np.float32)
+      input_pc = np.genfromtxt(join(room_path, room+'.txt'), dtype=np.float32)
       
       # Loop and load Annotations folder
       annotation_pc = []
@@ -354,7 +354,7 @@ def load_directory(path):
            annotation.startswith('beam') or annotation.startswith('floor') or\
            annotation.startswith('door') or not annotation.endswith('.txt'):
           continue
-        annotation_pc.append(np.loadtxt(
+        annotation_pc.append(np.genfromtxt(
                   join(room_path, 'Annotations', annotation), dtype=np.float32))
         annotation_label.append(annotation.split('.')[0])
       annotation_pc = np.array(annotation_pc)
