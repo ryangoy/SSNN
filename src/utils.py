@@ -19,8 +19,8 @@ def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor):
     cls_preds_flat = []
     loc_preds_flat = []
     for cls_pred, loc_pred in zip(cls_preds[scene], loc_preds[scene]):
-      cls_preds_flat.append(np.reshape(cls_pred, ((steps/(2**res_factor))**3, 2)))
-      loc_preds_flat.append(np.reshape(loc_pred, ((steps/(2**res_factor))**3, 6)))
+      cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), 2)))
+      loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), 6)))
       res_factor += 1
     cls_output.append(np.concatenate(cls_preds_flat, axis=0))
     loc_output.append(np.concatenate(loc_preds_flat, axis=0))
@@ -88,11 +88,12 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
   for scene in range(cls_preds.shape[0]):
     bboxes = []
     cls_vals = []
-    dim = num_steps
+    dim = int(num_steps)
     for scale in range(num_downsamples):
-      cls_hook = cls_preds[scene, :dim**3, 1]
+      cls_hook = cls_preds[scene, :int(dim**3), 1]
+      tup = (dim, dim, dim)
       cls_hook = np.reshape(cls_hook, (dim, dim, dim))
-      loc_hook = loc_preds[scene, :dim**3]
+      loc_hook = loc_preds[scene, :int(dim**3)]
       loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6))
       for i in range(dim):
         for j in range(dim):
@@ -105,7 +106,7 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
               bbox = np.concatenate([LL, UR], axis=0)
               cls_vals.append(cls_hook[i, j, k])
               bboxes.append(bbox)
-      dim /= 2  
+      dim //= 2  
     all_bboxes.append(np.array(bboxes))
     all_cls_vals.append(np.array(cls_vals))
 

@@ -175,14 +175,13 @@ class SSNN:
     self.cls_hooks = [cls_hook1, cls_hook2, cls_hook3]
     self.loc_hooks = [loc_hook1, loc_hook2, loc_hook3]
 
-
-    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv1_2.shape[1]*self.conv1_2.shape[2]*self.conv1_2.shape[3], 2)),
-                               tf.reshape(cls_hook2, (-1, self.conv2_2.shape[1]*self.conv2_2.shape[2]*self.conv2_2.shape[3], 2)),
-                               tf.reshape(cls_hook3, (-1, self.conv3_2.shape[1]*self.conv3_2.shape[2]*self.conv3_2.shape[3], 2))],
+    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv1_2.shape.as_list()[1]*self.conv1_2.shape.as_list()[2]*self.conv1_2.shape.as_list()[3], 2)),
+                               tf.reshape(cls_hook2, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 2)),
+                               tf.reshape(cls_hook3, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 2))],
                                axis=1)
-    loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv1_2.shape[1]*self.conv1_2.shape[2]*self.conv1_2.shape[3], 6)),
-                               tf.reshape(loc_hook2, (-1, self.conv2_2.shape[1]*self.conv2_2.shape[2]*self.conv2_2.shape[3], 6)),
-                               tf.reshape(loc_hook3, (-1, self.conv3_2.shape[1]*self.conv3_2.shape[2]*self.conv3_2.shape[3], 6))],
+    loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv1_2.shape.as_list()[1]*self.conv1_2.shape.as_list()[2]*self.conv1_2.shape.as_list()[3], 6)),
+                               tf.reshape(loc_hook2, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 6)),
+                               tf.reshape(loc_hook3, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 6))],
                                axis=1)
 
     # Define cls loss.
@@ -228,7 +227,7 @@ class SSNN:
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
 
     for epoch in range(epochs):
-      indices = range(X_trn.shape[0])
+      indices = list(range(X_trn.shape[0]))
       shuffle(indices)
       X_trn = X_trn[indices]
       y_trn_cls = y_trn_cls[indices]
