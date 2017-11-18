@@ -6,14 +6,12 @@ from os import makedirs, listdir
 import time
 from scipy.misc import imsave
 
-def softmax(x):
-  exp = np.exp(x)
-  return exp / np.sum(exp)
-
-def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor):
+def flatten_output(cls_preds, loc_preds, steps, res_factor):
   cls_output = []
   loc_output = []
+  
   assert len(cls_preds) == len(loc_preds), "Cls and loc prediction arrays are not the same size."
+
   for scene in range(len(cls_preds)):
     res_factor = 0
     cls_preds_flat = []
@@ -27,59 +25,82 @@ def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor):
 
   cls_output = np.array(cls_output)
   loc_output = np.array(loc_output)
-
   cls_output = np.apply_along_axis(softmax, 2, cls_output)
+ 
+  return cls_output, loc_output
+
+def softmax(x):
+  exp = np.exp(x)
+  return exp / np.sum(exp)
+
+def save_output(cls_path, loc_path, nms_path, cls_preds, loc_preds, steps, res_factor):
+
+  cls_output, loc_output = flatten_output(cls_preds, loc_preds, steps, res_factor)
+
   print('Saving cls predictions to {}'.format(cls_path))
   np.save(cls_path, cls_output)
   print('Saving loc predictions to {}'.format(loc_path))
   np.save(loc_path, loc_output)
+  # nms_output = nms(cls_output, loc_output, 0.75, steps, res_factor)
+  # print('Original number of loc predictions', [len(i) for i in loc_output])
+  # print('nms number of loc predictions', [len(i) for i in nms_output])
+  # print('Saving loc predictions (post nms) to {}'.format(nms_path))
+  #np.save(nms_path, nms_output)
   return cls_output, loc_output
 
 # adapted from https://github.com/rbgirshick/voc-dpm/blob/master/test/nms.m
-def nms(cls_preds, loc_preds, overlap_thresh):
+def nms(cls_preds, loc_preds, overlap_thresh, steps, res_factor, needs_flattening=False):
     # coordinates of the bounding boxes
-    x1 = loc_preds[:,0]
-    y1 = loc_preds[:,1]
-    z1 = loc_preds[:, 2]
-    x2 = loc_preds[:,3]
-    y2 = loc_preds[:,4]
-    z2 = loc_preds[:,5]
- 
-    # scores are probability of being class 1
-    score = cls_preds[:, 1] 
-    volume = (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1)
-    idxs = np.argsort(score)
-    pick = []
-    count = 1 
+    if needs_flattening:
+        cls_preds, loc_preds = flatten_output(cls_preds, loc_preds, steps, res_factor)
 
-    while len(idxs) > 0:
+    all_loc_preds = []
 
-        # index of the bbox with the highest remaining score
-        last = len(idxs) - 1
-        i = idxs[last]
-        pick.append(i)
+    # iterate over rooms    
+    for i in range(len(cls_preds)):
+        x1 = loc_preds[i,:,0]
+        y1 = loc_preds[i,:,1]
+        z1 = loc_preds[i,:,2]
+        x2 = loc_preds[i,:,3]
+        y2 = loc_preds[i,:,4]
+        z2 = loc_preds[i,:,5]
  
-        xx1 = np.maximum(x1[i], x1[idxs[:last]])
-        yy1 = np.maximum(y1[i], y1[idxs[:last]])
-        zz1 = np.maximum(z1[i], z1[idxs[:last]])
-        xx2 = np.minimum(x2[i], x2[idxs[:last]])
-        yy2 = np.minimum(y2[i], y2[idxs[:last]])
-        zz2 = np.minimum(z2[i], z2[idxs[:last]])
+        # scores are the probability of a given bbox being an ROI
+        score = cls_preds[i,:,1] 
+        volume = (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1)
+        idxs = np.argsort(score)
+        pick = []
+        count = 1 
 
-        w = np.maximum(0, xx2 - xx1 + 1)
-        h = np.maximum(0, yy2 - yy1 + 1)
-        t = np.maximum(0, zz2 - zz1 + 1)
+        while len(idxs) > 0:
+
+            # index of the bbox with the highest remaining score
+            last = len(idxs) - 1
+            j = idxs[last]
+            pick.append(j)
  
-        # compute the ratio of overlap
-        o = (w * h * t) / volume[idxs[:last]]
+            xx1 = np.maximum(x1[j], x1[idxs[:last]])
+            yy1 = np.maximum(y1[j], y1[idxs[:last]])
+            zz1 = np.maximum(z1[j], z1[idxs[:last]])
+            xx2 = np.minimum(x2[j], x2[idxs[:last]])
+            yy2 = np.minimum(y2[j], y2[idxs[:last]])
+            zz2 = np.minimum(z2[j], z2[idxs[:last]])
+
+            w = np.maximum(0, xx2 - xx1 + 1)
+            h = np.maximum(0, yy2 - yy1 + 1)
+            t = np.maximum(0, zz2 - zz1 + 1)
  
-        # delete all indexes from the index list that have
-        idxs = np.delete(idxs, np.concatenate(([last],
-            np.where(o > overlap_thresh)[0])))
+            # compute the ratio of overlap
+            o = (w * h * t) / volume[idxs[:last]]
  
-    # return only the bounding boxes that were picked using the
-    # integer data type
-    return loc_preds[pick]
+            # delete indices of bboxes that overlap by more than threshold
+            idxs = np.delete(idxs, np.concatenate(([last],
+                np.where(o > overlap_thresh)[0])))
+ 
+        # keep only the bounding boxes that were picked
+        all_loc_preds.append(np.array(loc_preds[i, pick]))
+
+    return np.array(all_loc_preds)
 
 def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples, 
                      kernel_size, bbox_path, cls_path, conf_threshold=0.5):

@@ -10,7 +10,7 @@ import numpy as np
 import os
 from os.path import join, isdir, exists
 from os import listdir, makedirs
-from utils import normalize_pointclouds, load_points, create_jaccard_labels, save_output, output_to_bboxes
+from utils import normalize_pointclouds, load_points, create_jaccard_labels, save_output, output_to_bboxes, nms
 from SSNN import SSNN
 import time
 from object_boundaries import generate_bounding_boxes
@@ -56,6 +56,7 @@ LOC_LABELS    = 'loc_labels.npy'
 BBOX_LABELS   = 'bbox_labels.npy'
 CLS_PREDS     = 'cls_predictions.npy'
 LOC_PREDS     = 'loc_predictions.npy'
+NMS_PREDS     = 'nms_loc_predictions.npy'
 BBOX_PREDS    = 'bbox_predictions.npy'
 BBOX_CLS_PREDS= 'bbox_cls_predictions.npy'
 
@@ -124,9 +125,9 @@ def main(_):
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
   cls_preds, loc_preds = ssnn.test(X_val)
-
+  
   # Save output.
-  cls_f, loc_f = save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
+  cls_f, loc_f = save_output(CLS_PREDS, LOC_PREDS, NMS_PREDS, cls_preds, loc_preds, 
                              FLAGS.num_steps, NUM_SCALES)
   bboxes = output_to_bboxes(cls_f, loc_f, FLAGS.num_steps, NUM_SCALES, 
                             kernel_size, BBOX_PREDS, BBOX_CLS_PREDS)
