@@ -15,22 +15,23 @@ from SSNN import SSNN
 import time
 from object_boundaries import generate_bounding_boxes
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
 # Tensorflow flags boilerplate code.
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 # Define user inputs.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/other', 
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
-flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 20, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
-flags.DEFINE_integer('num_kernels', 16, 'Number of kernels to probe with.')
+flags.DEFINE_integer('num_kernels', 32, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 256, 'Number of sample points each\
                       kernel has.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')

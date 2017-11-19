@@ -147,11 +147,11 @@ class SSNN:
     self.pool1 = tf.nn.max_pool3d(self.conv1_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
-    self.conv2_1 = tf.layers.conv3d(self.pool1, filters=32, kernel_size=3,
+    self.conv2_1 = tf.layers.conv3d(self.pool1, filters=64, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.conv2_2 = tf.layers.conv3d(self.conv2_1 , filters=32, kernel_size=3,
+    self.conv2_2 = tf.layers.conv3d(self.conv2_1 , filters=64, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -161,11 +161,11 @@ class SSNN:
     self.pool2 = tf.nn.max_pool3d(self.conv2_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
-    self.conv3_1 = tf.layers.conv3d(self.pool2, filters=32, kernel_size=3,
+    self.conv3_1 = tf.layers.conv3d(self.pool2, filters=64, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=32, kernel_size=3,
+    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=64, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 

@@ -58,8 +58,11 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
     bboxes = []
     cls_vals = []
     dim = num_steps
+
+    prev_ind = 0
     for scale in range(num_downsamples):
-      cls_hook = cls_preds[scene, :dim**3, 1]
+      cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, 1]
+      # print cls_hook.max()
       cls_hook = np.reshape(cls_hook, (dim, dim, dim))
       loc_hook = loc_preds[scene, :dim**3]
       loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6))
@@ -67,14 +70,17 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
         for j in range(dim):
           for k in range(dim):
             if cls_hook[i, j, k] > conf_threshold:
+
               center_pt = np.array([i, j, k]) + loc_hook[i, j, k, :3]
-              half_dims = loc_hook[i, j, k, 3:]
+              half_dims = (loc_hook[i, j, k, 3:]+1) /2
               LL = (center_pt - half_dims) * kernel_size
               UR = (center_pt + half_dims) * kernel_size
+              print half_dims
               bbox = np.concatenate([LL, UR], axis=0)
               cls_vals.append(cls_hook[i, j, k])
               bboxes.append(bbox)
-      dim /= 2  
+      prev_ind += dim**3
+      dim /= 2
     all_bboxes.append(np.array(bboxes))
     all_cls_vals.append(np.array(cls_vals))
 
@@ -170,11 +176,10 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
 
       cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
-      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims
+      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims - 1
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.5, set it equal to 1 as well.
       # This is kind of hacky for now until I debug it.
-      bbox_dims = (bbox[3:] - bbox[:3]) / kernel_size
       bbox_loc = np.concatenate([bbox[:3] / kernel_size, bbox[3:] / kernel_size], axis=0)
       for s in range(num_downsamples):
         diff = (np.ceil(bbox_loc[3:]) - np.floor(bbox_loc[:3])).astype(int)
@@ -199,8 +204,7 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
               if ji > 0.1:
                 cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - [i,j,k]
-                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = bbox_UR - bbox_LL - [i,j,k]
-        bbox_dims /= 2
+                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = bbox_UR - bbox_LL - 1
         bbox_loc /= 2
 
   # Format into the correct sized array for passing in labels to model.
@@ -345,3 +349,10 @@ def load_npy(X_path, ys_path, yl_path):
   assert exists(ys_path), "Train npy file (ys) does not exist."
   assert exists(yl_path), "Train npy file (yl) does not exist."
   return np.load(X_path), np.load(ys_path), np.load(yl_path)
+
+if __name__ == '__main__':
+  cls_preds = np.load('cls_predictions.npy')
+  loc_preds = np.load('loc_predictions.npy')
+
+  output_to_bboxes(cls_preds, loc_preds, 16, 3, 
+                     .46875, 'bbox_predictions.npy', 'bbox_cls_predictions.npy', conf_threshold=0.5)
