@@ -6,49 +6,101 @@ from os import makedirs, listdir
 import time
 from scipy.misc import imsave
 
-def softmax(x):
-  exp = np.exp(x)
-  return exp / np.sum(exp)
-
-def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor):
+def flatten_output(cls_preds, loc_preds, steps, res_factor):
   cls_output = []
   loc_output = []
+  
   assert len(cls_preds) == len(loc_preds), "Cls and loc prediction arrays are not the same size."
+
   for scene in range(len(cls_preds)):
     res_factor = 0
     cls_preds_flat = []
     loc_preds_flat = []
     for cls_pred, loc_pred in zip(cls_preds[scene], loc_preds[scene]):
-      cls_preds_flat.append(np.reshape(cls_pred, ((steps/(2**res_factor))**3, 2)))
-      loc_preds_flat.append(np.reshape(loc_pred, ((steps/(2**res_factor))**3, 6)))
+      cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), 2)))
+      loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), 6)))
       res_factor += 1
     cls_output.append(np.concatenate(cls_preds_flat, axis=0))
     loc_output.append(np.concatenate(loc_preds_flat, axis=0))
 
   cls_output = np.array(cls_output)
   loc_output = np.array(loc_output)
-
   cls_output = np.apply_along_axis(softmax, 2, cls_output)
+ 
+  return cls_output, loc_output
+
+def softmax(x):
+  exp = np.exp(x)
+  return exp / np.sum(exp)
+
+def save_output(cls_path, loc_path, nms_path, cls_preds, loc_preds, steps, res_factor):
+
+  cls_output, loc_output = flatten_output(cls_preds, loc_preds, steps, res_factor)
+
   print('Saving cls predictions to {}'.format(cls_path))
   np.save(cls_path, cls_output)
   print('Saving loc predictions to {}'.format(loc_path))
   np.save(loc_path, loc_output)
+  # nms_output = nms(cls_output, loc_output, 0.75, steps, res_factor)
+  # print('Original number of loc predictions', [len(i) for i in loc_output])
+  # print('nms number of loc predictions', [len(i) for i in nms_output])
+  # print('Saving loc predictions (post nms) to {}'.format(nms_path))
+  #np.save(nms_path, nms_output)
   return cls_output, loc_output
 
-def nms(cls_preds, loc_preds, num_steps, num_downsamples):
-  all_bboxes = []
-  for scene in range(predictions.shape[0]):
-    dim = num_steps
-    for scale in range(num_downsamples):
-      hook = predictions[scene, :dim**3, 1]
-      hook = np.reshape(hook, (dim, dim, dim))
-      for i in range(dim):
-        for j in range(dim):
-          for k in range(dim):
-            if hook[i, j, k] > 0.5:
-              pass
+# adapted from https://github.com/rbgirshick/voc-dpm/blob/master/test/nms.m
+def nms(cls_preds, loc_preds, overlap_thresh, steps, res_factor, needs_flattening=False):
+    # coordinates of the bounding boxes
+    if needs_flattening:
+        cls_preds, loc_preds = flatten_output(cls_preds, loc_preds, steps, res_factor)
 
-      dim /= 2
+    all_loc_preds = []
+
+    # iterate over rooms    
+    for i in range(len(cls_preds)):
+        x1 = loc_preds[i,:,0]
+        y1 = loc_preds[i,:,1]
+        z1 = loc_preds[i,:,2]
+        x2 = loc_preds[i,:,3]
+        y2 = loc_preds[i,:,4]
+        z2 = loc_preds[i,:,5]
+ 
+        # scores are the probability of a given bbox being an ROI
+        score = cls_preds[i,:,1] 
+        volume = (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1)
+        idxs = np.argsort(score)
+        pick = []
+        count = 1 
+
+        while len(idxs) > 0:
+
+            # index of the bbox with the highest remaining score
+            last = len(idxs) - 1
+            j = idxs[last]
+            pick.append(j)
+ 
+            xx1 = np.maximum(x1[j], x1[idxs[:last]])
+            yy1 = np.maximum(y1[j], y1[idxs[:last]])
+            zz1 = np.maximum(z1[j], z1[idxs[:last]])
+            xx2 = np.minimum(x2[j], x2[idxs[:last]])
+            yy2 = np.minimum(y2[j], y2[idxs[:last]])
+            zz2 = np.minimum(z2[j], z2[idxs[:last]])
+
+            w = np.maximum(0, xx2 - xx1 + 1)
+            h = np.maximum(0, yy2 - yy1 + 1)
+            t = np.maximum(0, zz2 - zz1 + 1)
+ 
+            # compute the ratio of overlap
+            o = (w * h * t) / volume[idxs[:last]]
+ 
+            # delete indices of bboxes that overlap by more than threshold
+            idxs = np.delete(idxs, np.concatenate(([last],
+                np.where(o > overlap_thresh)[0])))
+ 
+        # keep only the bounding boxes that were picked
+        all_loc_preds.append(np.array(loc_preds[i, pick]))
+
+    return np.array(all_loc_preds)
 
 def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples, 
                      kernel_size, bbox_path, cls_path, conf_threshold=0.5):
@@ -57,14 +109,16 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
   for scene in range(cls_preds.shape[0]):
     bboxes = []
     cls_vals = []
+
     dim = num_steps
 
     prev_ind = 0
     for scale in range(num_downsamples):
       cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, 1]
       # print cls_hook.max()
+
       cls_hook = np.reshape(cls_hook, (dim, dim, dim))
-      loc_hook = loc_preds[scene, :dim**3]
+      loc_hook = loc_preds[scene, :int(dim**3)]
       loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6))
       for i in range(dim):
         for j in range(dim):
@@ -79,8 +133,9 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
               bbox = np.concatenate([LL, UR], axis=0)
               cls_vals.append(cls_hook[i, j, k])
               bboxes.append(bbox)
+
       prev_ind += dim**3
-      dim /= 2
+      dim //= 2  
     all_bboxes.append(np.array(bboxes))
     all_cls_vals.append(np.array(cls_vals))
 
@@ -145,8 +200,9 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
   cls_labels = []
   loc_labels = []
   for d in range(num_downsamples):
-    cls_labels.append(np.zeros((len(labels), steps/(2**d), steps/(2**d), steps/(2**d))))
-    loc_labels.append(np.zeros((len(labels), steps/(2**d), steps/(2**d), steps/(2**d), 6)))
+    k = int(steps/(2**d))
+    cls_labels.append(np.zeros((len(labels), k, k, k)))
+    loc_labels.append(np.zeros((len(labels), k, k, k, 6)))
 
   
   for scene_id in range(len(labels)):
@@ -213,8 +269,8 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
   res_factor = 0
 
   for cls_label, loc_label in zip(cls_labels, loc_labels):
-    cls_labels_flat.append(np.reshape(cls_label, (-1, (steps/(2**res_factor))**3, 1)))
-    loc_labels_flat.append(np.reshape(loc_label, (-1, (steps/(2**res_factor))**3, 6)))
+    cls_labels_flat.append(np.reshape(cls_label, (-1, int((steps/(2**res_factor))**3), 1)))
+    loc_labels_flat.append(np.reshape(loc_label, (-1, int((steps/(2**res_factor))**3), 6)))
     res_factor += 1
 
   cls_concat = np.concatenate(cls_labels_flat, axis=1).astype(np.int32)
@@ -313,10 +369,10 @@ def load_directory(path):
       if not isdir(room_path) or room.endswith('Angle.txt') or \
          room == '.DS_Store':
         continue
-      print "\tLoading room {}...".format(room)
+      print("\tLoading room {}...".format(room))
 
       # Load point cloud
-      input_pc = np.loadtxt(join(room_path, room+'.txt'), dtype=np.float32)
+      input_pc = np.genfromtxt(join(room_path, room+'.txt'), dtype=np.float32)
       
       # Loop and load Annotations folder
       annotation_pc = []
@@ -326,7 +382,7 @@ def load_directory(path):
            annotation.startswith('beam') or annotation.startswith('floor') or\
            annotation.startswith('door') or not annotation.endswith('.txt'):
           continue
-        annotation_pc.append(np.loadtxt(
+        annotation_pc.append(np.genfromtxt(
                   join(room_path, 'Annotations', annotation), dtype=np.float32))
         annotation_label.append(annotation.split('.')[0])
       annotation_pc = np.array(annotation_pc)

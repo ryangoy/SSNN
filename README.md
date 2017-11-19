@@ -24,6 +24,9 @@ sudo find / -name nsync_cv.h
 ```
 Then, edit the mutix.h file reference in the error and change the nsync_cv.h and nsync_mu.h to any of the paths listed from the find command.
 
+## ValueError: invalid literal for float(): ... ##
+This seems to occur randomly when reading in the dataset. Navigate to the problem file and search for the invalid character and delete it.
+
 
 
  
