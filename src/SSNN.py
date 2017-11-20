@@ -8,6 +8,8 @@ import numpy as np
 import tensorflow as tf
 from tf_ops import *
 from random import shuffle
+from os.path import isdir, join
+from os import makedirs
 
 class SSNN:
   
@@ -111,7 +113,7 @@ class SSNN:
       return conf, loc
 
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, num_scales,
-                 learning_rate=0.001, loc_loss_lambda=0.5, reuse_hook=False):
+                 learning_rate=0.001, loc_loss_lambda=1, reuse_hook=False):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
@@ -187,6 +189,7 @@ class SSNN:
     # Define cls loss.
     cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=cls_hooks_flat)
     cls_loss = tf.reduce_mean(cls_loss)
+    self.cls_loss = cls_loss
 
     # Define loc loss.
     diff = self.y_ph_loc - loc_hooks_flat
@@ -196,7 +199,7 @@ class SSNN:
     # loc_loss = tf.where(smooth_cond, loc_loss_L1, loc_loss_L2)
     loc_loss = tf.abs(diff)
     loc_loss = tf.reduce_mean(loc_loss)
-
+    self.loc_loss = loc_loss
     # Combine losses linearly.
     self.loss = cls_loss + loc_loss_lambda * loc_loss
 
@@ -237,11 +240,13 @@ class SSNN:
         batch_x = X_trn[step:step+batch_size]
         batch_y_cls = y_trn_cls[step:step+batch_size]
         batch_y_loc = y_trn_loc[step:step+batch_size]
-        _, loss = self.sess.run([self.optimizer, self.loss], feed_dict={self.X_ph: batch_x, 
+        _, loss, cl, ll = self.sess.run([self.optimizer, self.loss, self.cls_loss, self.loc_loss], feed_dict={self.X_ph: batch_x, 
                                             self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc})
 
         if step % display_step == 0:
           print("Epoch: {}, Iter: {}, Loss: {:.6f}.".format(epoch, step, loss))
+          # print cl
+          # print ll
 
       if X_val is not None and y_val is not None:
         val_loss = 0
@@ -269,7 +274,7 @@ class SSNN:
   def save_checkpoint(self, checkpoint_dir, step, name='ssnn.model'):
     if not isdir(checkpoint_dir):
       makedirs(checkpoint_dir)
-    self.saver.save(self.sess, os.path.join(checkpoint_dir, name), global_step=step)
+    self.saver.save(self.sess, join(checkpoint_dir, name), global_step=step)
 
   def load_checkpoint(self, checkpoint_dir):
     ckpt = tf.train.get_checkpoint_state(checkpoint_dir)

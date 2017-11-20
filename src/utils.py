@@ -113,12 +113,11 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
     dim = num_steps
 
     prev_ind = 0
+    curr_ksize = kernel_size
     for scale in range(num_downsamples):
       cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, 1]
-      # print cls_hook.max()
-
       cls_hook = np.reshape(cls_hook, (dim, dim, dim))
-      loc_hook = loc_preds[scene, :int(dim**3)]
+      loc_hook = loc_preds[scene, prev_ind:prev_ind+dim**3]
       loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6))
       for i in range(dim):
         for j in range(dim):
@@ -126,16 +125,18 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
             if cls_hook[i, j, k] > conf_threshold:
 
               center_pt = np.array([i, j, k]) + loc_hook[i, j, k, :3]
+
               half_dims = (loc_hook[i, j, k, 3:]+1) /2
-              LL = (center_pt - half_dims) * kernel_size
-              UR = (center_pt + half_dims) * kernel_size
-              print half_dims
+
+              LL = (center_pt - half_dims) * curr_ksize
+              UR = (center_pt + half_dims) * curr_ksize
               bbox = np.concatenate([LL, UR], axis=0)
               cls_vals.append(cls_hook[i, j, k])
               bboxes.append(bbox)
 
       prev_ind += dim**3
-      dim //= 2  
+      dim //= 2
+      curr_ksize *= 2  
     all_bboxes.append(np.array(bboxes))
     all_cls_vals.append(np.array(cls_vals))
 

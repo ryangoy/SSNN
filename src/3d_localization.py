@@ -27,7 +27,7 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings',
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
-flags.DEFINE_integer('num_epochs', 20, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
@@ -97,7 +97,8 @@ def main(_):
   # Initialize model. max_room_dims and step_size are in meters.
   ssnn = SSNN(dims, num_kernels=FLAGS.num_kernels, 
                     probes_per_kernel=FLAGS.probes_per_kernel, 
-                    probe_steps=FLAGS.num_steps, num_scales=NUM_SCALES)
+                    probe_steps=FLAGS.num_steps, num_scales=NUM_SCALES,
+                    ckpt_save=FLAGS.checkpoint_save_dir)
 
   # Probe processing.
   if exists(PROBE_NPY) and FLAGS.load_probe_output and not new_ds:
