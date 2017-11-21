@@ -34,7 +34,7 @@ def softmax(x):
   exp = np.exp(x)
   return exp / np.sum(exp)
 
-def save_output(cls_path, loc_path, nms_path, cls_preds, loc_preds, steps, res_factor):
+def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor):
 
   cls_output, loc_output = flatten_output(cls_preds, loc_preds, steps, res_factor)
 
@@ -316,7 +316,7 @@ def normalize_pointclouds(pointcloud_arr, seg_arr):
   return shifted_pointclouds, gmax, shifted_segmentations
 
 def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
-                load_from_npy=True):
+                load_from_npy=True, areas=None):
   """
   Load data from preloaded npy files or from directory.
   """
@@ -328,14 +328,14 @@ def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
   else:
     assert path is not None, "No path given for pointcloud directory."
     print("Loading points from directory...")
-    X, ys, yl = load_directory(path)
+    X, ys, yl = load_directory(path, areas)
     np.save(X_npy_path, X)
     np.save(ys_npy_path, ys)
     np.save(yl_npy_path, yl)
     new_ds = True
   return X, ys, yl, new_ds
 
-def load_directory(path):
+def load_directory(path, areas):
   """
   Loads pointclouds from dataset.
 
@@ -354,7 +354,9 @@ def load_directory(path):
   segmentations = []
   labels = []
   # Loop through Areas
-  for area in sorted(listdir(path)):
+  if areas is None:
+    areas = sorted(listdir(path))
+  for area in areas:
     print("Loading area {}...".format(area))
     area_path = join(path, area)
     if not isdir(area_path):
