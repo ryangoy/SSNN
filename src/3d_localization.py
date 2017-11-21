@@ -134,6 +134,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
 
 def main(_):
   dims = np.array([7.5, 7.5, 7.5])
+  kernel_size = dims / FLAGS.num_steps
   # Initialize model. max_room_dims and step_size are in meters.
   ssnn = SSNN(dims, num_kernels=FLAGS.num_kernels, 
                     probes_per_kernel=FLAGS.probes_per_kernel, 
