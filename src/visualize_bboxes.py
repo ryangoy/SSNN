@@ -11,7 +11,6 @@ kernel_size = grid_size/num_steps
 for scene in range(bboxes.shape[0]):
   print('Scene {}:'.format(scene))
   f, axarr = plt.subplots(num_steps/4, 4)
-  # print bboxes[scene].shape
   f.set_figwidth(grid_size)
   for z_dim in range(num_steps):
     for bbox in bboxes[scene]:
@@ -20,11 +19,10 @@ for scene in range(bboxes.shape[0]):
       curr_z = z_dim * kernel_size
       axarr[z_dim/4, z_dim%4].set_xlim([0, grid_size])
       axarr[z_dim/4, z_dim%4].set_ylim([0, grid_size])   
-      # print bbox
-      if (bbox[2] < curr_z+kernel_size and bbox[2] > curr_z) or\
-         (bbox[5] < curr_z+kernel_size and bbox[5] > curr_z) or\
-         (bbox[5] > curr_z+kernel_size and bbox[2] < curr_z):
+
+      if (bbox[2] <= curr_z+kernel_size and bbox[2] >= curr_z) or\
+         (bbox[5] <= curr_z+kernel_size and bbox[5] >= curr_z) or\
+         (bbox[5] >= curr_z+kernel_size and bbox[2] <= curr_z):
 
         axarr[z_dim/4, z_dim%4].add_patch(patches.Rectangle(bbox[:2], bbox_size[0], bbox_size[1]))
-        
   plt.show()

@@ -27,7 +27,7 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings',
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
-flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 20, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
