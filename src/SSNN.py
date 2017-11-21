@@ -245,8 +245,6 @@ class SSNN:
 
         if step % display_step == 0:
           print("Epoch: {}, Iter: {}, Loss: {:.6f}.".format(epoch, step, loss))
-          # print cl
-          # print ll
 
       if X_val is not None and y_val is not None:
         val_loss = 0

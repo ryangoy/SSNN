@@ -105,7 +105,6 @@ def nms(cls_preds, loc_preds, overlap_thresh, steps, res_factor, needs_flattenin
 
 def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples, 
                      kernel_size, bbox_path, cls_path, conf_threshold=0.4):
-  print conf_threshold
   all_bboxes = []
   all_cls_vals = []
   for scene in range(cls_preds.shape[0]):
@@ -118,31 +117,19 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
     for scale in range(3):
       cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, 1]
       cls_hook = np.reshape(cls_hook, (dim, dim, dim))
-
       loc_hook = loc_preds[scene, prev_ind:prev_ind+dim**3]
       loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6))
       for i in range(dim):
         for j in range(dim):
           for k in range(dim):
-
             if cls_hook[i, j, k] > conf_threshold:
-
-              #center_pt = np.array([i, j, k]) + np.array([0.5, 0.5, 0.5])
               center_pt = np.array([i, j, k]) + loc_hook[i, j, k, :3]
-              # print loc_hook[i,j,k,:3]
               half_dims = (loc_hook[i, j, k, 3:]+1)/2
-              #half_dims = np.array([0.5, 0.5, 0.5])
-              # print center_pt
-              # print half_dims
               LL = (center_pt - half_dims) * curr_ksize
               UR = (center_pt + half_dims) * curr_ksize
-
               bbox = np.concatenate([LL, UR], axis=0)
               cls_vals.append(cls_hook[i, j, k])
               bboxes.append(bbox)
-
-
-
       prev_ind += dim**3
       dim //= 2
       curr_ksize *= 2  
