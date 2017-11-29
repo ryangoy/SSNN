@@ -7,6 +7,24 @@ import time
 from scipy.misc import imsave
 import matplotlib.pyplot as plt
 
+# From PointNet
+def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
+  B, N, C = pointcloud.shape
+  jittered_pc = np.clip(sigma * np.random.randn(B, N, C), -1*clip, clip)
+  jittered_pc += pointcloud
+  return jittered_pc
+
+def augment_pointclouds(pointclouds, ys, copies=2):
+  for pointcloud, y in zip(pointclouds, ys):
+    # Jitter pointclouds
+    for _ in range(copies):
+      jittered_pc = jitter_pointcloud(pointcloud)
+      pointclouds.append(jittered_pc)
+      ys.append(y)
+
+
+  return pointclouds, ys
+
 def flatten_output(cls_preds, loc_preds, steps, res_factor):
   cls_output = []
   loc_output = []

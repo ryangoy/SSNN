@@ -10,12 +10,12 @@ import numpy as np
 import os
 from os.path import join, isdir, exists
 from os import listdir, makedirs
-from utils import normalize_pointclouds, load_points, create_jaccard_labels, save_output, output_to_bboxes, nms
+from utils import *
 from SSNN import SSNN
 import time
 from object_boundaries import generate_bounding_boxes
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
 # Tensorflow flags boilerplate code.
@@ -88,6 +88,8 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   # - remove outliers
   # - align to nearest 90 degree angle
   # - data augmentation
+
+  # yl not used for now
   X_raw, ys_raw, yl, new_ds = load_points(path=data_dir, X_npy_path=x_path,
                                   ys_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, areas=areas)
@@ -98,6 +100,9 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   # width, height, and depth dims of all rooms.
   print("Normalizing pointclouds...")
   X_cont, dims, ys = normalize_pointclouds(X_raw, ys_raw)
+
+  print("Augmenting dataset...")
+  X_cont, ys = augment_pointclouds(X_cont, ys)
   
   kernel_size = dims / FLAGS.num_steps
   print("Generating bboxes...")
