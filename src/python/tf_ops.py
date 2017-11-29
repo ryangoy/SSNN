@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 # Load probe operations.
-probe_module = tf.load_op_library('./probe.so')
+probe_module = tf.load_op_library('../cpp/probe.so')
 
 def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_size=None, strides=None, name='probe3D'):
     print("Initializing probe op with {} kernels and {} probes per kernel.".format(num_kernels, probes_per_kernel))
