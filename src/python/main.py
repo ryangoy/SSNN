@@ -43,7 +43,7 @@ flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid f
 NUM_SCALES = 3
 
 # Define sets for training and testing
-TRAIN_AREAS = ['Area_1']
+TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5']
 TEST_AREAS = ['Area_6']
 
 # Define constant paths
@@ -109,7 +109,6 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   y_cls, y_loc = create_jaccard_labels(bboxes, FLAGS.num_steps, kernel_size)
   np.save(cls_labels, y_cls)
   np.save(loc_labels, y_loc)
-  exit()
 
   # Hack-y way of combining samples into one array since each sample has a
   # different number of points.
