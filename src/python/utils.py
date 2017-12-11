@@ -14,7 +14,7 @@ def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
   jittered_pc += pointcloud
   return jittered_pc
 
-def augment_pointclouds(pointclouds, ys, copies=2):
+def augment_pointclouds(pointclouds, ys, copies=1):
   for pointcloud, y in zip(pointclouds, ys):
     # Jitter pointclouds
     for _ in range(copies):
@@ -126,13 +126,15 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
   all_bboxes = []
   all_cls_vals = []
   for scene in range(cls_preds.shape[0]):
+    # if scene != 1:
+    #   continue
     bboxes = []
     cls_vals = []
     dim = num_steps
 
     prev_ind = 0
     curr_ksize = kernel_size
-    for scale in range(3):
+    for scale in range(num_downsamples):
       cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, 1]
       cls_hook = np.reshape(cls_hook, (dim, dim, dim))
       loc_hook = loc_preds[scene, prev_ind:prev_ind+dim**3]
@@ -141,13 +143,25 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
         for j in range(dim):
           for k in range(dim):
             if cls_hook[i, j, k] > conf_threshold:
-              center_pt = np.array([i, j, k]) + loc_hook[i, j, k, :3]
+              # print 
+              # print 'ijk'
+              # print [i,j,k]
+              # print 'loc hook'
+              # print loc_hook[i,j,k]
+              center_pt = loc_hook[i, j, k, :3] + [i,j,k]
+
               half_dims = (loc_hook[i, j, k, 3:]+1)/2
+              # print 'center pt'
+              # print center_pt
+              # print half_dims
               LL = (center_pt - half_dims) * curr_ksize
               UR = (center_pt + half_dims) * curr_ksize
               bbox = np.concatenate([LL, UR], axis=0)
               cls_vals.append(cls_hook[i, j, k])
+              # print 'bbox'
+              # print bbox
               bboxes.append(bbox)
+              
       prev_ind += dim**3
       dim //= 2
       curr_ksize *= 2  
@@ -250,16 +264,25 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims - 1
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.5, set it equal to 1 as well.
-      # This is kind of hacky for now until I debug it.
+      
+      # Get bbox coords in voxel grid space. This will be divided by 2 every downsample.
       bbox_loc = np.concatenate([bbox[:3] / kernel_size, bbox[3:] / kernel_size], axis=0)
       for s in range(num_downsamples):
         diff = (np.ceil(bbox_loc[3:]) - np.floor(bbox_loc[:3])).astype(int)
+
+        # For each voxel grid the bbox overlaps...
         for i in range(diff[0]):
           for j in range(diff[1]):
             for k in range(diff[2]):
+
+              # Get the current coordinate to check.
               curr_coord = np.floor(bbox_loc[:3]).astype(int) + [i,j,k]
+
+              # If the current coordinate is outside of the voxel grid, skip it.
               if max(curr_coord -(steps / (2**s))) >= 0:
                 continue
+
+              # Calculate the Jaccard coefficient.
               bbox_LL = bbox_loc[:3]
               bbox_UR = bbox_loc[3:]
               fb_LL = np.array(curr_coord)
@@ -274,7 +297,8 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
 
               if ji > 0.1:
                 cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
-                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - [i,j,k]
+                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord
+
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = bbox_UR - bbox_LL - 1
         bbox_loc /= 2
 
@@ -424,8 +448,8 @@ def load_npy(X_path, ys_path, yl_path):
   return np.load(X_path), np.load(ys_path), np.load(yl_path)
 
 if __name__ == '__main__':
-  cls_preds = np.load('cls_predictions.npy')
-  loc_preds = np.load('loc_predictions.npy')
+  cls_preds = np.load('/home/ryan/cs/datasets/SSNN/buildings/outputs/cls_predictions.npy')
+  loc_preds = np.load('/home/ryan/cs/datasets/SSNN/buildings/outputs/loc_predictions.npy')
 
   output_to_bboxes(cls_preds, loc_preds, 16, 3, 
-                     .46875, 'bbox_predictions.npy', 'bbox_cls_predictions.npy')
+                     .46875, '/home/ryan/cs/datasets/SSNN/buildings/outputs/bbox_predictions.npy', '/home/ryan/cs/datasets/SSNN/buildings/outputs/bbox_cls_predictions.npy')

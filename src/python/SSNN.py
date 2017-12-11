@@ -13,7 +13,7 @@ from os import makedirs
 
 class SSNN:
   
-  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, probe_steps=10, num_scales=3, ckpt_load=None, ckpt_save=None):
+  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, probe_steps=10, num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1):
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
@@ -27,7 +27,7 @@ class SSNN:
                        probes_per_kernel=probes_per_kernel)
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
-    self.init_model(num_kernels, probes_per_kernel, probe_steps, num_scales)
+    self.init_model(num_kernels, probes_per_kernel, probe_steps, num_scales, loc_loss_lambda=loc_loss_lambda)
 
     # Initialize variables
     self.saver = tf.train.Saver()
@@ -133,7 +133,7 @@ class SSNN:
     self.y_ph_loc = tf.placeholder(tf.float32, (None, num_features, 6))
 
     # Shape: (batches, x, y, z, features)
-    self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=1)
+    self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=8)
 
     self.conv1_1 = tf.layers.conv3d(self.dot_product, filters=32, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
