@@ -27,14 +27,14 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings',
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
-flags.DEFINE_integer('num_epochs', 500, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 50, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
 flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 256, 'Number of sample points each\
                       kernel has.')
-flags.DEFINE_integer('loc_loss_lambda', 10, 'Relative weight of localization params.')
+flags.DEFINE_integer('loc_loss_lambda', 5, 'Relative weight of localization params.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
@@ -177,8 +177,12 @@ def main(_):
   cls_preds, loc_preds = ssnn.test(X_trn[:20])
   
   # Save output.
-  cls_f, loc_f = save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
+  save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
                              FLAGS.num_steps, NUM_SCALES)
+  
+
+  cls_f = np.load(CLS_PREDS)
+  loc_f = np.load(LOC_PREDS)
   bboxes = output_to_bboxes(cls_f, loc_f, FLAGS.num_steps, NUM_SCALES, 
                             kernel_size, BBOX_PREDS, BBOX_CLS_PREDS)
 
