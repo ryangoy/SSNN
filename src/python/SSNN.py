@@ -223,7 +223,7 @@ class SSNN:
     self.probe_output = pcs
     return np.array(pcs)
 
-  def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val=None, epochs=10, 
+  def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, y_val_loc=None, epochs=10, 
                 batch_size=4, display_step=10, save_interval=10):
     if X_trn is None:
       X_trn = self.probe_ouput
@@ -250,9 +250,10 @@ class SSNN:
         val_loss = 0
         for step in range(0, X_val.shape[0], batch_size):
           val_batch_x = X_val[step:step+batch_size]
-          val_batch_y = y_val[step:step+batch_size]
+          val_batch_y_cls = y_val_cls[step:step+batch_size]
+          val_batch_y_loc = y_val_loc[step:step+batch_size]
           val_loss += self.sess.run(self.loss, 
-                      feed_dict={self.X_ph: val_batch_x, sef.y_ph: val_batch_y})
+                      feed_dict={self.X_ph: val_batch_x, self.y_ph_cls: val_batch_y_cls, self.y_ph_loc: val_batch_y_loc})
 
         print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
                                                        val_loss/X_val.shape[0]))
