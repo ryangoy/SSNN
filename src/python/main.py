@@ -170,11 +170,11 @@ def main(_):
   # y_val_cls = y_cls[:train_split]
   # y_val_loc = y_loc[:train_split]
   print("Beginning training...")
-  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, epochs=FLAGS.num_epochs) #y_l not used yet for localization
+  ssnn.train_val(X_trn[10:], y_trn_cls[10:], y_trn_loc[10:], epochs=FLAGS.num_epochs) #y_l not used yet for localization
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
-  cls_preds, loc_preds = ssnn.test(X_trn[:20])
+  cls_preds, loc_preds = ssnn.test(X_trn[:10])
   
   # Save output.
   save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
