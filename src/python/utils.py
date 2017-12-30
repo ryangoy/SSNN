@@ -1,6 +1,6 @@
 import numpy as np
 import sys
-import paths
+#import paths
 from os.path import join, exists, isdir, isfile, basename
 from os import makedirs, listdir
 import time
