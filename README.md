@@ -38,4 +38,5 @@ export CUDA_HOME="/usr/local/cuda"
 ```
 This will have to be run per terminal instance. To add it permanently, add it to the ~/.bashrc file.
 
-
+## InvalidArgumentError (see above for traceback): No OpKernel was registered to support Op 'Probe' with these attrs.  Registered devices: [CPU] ##
+This might mean that NVML is not initialized properly. Run nvidia-smi to confirm. Rebooting often solves this issue.
