@@ -23,7 +23,7 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 # Define user inputs.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 
+flags.DEFINE_string('data_dir', '/home/rgoy/buildings', 
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
@@ -34,10 +34,11 @@ flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
 flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 256, 'Number of sample points each\
                       kernel has.')
-flags.DEFINE_integer('loc_loss_lambda', 5, 'Relative weight of localization params.')
+flags.DEFINE_integer('loc_loss_lambda', 0.1, 'Relative weight of localization params.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
+flags.DEFINE_integer('num_dot_layers', 12, 'Number of dot product layers per kernel')
 
 
 # DO NOT CHANGE
@@ -147,6 +148,7 @@ def main(_):
   ssnn = SSNN(dims, num_kernels=FLAGS.num_kernels, 
                     probes_per_kernel=FLAGS.probes_per_kernel, 
                     probe_steps=FLAGS.num_steps, num_scales=NUM_SCALES,
+                    dot_layers=FLAGS.num_dot_layers,
                     ckpt_save=FLAGS.checkpoint_save_dir,
                     loc_loss_lambda=FLAGS.loc_loss_lambda)
 
@@ -170,7 +172,7 @@ def main(_):
   # y_val_cls = y_cls[:train_split]
   # y_val_loc = y_loc[:train_split]
   print("Beginning training...")
-  ssnn.train_val(X_trn[10:-10], y_trn_cls[10:-10], y_trn_loc[10:-10], X_trn[-10:], y_trn_cls[-10:], y_trn_loc[-10:], epochs=FLAGS.num_epochs) #y_l not used yet for localization
+  ssnn.train_val(X_trn[:-10], y_trn_cls[:-10], y_trn_loc[:-10], X_trn[-10:], y_trn_cls[-10:], y_trn_loc[-10:], epochs=FLAGS.num_epochs) #y_l not used yet for localization
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 

@@ -1,6 +1,5 @@
 import numpy as np
 import sys
-import paths
 from os.path import join, exists, isdir, isfile, basename
 from os import makedirs, listdir
 import time
@@ -262,7 +261,8 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
 
       if coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps:
         continue
-
+      elif min(coords) < 0:
+        continue
       cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims - 1
@@ -452,8 +452,8 @@ def load_npy(X_path, ys_path, yl_path):
   return np.load(X_path), np.load(ys_path), np.load(yl_path)
 
 if __name__ == '__main__':
-  cls_preds = np.load('/home/ryan/cs/datasets/SSNN/buildings/outputs/cls_predictions.npy')
-  loc_preds = np.load('/home/ryan/cs/datasets/SSNN/buildings/outputs/loc_predictions.npy')
+  cls_preds = np.load('/home/rgoy/buildings/outputs/cls_test_labels.npy')
+  loc_preds = np.load('/home/rgoy/buildings/outputs/loc_test_labels.npy')
 
   output_to_bboxes(cls_preds, loc_preds, 16, 3, 
-                     .46875, '/home/ryan/cs/datasets/SSNN/buildings/outputs/bbox_predictions.npy', '/home/ryan/cs/datasets/SSNN/buildings/outputs/bbox_cls_predictions.npy')
+                     .46875, '/home/rgoy/buildings/outputs/bbox_predictions.npy', '/home/rgoy/buildings/outputs/bbox_cls_predictions.npy')
