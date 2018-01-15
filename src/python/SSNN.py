@@ -246,7 +246,7 @@ class SSNN:
         if step % display_step == 0:
           print("Epoch: {}, Iter: {}, Loss: {:.6f}.".format(epoch, step, loss))
 
-      if X_val is not None and y_val is not None:
+      if X_val is not None:
         val_loss = 0
         for step in range(0, X_val.shape[0], batch_size):
           val_batch_x = X_val[step:step+batch_size]

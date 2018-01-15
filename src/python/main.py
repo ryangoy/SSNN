@@ -27,14 +27,14 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings',
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
-flags.DEFINE_integer('num_epochs', 50, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
-flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
+flags.DEFINE_integer('num_kernels', 16, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 256, 'Number of sample points each\
                       kernel has.')
-flags.DEFINE_integer('loc_loss_lambda', 5, 'Relative weight of localization params.')
+flags.DEFINE_integer('loc_loss_lambda', 0.0, 'Relative weight of localization params.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
@@ -103,7 +103,9 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   print("Normalizing pointclouds...")
   X_cont, dims, ys = normalize_pointclouds(X_raw, ys_raw)
   print("Augmenting dataset...")
-  X_cont, ys = augment_pointclouds(X_cont, ys, copies=3)
+  raw_input("wait")
+  X_cont, ys = augment_pointclouds(X_cont, ys, copies=1)
+  raw_input("wait")
   dims = np.array([7.5, 7.5, 7.5])
   kernel_size = dims / FLAGS.num_steps
   print("Generating bboxes...")
