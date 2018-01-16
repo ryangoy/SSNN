@@ -14,6 +14,9 @@ from utils import *
 from SSNN import SSNN
 import time
 from object_boundaries import generate_bounding_boxes
+import os
+import psutil
+
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
@@ -23,7 +26,7 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 # Define user inputs.
-flags.DEFINE_string('data_dir', '/home/rgoy/buildings', 
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
@@ -31,14 +34,14 @@ flags.DEFINE_integer('num_epochs', 50, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
-flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 256, 'Number of sample points each\
+flags.DEFINE_integer('num_kernels', 8, 'Number of kernels to probe with.')
+flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each\
                       kernel has.')
 flags.DEFINE_integer('loc_loss_lambda', 0.1, 'Relative weight of localization params.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('num_dot_layers', 12, 'Number of dot product layers per kernel')
+flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
 
 
 # DO NOT CHANGE
@@ -98,13 +101,14 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
                                   load_from_npy=load_from_npy, areas=areas)
 
   print("Loaded {} pointclouds.".format(len(X_raw)))
-  
+  process = psutil.Process(os.getpid())
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
   print("Normalizing pointclouds...")
   X_cont, dims, ys = normalize_pointclouds(X_raw, ys_raw)
   print("Augmenting dataset...")
-  X_cont, ys = augment_pointclouds(X_cont, ys, copies=3)
+  X_cont, ys = augment_pointclouds(X_cont, ys, copies=1)
+
   dims = np.array([7.5, 7.5, 7.5])
   kernel_size = dims / FLAGS.num_steps
   print("Generating bboxes...")
@@ -128,13 +132,16 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     print ("Loading previous probe output...")
     X = np.load(probe_path)
   else:
+    print("Amount of memory used before probing: {}".format(process.memory_info().rss))
     print("Running probe operation...")
     probe_start = time.time()
     X = model.probe(X_cont)
     probe_time = time.time() - probe_start
     print("Probe operation took {:.4f} seconds to run.".format(probe_time))
     X = np.squeeze(X, axis=1)
+    print("Amount of memory used after probing: {}".format(process.memory_info().rss))
     np.save(probe_path, X)
+
 
   print("Finished pre-processing.")
   return X, y_cls, y_loc
