@@ -31,16 +31,14 @@ def dot_product(inputs, filters=1, stddev=0.01, name='dot_product'):
     This layer weights the output of probe3D. This is what the network trains.
     """
     assert len(inputs.shape) == 6, "Dot product expects input of shape (batches, x, y, z, kernels, probes_per_kernel)"
-    
     # Weight dims are similar to convolutional weights:
     #   Convolutional weights are (kernel_width, kernel_height, num_input_features, num_output_features)
     #   Dot product weights are (probes, num_input_features, num_output_features)
-    shape = inputs.shape[-2:].as_list() + [filters]
     weights = tf.Variable(tf.truncated_normal(shape=inputs.shape[-2:].as_list() + [filters], stddev=stddev), name=name)
     
     # Hooray for Tensorflow methods :)
     dot_product = tf.tensordot(inputs, weights, axes=2)
-
+  
     # Output shape should be (batches, x, y, z, output_features)
     new_shape = [-1] + inputs.shape[1:4].as_list() + [filters]
     dot_product = tf.reshape(dot_product, new_shape)

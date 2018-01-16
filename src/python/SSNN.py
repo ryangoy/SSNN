@@ -13,7 +13,7 @@ from os import makedirs
 
 class SSNN:
   
-  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, probe_steps=10, num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1):
+  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=10, num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1):
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
@@ -27,7 +27,7 @@ class SSNN:
                        probes_per_kernel=probes_per_kernel)
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
-    self.init_model(num_kernels, probes_per_kernel, probe_steps, num_scales, loc_loss_lambda=loc_loss_lambda)
+    self.init_model(num_kernels, probes_per_kernel, probe_steps, num_scales, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda)
 
     # Initialize variables
     self.saver = tf.train.Saver()
@@ -113,7 +113,7 @@ class SSNN:
       return conf, loc
 
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, num_scales,
-                 learning_rate=0.001, loc_loss_lambda=1, reuse_hook=False):
+                 learning_rate=0.001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
@@ -133,7 +133,7 @@ class SSNN:
     self.y_ph_loc = tf.placeholder(tf.float32, (None, num_features, 6))
 
     # Shape: (batches, x, y, z, features)
-    self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=8)
+    self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
 
     self.conv1_1 = tf.layers.conv3d(self.dot_product, filters=32, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
@@ -246,7 +246,7 @@ class SSNN:
         if step % display_step == 0:
           print("Epoch: {}, Iter: {}, Loss: {:.6f}.".format(epoch, step, loss))
 
-      if X_val is not None:
+      if X_val is not None and y_val_cls is not None and y_val_loc is not None:
         val_loss = 0
         for step in range(0, X_val.shape[0], batch_size):
           val_batch_x = X_val[step:step+batch_size]
@@ -256,7 +256,7 @@ class SSNN:
                       feed_dict={self.X_ph: val_batch_x, self.y_ph_cls: val_batch_y_cls, self.y_ph_loc: val_batch_y_loc})
 
         print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
-                                                       val_loss/X_val.shape[0]))
+                                                       val_loss*batch_size/X_val.shape[0]))
       if epoch % save_interval and epoch != 0 and self.ckpt_save is not None:
         self.save_checkpoint(self.ckpt_save, epoch)
 
