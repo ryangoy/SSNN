@@ -38,7 +38,7 @@ flags.DEFINE_integer('num_kernels', 8, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each\
                       kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
-flags.DEFINE_integer('loc_loss_lambda', 0.1, 'Relative weight of localization params.')
+flags.DEFINE_integer('loc_loss_lambda', 0.2, 'Relative weight of localization params.')
 
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
