@@ -224,7 +224,7 @@ class SSNN:
     return np.array(pcs)
 
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, y_val_loc=None, epochs=10, 
-                batch_size=4, display_step=10, save_interval=10):
+                batch_size=4, display_step=100, save_interval=100):
     if X_trn is None:
       X_trn = self.probe_ouput
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."

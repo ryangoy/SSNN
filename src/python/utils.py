@@ -13,7 +13,7 @@ def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
   jittered_pc += pointcloud
   return jittered_pc
 
-def augment_pointclouds(pointclouds, ys, copies=1):
+def augment_pointclouds(pointclouds, ys, copies=0):
   for pointcloud, y in zip(pointclouds, ys):
     # Jitter pointclouds
     for _ in range(copies):

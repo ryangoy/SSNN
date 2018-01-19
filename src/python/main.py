@@ -30,7 +30,7 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings',
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
-flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 150, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
@@ -38,7 +38,8 @@ flags.DEFINE_integer('num_kernels', 8, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each\
                       kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
-flags.DEFINE_integer('loc_loss_lambda', 0.2, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 0.1, 'Relative weight of localization params.')
+flags.DEFINE_integer('jittered_copies', 2, 'Number of times the dataset is copied and jittered for data augmentation.')
 
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
@@ -91,13 +92,14 @@ BBOX_CLS_PREDS   = join(output_dir, 'bbox_cls_predictions.npy')
 
 
 def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_path, 
-                      cls_labels, loc_labels, bbox_labels, load_from_npy, load_probe_output):
+                      cls_labels, loc_labels, bbox_labels, load_from_npy, load_probe_output, num_copies=0):
   # TODO: Preprocess input.
   # - remove outliers
   # - align to nearest 90 degree angle
   # - data augmentation
 
   # yl not used for now
+
   X_raw, ys_raw, yl, new_ds = load_points(path=data_dir, X_npy_path=x_path,
                                   ys_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, areas=areas)
@@ -110,7 +112,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   X_cont, dims, ys = normalize_pointclouds(X_raw, ys_raw)
   print("Augmenting dataset...")
 
-  X_cont, ys = augment_pointclouds(X_cont, ys, copies=2)
+  X_cont, ys = augment_pointclouds(X_cont, ys, copies=num_copies)
   dims = np.array([7.5, 7.5, 7.5])
   kernel_size = dims / FLAGS.num_steps
   print("Generating bboxes...")
@@ -165,7 +167,7 @@ def main(_):
   load_probe = FLAGS.load_probe_output and FLAGS.load_from_npy
   X_trn, y_trn_cls, y_trn_loc = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
                       CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, FLAGS.load_from_npy,
-                      load_probe)
+                      load_probe, num_copies=FLAGS.jittered_copies)
 
   X_test, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
                       CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, FLAGS.load_from_npy,
@@ -181,11 +183,11 @@ def main(_):
   # y_val_cls = y_cls[:train_split]
   # y_val_loc = y_loc[:train_split]
   print("Beginning training...")
-  ssnn.train_val(X_trn[10:-10], y_trn_cls[10:-10], y_trn_loc[10:-10], X_trn[-10:], y_trn_cls[-10:], y_trn_loc[-10:], epochs=FLAGS.num_epochs) #y_l not used yet for localization
+  ssnn.train_val(X_trn[:-10], y_trn_cls[:-10], y_trn_loc[:-10], X_trn[-10:], y_trn_cls[-10:], y_trn_loc[-10:], epochs=FLAGS.num_epochs) #y_l not used yet for localization
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
-  cls_preds, loc_preds = ssnn.test(X_trn[:10])
+  cls_preds, loc_preds = ssnn.test(X_test)
   
   # Save output.
   save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
