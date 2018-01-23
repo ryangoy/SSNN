@@ -30,15 +30,15 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings',
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
-flags.DEFINE_integer('num_epochs', 150, 'Number of epochs to train.')
-flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
+flags.DEFINE_float('val_split', 1, 'Percentage of input data to use as test.')
 flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
                       from in each xyz direction.')
 flags.DEFINE_integer('num_kernels', 8, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each\
                       kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
-flags.DEFINE_float('loc_loss_lambda', 0.1, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
 flags.DEFINE_integer('jittered_copies', 2, 'Number of times the dataset is copied and jittered for data augmentation.')
 
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')

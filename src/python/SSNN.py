@@ -198,7 +198,10 @@ class SSNN:
     # smooth_cond = tf.less(tf.abs(diff), 1.0)
     # loc_loss = tf.where(smooth_cond, loc_loss_L1, loc_loss_L2)
     loc_loss = tf.abs(diff)
-    loc_loss = tf.reduce_mean(loc_loss)
+
+    ia_cast = tf.expand_dims(tf.cast(self.y_ph_cls[...,1], tf.float32), -1)
+    ia_dup = tf.tile(ia_cast, [1,1,6])
+    loc_loss = tf.reduce_mean(tf.multiply(loc_loss, ia_dup))
     self.loc_loss = loc_loss
     # Combine losses linearly.
     self.loss = cls_loss + loc_loss_lambda * loc_loss
