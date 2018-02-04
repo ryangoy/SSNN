@@ -13,7 +13,7 @@ from os import makedirs
 
 class SSNN:
   
-  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=10, num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1):
+  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1):
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
@@ -27,7 +27,7 @@ class SSNN:
                        probes_per_kernel=probes_per_kernel)
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
-    self.init_model(num_kernels, probes_per_kernel, probe_steps, num_scales, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda)
+    self.init_model(num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda)
 
     # Initialize variables
     self.saver = tf.train.Saver()
@@ -51,9 +51,6 @@ class SSNN:
       if activation is not None:
         output = activation(output)
       return output
-
-  def dropout(self, x, keep_prob):
-    return tf.nn.dropout(x, keep_prob)
 
   def init_probe_op(self, dims, steps, num_kernels=1, probes_per_kernel=1):
     """
@@ -84,7 +81,7 @@ class SSNN:
                             num_kernels=num_kernels, 
                             probes_per_kernel=probes_per_kernel)
 
-  def hook_layer(self, input_layer, reuse=False, activation=None):
+  def hook_layer(self, input_layer, reuse=False, activation=None, dropout=0.1):
     # As defined in Singleshot Multibox Detector, hook layers process
     # intermediates at different scales.
 
@@ -100,20 +97,26 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
+      # input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
+      #                         strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+      # input_layer = tf.nn.dropout(input_layer, dropout)
+      input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
+                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+      #input_layer = tf.nn.dropout(input_layer, dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
-      conf = tf.layers.conv3d(input_layer, filters=2, kernel_size=3, padding='SAME',
+      conf = tf.layers.conv3d(input_layer, filters=2, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       # Predicts the center coordinate and relative scale of the box
-      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=3, padding='SAME',
+      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       self.hook_num += 1
 
       return conf, loc
 
-  def init_model(self, num_kernels, probes_per_kernel, probe_steps, num_scales,
-                 learning_rate=0.001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False):
+  def init_model(self, num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales,
+                 learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False, dropout=0.05):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
@@ -122,26 +125,47 @@ class SSNN:
                                             probes_per_kernel,))
 
     num_features = 0
+
     dim_size = probe_steps
+    p_dim_size= probe_hook_steps
+    num_p_features = 0
     for i in range(3):
         num_features += dim_size**3
+        num_p_features += p_dim_size**3
+        p_dim_size /= 2
         dim_size /= 2
 
     # Shape: (batches, x_steps, y_steps, z_steps)
-    self.y_ph_cls = tf.placeholder(tf.int32, (None, num_features, 2))
+    self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, 2))
 
-    self.y_ph_loc = tf.placeholder(tf.float32, (None, num_features, 6))
+    self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, 6))
 
     # Shape: (batches, x, y, z, features)
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
 
-    self.conv1_1 = tf.layers.conv3d(self.dot_product, filters=32, kernel_size=3, 
+    
+    self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=32, kernel_size=3, 
+                      strides=1, padding='SAME', activation=tf.nn.relu, 
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+    # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
+    self.conv0_2 = tf.layers.conv3d(self.conv0_1, filters=32, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=32, kernel_size=3, 
+
+    self.pool0 = tf.nn.max_pool3d(self.conv0_2, ksize=[1, 2, 2, 2, 1], 
+                                  strides=[1, 2, 2, 2, 1], padding='SAME')
+
+
+
+    self.conv1_1 = tf.layers.conv3d(self.pool0, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
+    # self.conv1_1 = tf.nn.dropout(self.conv1_1, dropout)
+    self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=64, kernel_size=3, 
+                      strides=1, padding='SAME', activation=tf.nn.relu, 
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+
 
     # First hook layer.
     cls_hook1, loc_hook1 = self.hook_layer(self.conv1_2, reuse=reuse_hook)
@@ -163,11 +187,11 @@ class SSNN:
     self.pool2 = tf.nn.max_pool3d(self.conv2_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
-    self.conv3_1 = tf.layers.conv3d(self.pool2, filters=128, kernel_size=3,
+    self.conv3_1 = tf.layers.conv3d(self.pool2, filters=64, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=128, kernel_size=3,
+    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=64, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 

@@ -121,7 +121,7 @@ def nms(cls_preds, loc_preds, overlap_thresh, steps, res_factor, needs_flattenin
     return np.array(all_loc_preds)
 
 def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples, 
-                     kernel_size, bbox_path, cls_path, conf_threshold=0.4):
+                     kernel_size, bbox_path, cls_path, conf_threshold=0.5):
 
   if type(kernel_size) is np.ndarray:
     kernel_size = kernel_size[0]

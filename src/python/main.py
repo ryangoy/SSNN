@@ -30,16 +30,16 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings',
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
-flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
-flags.DEFINE_float('val_split', 1, 'Percentage of input data to use as test.')
-flags.DEFINE_integer('num_steps', 16, 'Number of intervals to sample\
+flags.DEFINE_integer('num_epochs', 150, 'Number of epochs to train.')
+flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
+flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample\
                       from in each xyz direction.')
 flags.DEFINE_integer('num_kernels', 8, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each\
+flags.DEFINE_integer('probes_per_kernel', 32, 'Number of sample points each\
                       kernel has.')
-flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
-flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
-flags.DEFINE_integer('jittered_copies', 2, 'Number of times the dataset is copied and jittered for data augmentation.')
+flags.DEFINE_integer('num_dot_layers', 8, 'Number of dot product layers per kernel')
+flags.DEFINE_float('loc_loss_lambda', 2, 'Relative weight of localization params.')
+flags.DEFINE_integer('jittered_copies', 1, 'Number of times the dataset is copied and jittered for data augmentation.')
 
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
@@ -49,6 +49,7 @@ flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid f
 
 # DO NOT CHANGE
 NUM_SCALES = 3
+NUM_HOOK_STEPS = FLAGS.num_steps / 2
 
 # Define sets for training and testing
 TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5']
@@ -114,11 +115,11 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
 
   X_cont, ys = augment_pointclouds(X_cont, ys, copies=num_copies)
   dims = np.array([7.5, 7.5, 7.5])
-  kernel_size = dims / FLAGS.num_steps
+  kernel_size = dims / NUM_HOOK_STEPS
   print("Generating bboxes...")
   bboxes = generate_bounding_boxes(ys, bbox_labels)
   print("Processing labels...")
-  y_cls, y_loc = create_jaccard_labels(bboxes, FLAGS.num_steps, kernel_size)
+  y_cls, y_loc = create_jaccard_labels(bboxes, NUM_HOOK_STEPS, kernel_size)
   np.save(cls_labels, y_cls)
   np.save(loc_labels, y_loc)
 
@@ -158,7 +159,8 @@ def main(_):
   # Initialize model. max_room_dims and step_size are in meters.
   ssnn = SSNN(dims, num_kernels=FLAGS.num_kernels, 
                     probes_per_kernel=FLAGS.probes_per_kernel, 
-                    probe_steps=FLAGS.num_steps, num_scales=NUM_SCALES,
+                    probe_steps=FLAGS.num_steps, probe_hook_steps=NUM_HOOK_STEPS,
+                    num_scales=NUM_SCALES,
                     dot_layers=FLAGS.num_dot_layers,
                     ckpt_save=FLAGS.checkpoint_save_dir,
                     loc_loss_lambda=FLAGS.loc_loss_lambda)
@@ -183,6 +185,7 @@ def main(_):
   # y_val_cls = y_cls[:train_split]
   # y_val_loc = y_loc[:train_split]
   print("Beginning training...")
+
   ssnn.train_val(X_trn[:-10], y_trn_cls[:-10], y_trn_loc[:-10], X_trn[-10:], y_trn_cls[-10:], y_trn_loc[-10:], epochs=FLAGS.num_epochs) #y_l not used yet for localization
 
   # Test model. Using validation since we won't be using real 
@@ -191,13 +194,13 @@ def main(_):
   
   # Save output.
   save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
-                             FLAGS.num_steps, NUM_SCALES)
+                             NUM_HOOK_STEPS, NUM_SCALES)
   
 
   cls_f = np.load(CLS_PREDS)
   loc_f = np.load(LOC_PREDS)
-  bboxes = output_to_bboxes(cls_f, loc_f, FLAGS.num_steps, NUM_SCALES, 
-                            kernel_size, BBOX_PREDS, BBOX_CLS_PREDS)
+  bboxes = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
+                            dims/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS)
 
 # Tensorflow boilerplate code.
 if __name__ == '__main__':
