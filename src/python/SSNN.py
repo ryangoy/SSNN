@@ -15,7 +15,7 @@ import os
 
 class SSNN:
   
-  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1):
+  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1, learning_rate=0.001):
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
@@ -24,12 +24,13 @@ class SSNN:
     self.ckpt_save = ckpt_save
     self.ckpt_load = ckpt_load
 
+
     # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
                        probes_per_kernel=probes_per_kernel)
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
-    self.init_model(num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda)
+    self.init_model(num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda, learning_rate=learning_rate)
 
     # Initialize variables
     self.saver = tf.train.Saver()
@@ -102,8 +103,8 @@ class SSNN:
       # input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
       #                         strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
       # input_layer = tf.nn.dropout(input_layer, dropout)
-      input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
-                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+      # input_layer = tf.layers.conv3d(input_layer, filters=16, kernel_size=1, padding='SAME',
+      #                         strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
       #input_layer = tf.nn.dropout(input_layer, dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
       conf = tf.layers.conv3d(input_layer, filters=2, kernel_size=1, padding='SAME',
@@ -252,7 +253,7 @@ class SSNN:
 
 
 
-      pc = np.array([pc[0]])
+      pc = np.array([pc])
       if counter != 597:
         pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       else:

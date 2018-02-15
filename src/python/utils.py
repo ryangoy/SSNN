@@ -400,7 +400,7 @@ def normalize_pointclouds_matterport(pointcloud_arr, seg_arr):
       shifted_objs.append(obj-bmins)
     shifted_segmentations.append(shifted_objs)
 
-    shifted_pointclouds.append(np.array([xyz-mins]))
+    shifted_pointclouds.append(np.array(xyz-mins))
   return shifted_pointclouds, gmax, shifted_segmentations
 
 def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
@@ -460,11 +460,11 @@ def load_directory_matterport(path, train_test_split, is_train):
   all_areas = sorted(listdir(path))
 
   if is_train:
-    #areas = all_areas[int(len(all_areas)*(1-train_test_split)):]
-    areas = all_areas[int(len(all_areas)*(.65)):]
+    areas = all_areas[:int(len(all_areas)*train_test_split)]
+    #areas = all_areas[int(len(all_areas)*(.65)):]
   else:
-    #areas = all_areas[:int(len(all_areas)*train_test_split)]
-    areas = all_areas[:int(len(all_areas)*0.05)]
+    areas = all_areas[int(len(all_areas)*train_test_split):]
+    #areas = all_areas[:int(len(all_areas)*.05)]
 
   input_data = []
   bboxes = []
@@ -493,28 +493,26 @@ def load_directory_matterport(path, train_test_split, is_train):
       objects =  ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
+      objects = ['bed']
 
       input_pc = read_ply(room_path+".ply")
       bbox = np.load(room_path+"_bboxes.npy")
       
       input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z"])
 
-      fdata = []
       fbbox = []
       flabel = []
+      matches = 0
       for ibbox, ilabel in zip(bbox, categories):
         if ilabel in objects:
           fbbox.append(ibbox)
           flabel.append(ilabel)
+          matches += 1
       
-      # 
-      # bboxes.append(bbox)
-      # labels.append(categories)
-      bboxes.append(fbbox)
-      labels.append(flabel)
-      input_data.append(input_pc)
-
-
+      if matches > 0:
+        bboxes.append(fbbox)
+        labels.append(flabel)
+        input_data.append(input_pc)
 
     print("Loaded {} regions from area {}".format(ri, area))
     total_regions += ri
