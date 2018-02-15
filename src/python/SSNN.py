@@ -10,6 +10,8 @@ from tf_ops import *
 from random import shuffle
 from os.path import isdir, join
 from os import makedirs
+import psutil
+import os
 
 class SSNN:
   
@@ -239,16 +241,28 @@ class SSNN:
       X (np.ndarray): array of pointclouds (batches, num_points, 3)
     """
     pcs = []
-    counter = 0
+    problem_pcs = []
+    counter = 1
     for pc in X:
+
+      process = psutil.Process(os.getpid())
+      if process.memory_info().rss // 1e9 > 63.0:
+        print("Memory cap surpassed. Exiting...")
+        exit()
+
+
+
       pc = np.array([pc[0]])
-      pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
+      if counter != 597:
+        pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
+      else:
+        problem_pcs.append(counter-1)
       pcs.append(pc_disc)
-      if counter % 10 == 0 and counter != 0:
+      if counter % 100 == 0:
         print('Finished probing {} pointclouds'.format(counter))
       counter += 1
     self.probe_output = pcs
-    return np.array(pcs)
+    return np.array(pcs), problem_pcs
 
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, y_val_loc=None, epochs=10, 
                 batch_size=4, display_step=100, save_interval=100):

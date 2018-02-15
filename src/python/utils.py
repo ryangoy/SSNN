@@ -1,10 +1,13 @@
 import numpy as np
 import sys
+if sys.version_info[0] >= 3:
+  from pyntcloud.io import read_ply, write_ply
 from os.path import join, exists, isdir, isfile, basename
 from os import makedirs, listdir
 import time
 from scipy.misc import imsave
 import matplotlib.pyplot as plt
+
 
 # From PointNet
 def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
@@ -361,6 +364,45 @@ def normalize_pointclouds(pointcloud_arr, seg_arr):
     shifted_pointclouds.append(np.array([xyz-mins]))
   return shifted_pointclouds, gmax, shifted_segmentations
 
+def normalize_pointclouds_matterport(pointcloud_arr, seg_arr):
+  """
+  Shifts pointclouds so the smallest xyz values map to the origin. We want to 
+  preserve relative scale, but this also leads to excess or missed computation
+  between rooms. 
+
+  TODO: allow layers to input a dynamic dimension (requires changes number of 
+  steps as well)
+
+  Args:
+    pointcloud_arr (np.ndarray): array of all pointclouds with shape 
+                                 (clouds, points, 6)
+  """
+  # Find the minimum x, y, and z values.
+  shifted_pointclouds = []
+  shifted_segmentations = []
+  gmax = None
+
+  # Loop through scenes.
+  for pointcloud, seg in zip(pointcloud_arr, seg_arr):
+    xyz = pointcloud[:, :3]
+    mins = xyz.min(axis=0)
+    maxes = xyz.max(axis=0)
+    dims = maxes-mins
+    if gmax is None:
+      gmax = maxes
+    else:
+      gmax = np.array([dims, gmax]).max(axis=0)
+
+    shifted_objs = []
+    # Loop through each object label in this scene.
+    for obj in seg:
+      bmins = [mins[0], mins[1], mins[2], mins[0], mins[1], mins[2]]
+      shifted_objs.append(obj-bmins)
+    shifted_segmentations.append(shifted_objs)
+
+    shifted_pointclouds.append(np.array([xyz-mins]))
+  return shifted_pointclouds, gmax, shifted_segmentations
+
 def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
                 load_from_npy=True, areas=None):
   """
@@ -381,9 +423,111 @@ def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
     new_ds = True
   return X, ys, yl, new_ds
 
+def load_points_matterport(path, X_npy_path, yb_npy_path, yl_npy_path,
+                           load_from_npy=True, train_test_split=0.9, is_train=True):
+  """
+  Load data from preloaded npy files or from directory.
+  """
+  if exists(X_npy_path) and load_from_npy:
+    assert X_npy_path is not None, "No path given for .npy file."
+    print("Loading points from npy file...")
+    X, yb, yl = load_npy(X_npy_path, yb_npy_path, yl_npy_path)
+    new_ds = False
+  else:
+    assert path is not None, "No path given for pointcloud directory."
+    print("Loading points from directory...")
+    X, yb, yl = load_directory_matterport(path, train_test_split, is_train)
+    np.save(X_npy_path, X)
+    np.save(yb_npy_path, yb)
+    np.save(yl_npy_path, yl)
+    new_ds = True
+  return X, yb, yl, new_ds
+
+def load_directory_matterport(path, train_test_split, is_train):
+  """
+  Loads pointclouds from matterport dataset.
+
+  Assumes dataset structure is as follows:
+  base
+    building_name
+      processed_regions
+        region0.npy
+        region0_bboxes.npy
+        region0_labels.npy
+        ...
+    ...
+  """
+  all_areas = sorted(listdir(path))
+
+  if is_train:
+    #areas = all_areas[int(len(all_areas)*(1-train_test_split)):]
+    areas = all_areas[int(len(all_areas)*(.65)):]
+  else:
+    #areas = all_areas[:int(len(all_areas)*train_test_split)]
+    areas = all_areas[:int(len(all_areas)*0.05)]
+
+  input_data = []
+  bboxes = []
+  labels = []
+  total_regions = 0
+  # Loop through buildings
+  if areas is None:
+    areas = sorted(listdir(path))
+  for area in areas:
+    print("Loading area {}...".format(area))
+    area_path = join(path, area, "processed_regions")
+    if not isdir(area_path):
+      continue
+      
+    ri = 0
+    while exists(join(area_path, "region{}.ply".format(ri))):
+      room = "region{}".format(ri)
+      ri += 1
+      room_path = join(area_path, room)
+
+      # print("\tLoading room {}...".format(room))
+
+      # Load point cloud
+      categories = np.load(room_path+"_labels.npy")
+
+      objects =  ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
+                  'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
+                  'button', 'toilet paper', 'toilet', 'control panel', 'towel']
+
+      input_pc = read_ply(room_path+".ply")
+      bbox = np.load(room_path+"_bboxes.npy")
+      
+      input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z"])
+
+      fdata = []
+      fbbox = []
+      flabel = []
+      for ibbox, ilabel in zip(bbox, categories):
+        if ilabel in objects:
+          fbbox.append(ibbox)
+          flabel.append(ilabel)
+      
+      # 
+      # bboxes.append(bbox)
+      # labels.append(categories)
+      bboxes.append(fbbox)
+      labels.append(flabel)
+      input_data.append(input_pc)
+
+
+
+    print("Loaded {} regions from area {}".format(ri, area))
+    total_regions += ri
+
+  input_data = np.array(input_data)
+  bboxes = np.array(bboxes)
+  labels = np.array(labels)
+
+  return input_data, bboxes, labels
+
 def load_directory(path, areas):
   """
-  Loads pointclouds from dataset.
+  Loads pointclouds from Stanford dataset.
 
   Assumes dataset structure is as follows:
   base
