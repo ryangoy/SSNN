@@ -132,8 +132,6 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
   all_bboxes = []
   all_cls_vals = []
   for scene in range(cls_preds.shape[0]):
-    # if scene != 1:
-    #   continue
     bboxes = []
     cls_vals = []
     dim = num_steps
@@ -149,25 +147,13 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
         for j in range(dim):
           for k in range(dim):
             if cls_hook[i, j, k] > conf_threshold:
-              # print 
-              # print 'ijk'
-              # print [i,j,k]
-              # print 'loc hook'
-              # print loc_hook[i,j,k]
               center_pt = loc_hook[i, j, k, :3] + [i,j,k]
-
               half_dims = (loc_hook[i, j, k, 3:]+1)/2
-              # print 'center pt'
-              # print center_pt
-              # print half_dims
               LL = (center_pt - half_dims) * curr_ksize
               UR = (center_pt + half_dims) * curr_ksize
               bbox = np.concatenate([LL, UR], axis=0)
               cls_vals.append(cls_hook[i, j, k])
-              # print 'bbox'
-              # print bbox
               bboxes.append(bbox)
-              
       prev_ind += dim**3
       dim //= 2
       curr_ksize *= 2  
@@ -197,7 +183,6 @@ def voxelize_labels(labels, steps, kernel_size):
   for scene_id in range(len(labels)):
     for bbox in labels[scene_id]:
       # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
-
       c1 = np.floor(bbox[:3] / kernel_size).astype(int)
       c2 = np.ceil(bbox[3:] / kernel_size).astype(int)
       diff = c2 - c1
@@ -270,7 +255,7 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims - 1
 
-      # Second phase: for each feature box, if the jaccard overlap is > 0.5, set it equal to 1 as well.
+      # Second phase: for each feature box, if the jaccard overlap is > 0.2.5, set it equal to 1 as well.
       
       # Get bbox coords in voxel grid space. This will be divided by 2 every downsample.
       bbox_loc = np.concatenate([bbox[:3] / kernel_size, bbox[3:] / kernel_size], axis=0)

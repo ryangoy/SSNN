@@ -103,8 +103,6 @@ class SSNN:
       # input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
       #                         strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
       # input_layer = tf.nn.dropout(input_layer, dropout)
-      # input_layer = tf.layers.conv3d(input_layer, filters=16, kernel_size=1, padding='SAME',
-      #                         strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
       #input_layer = tf.nn.dropout(input_layer, dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
       conf = tf.layers.conv3d(input_layer, filters=2, kernel_size=1, padding='SAME',
@@ -236,7 +234,7 @@ class SSNN:
     # Define optimizer.
     self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
-  def probe(self, X):
+  def probe(self, X, shape, probe_path):
     """
     Args:
       X (np.ndarray): array of pointclouds (batches, num_points, 3)
@@ -244,14 +242,13 @@ class SSNN:
     pcs = []
     problem_pcs = []
     counter = 1
+    #probe_npy = np.load(probe_path, dtype=np.float32, mmap_mode='w+', shape=())
     for pc in X:
 
       process = psutil.Process(os.getpid())
       if process.memory_info().rss // 1e9 > 63.0:
         print("Memory cap surpassed. Exiting...")
         exit()
-
-
 
       pc = np.array([pc])
       if counter != 597:
@@ -263,7 +260,11 @@ class SSNN:
         print('Finished probing {} pointclouds'.format(counter))
       counter += 1
     self.probe_output = pcs
-    return np.array(pcs), problem_pcs
+
+    pcs = np.array(pcs)
+    pcs = np.squeeze(pcs, axis=1)
+    np.save(probe_path, pcs)
+    return pcs, problem_pcs
 
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, y_val_loc=None, epochs=10, 
                 batch_size=4, display_step=100, save_interval=100):

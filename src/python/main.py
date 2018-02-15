@@ -39,7 +39,7 @@ flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 32, 'Number of sample points each\
                       kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
-flags.DEFINE_float('loc_loss_lambda', 0, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 2, 'Relative weight of localization params.')
 flags.DEFINE_integer('jittered_copies', 1, 'Number of times the dataset is copied and jittered for data augmentation.')
 
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
@@ -136,13 +136,13 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     probe_start = time.time()
 
 
-    
-    X, problem_pcs = model.probe(X_cont)
+    probe_shape = (len(X_cont), NUM_HOOK_STEPS, NUM_HOOK_STEPS, NUM_HOOK_STEPS, FLAGS.num_kernels, FLAGS.probes_per_kernel)
+    X, problem_pcs = model.probe(X_cont, probe_shape, probe_path)
     probe_time = time.time() - probe_start
     print("Probe operation took {:.4f} seconds to run.".format(probe_time))
-    X = np.squeeze(X, axis=1)
+    
     print("Amount of memory used after probing: {}GB".format(process.memory_info().rss // 1e9))
-    np.save(probe_path, X)
+    
 
     for problem_pc in problem_pcs:
       y_cls[problem_pc] = y_cls[problem_pc-1]
