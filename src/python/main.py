@@ -94,13 +94,8 @@ BBOX_CLS_PREDS   = join(output_dir, 'bbox_cls_predictions.npy')
 
 def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_path, 
                       cls_labels, loc_labels, bbox_labels, load_from_npy, load_probe_output, num_copies=0, is_train=True):
-  # TODO: Preprocess input.
-  # - remove outliers
-  # - align to nearest 90 degree angle
-  # - data augmentation
 
   # yl not used for now
-
   X_raw, yb_raw, yl, new_ds = load_points_matterport(path=data_dir, X_npy_path=x_path,
                                   yb_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, is_train=is_train)
@@ -180,7 +175,7 @@ def main(_):
 
 
   load_probe = FLAGS.load_probe_output and FLAGS.load_from_npy
-  X_trn, y_trn_cls, y_trn_loc = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
+  X, y_cls, y_loc = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
                       CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, FLAGS.load_from_npy,
                       load_probe, num_copies=FLAGS.jittered_copies)
 
@@ -191,17 +186,16 @@ def main(_):
 
 
   # Train model.
-  # train_split = int((FLAGS.val_split) * X.shape[0])
-  # X_trn = X[train_split:]
-  # y_trn_cls = y_cls[train_split:]
-  # y_trn_loc = y_loc[train_split:]
-  # X_val = X[:train_split]
-  # y_val_cls = y_cls[:train_split]
-  # y_val_loc = y_loc[:train_split]
+  train_split = int((FLAGS.val_split) * X.shape[0])
+  X_trn = X[train_split:]
+  y_trn_cls = y_cls[train_split:]
+  y_trn_loc = y_loc[train_split:]
+  X_val = X[:train_split]
+  y_val_cls = y_cls[:train_split]
+  y_val_loc = y_loc[:train_split]
   print("Beginning training...")
 
-  num_val = 50
-  ssnn.train_val(X_trn[:-num_val], y_trn_cls[:-num_val], y_trn_loc[:-num_val], X_trn[-num_val:], y_trn_cls[-num_val:], y_trn_loc[-num_val:], epochs=FLAGS.num_epochs) #y_l not used yet for localization
+  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, epochs=FLAGS.num_epochs) #y_l not used yet for localization
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
