@@ -16,7 +16,7 @@ import time
 from object_boundaries import generate_bounding_boxes
 import os
 import psutil
-
+from compute_bbox_accuracy import compute_accuracy
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
@@ -41,10 +41,9 @@ flags.DEFINE_integer('num_dot_layers', 8, 'Number of dot product layers per kern
 flags.DEFINE_float('loc_loss_lambda', 2, 'Relative weight of localization params.')
 flags.DEFINE_integer('jittered_copies', 1, 'Number of times the dataset is copied and jittered for data augmentation.')
 
-flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
-flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
+flags.DEFINE_string('checkpoint_save_dir', 'ckpt_save', 'Path to saving checkpoint.')
+flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
-
 
 
 # DO NOT CHANGE
@@ -93,14 +92,14 @@ BBOX_CLS_PREDS   = join(output_dir, 'bbox_cls_predictions.npy')
 
 
 def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_path, 
-                      cls_labels, loc_labels, bbox_labels, load_from_npy, load_probe_output, num_copies=0):
+                      cls_labels, loc_labels, bbox_labels, load_from_npy, load_probe_output, is_training):
   # TODO: Preprocess input.
   # - remove outliers
   # - align to nearest 90 degree angle
   # - data augmentation
 
   # yl not used for now
-
+  
   X_raw, ys_raw, yl, new_ds = load_points(path=data_dir, X_npy_path=x_path,
                                   ys_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, areas=areas)
@@ -111,13 +110,14 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   # width, height, and depth dims of all rooms.
   print("Normalizing pointclouds...")
   X_cont, dims, ys = normalize_pointclouds(X_raw, ys_raw)
-  print("Augmenting dataset...")
-
-  X_cont, ys = augment_pointclouds(X_cont, ys, copies=num_copies)
+  if is_training:
+    print("Rotating dataset...")
+    X_cont, ys = rotate_pointclouds(X_cont, ys, num_rotations=3)
   dims = np.array([7.5, 7.5, 7.5])
-  kernel_size = dims / NUM_HOOK_STEPS
+  kernel_size = dims / NUM_HOOK_STEPS 
   print("Generating bboxes...")
-  bboxes = generate_bounding_boxes(ys, bbox_labels)
+  bboxes = generate_bounding_boxes(ys, bbox_labels, True)
+  np.save(bbox_labels, bboxes)
   print("Processing labels...")
   y_cls, y_loc = create_jaccard_labels(bboxes, NUM_HOOK_STEPS, kernel_size)
   np.save(cls_labels, y_cls)
@@ -151,9 +151,8 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   print("Finished pre-processing.")
   return X, y_cls, y_loc
 
-
-
 def main(_):
+  train_start = time.time()
   dims = np.array([7.5, 7.5, 7.5])
   kernel_size = dims / FLAGS.num_steps
   # Initialize model. max_room_dims and step_size are in meters.
@@ -162,6 +161,7 @@ def main(_):
                     probe_steps=FLAGS.num_steps, probe_hook_steps=NUM_HOOK_STEPS,
                     num_scales=NUM_SCALES,
                     dot_layers=FLAGS.num_dot_layers,
+                    ckpt_load=FLAGS.checkpoint_load_dir,
                     ckpt_save=FLAGS.checkpoint_save_dir,
                     loc_loss_lambda=FLAGS.loc_loss_lambda)
 
@@ -169,11 +169,11 @@ def main(_):
   load_probe = FLAGS.load_probe_output and FLAGS.load_from_npy
   X_trn, y_trn_cls, y_trn_loc = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
                       CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, FLAGS.load_from_npy,
-                      load_probe, num_copies=FLAGS.jittered_copies)
+                      load_probe, True)
 
   X_test, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
                       CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, FLAGS.load_from_npy,
-                      load_probe)
+                      load_probe, False)
 
 
   # Train model.
@@ -185,11 +185,12 @@ def main(_):
   # y_val_cls = y_cls[:train_split]
   # y_val_loc = y_loc[:train_split]
   print("Beginning training...")
-
   ssnn.train_val(X_trn[:-10], y_trn_cls[:-10], y_trn_loc[:-10], X_trn[-10:], y_trn_cls[-10:], y_trn_loc[-10:], epochs=FLAGS.num_epochs) #y_l not used yet for localization
+  train_time = time.time() - train_start
 
-  # Test model. Using validation since we won't be using real 
-  # "test" data yet. Preds will be an array of bounding boxes. 
+  print('total train time', train_time)
+  np.savetxt('train_time.txt', [train_time])
+  
   cls_preds, loc_preds = ssnn.test(X_test)
   
   # Save output.
@@ -199,8 +200,13 @@ def main(_):
 
   cls_f = np.load(CLS_PREDS)
   loc_f = np.load(LOC_PREDS)
-  bboxes = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
+  bboxes, cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
                             dims/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS)
+
+#  print(bboxes.shape)
+#  print(y_trn_loc.shape) 
+#  accuracy = compute_accuracy(bboxes, y_trn_loc[-10:])
+#  print(accuracy)
 
 # Tensorflow boilerplate code.
 if __name__ == '__main__':

@@ -14,14 +14,36 @@ def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
   return jittered_pc
 
 def augment_pointclouds(pointclouds, ys, copies=0):
-  for pointcloud, y in zip(pointclouds, ys):
+  for pointcloud, y in list(zip(pointclouds, ys)):
     # Jitter pointclouds
     for _ in range(copies):
       jittered_pc = jitter_pointcloud(pointcloud)
       pointclouds.append(jittered_pc)
       ys.append(y)
+  return pointclouds, ys
 
-
+# From PointNet
+# Our default is to do 8 equally spaced rotations around the unit circle
+def rotate_pointclouds(pointclouds, ys, num_rotations=4):
+  rotation_angles = np.linspace(0, 2*np.pi, num_rotations+1)[1:-1]
+  num_pclouds = len(pointclouds)
+  for rotation_angle in rotation_angles: 
+    for k in range(num_pclouds):
+      cosval = np.cos(rotation_angle)
+      sinval = np.sin(rotation_angle)
+      rotation_matrix = np.array([[cosval, 0, sinval],
+                                  [0, 1, 0],
+                                  [-sinval, 0, cosval]])
+      shape_pc = np.array(pointclouds[k])
+      rotated_pc = np.dot(shape_pc.reshape((-1, 3)), rotation_matrix)
+      pointclouds.append([rotated_pc])
+      new_y = []
+      for obj in ys[k]:
+        rotated_obj = np.dot(obj.reshape((-1, 3)), rotation_matrix)
+        new_y.append(rotated_obj)
+      
+      ys.append(new_y)
+    print(rotation_angle, 'done')
   return pointclouds, ys
 
 def flatten_output(cls_preds, loc_preds, steps, res_factor):
@@ -133,14 +155,14 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
     #   continue
     bboxes = []
     cls_vals = []
-    dim = num_steps
+    dim = int(num_steps)
 
     prev_ind = 0
     curr_ksize = kernel_size
     for scale in range(num_downsamples):
-      cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, 1]
+      cls_hook = cls_preds[scene, prev_ind:int(prev_ind+dim**3), 1]
       cls_hook = np.reshape(cls_hook, (dim, dim, dim))
-      loc_hook = loc_preds[scene, prev_ind:prev_ind+dim**3]
+      loc_hook = loc_preds[scene, prev_ind:int(prev_ind+dim**3)]
       loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6))
       for i in range(dim):
         for j in range(dim):

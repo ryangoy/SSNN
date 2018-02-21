@@ -10,6 +10,9 @@ from tf_ops import *
 from random import shuffle
 from os.path import isdir, join
 from os import makedirs
+from utils import *
+from compute_bbox_accuracy import *
+import os
 
 class SSNN:
   
@@ -116,7 +119,7 @@ class SSNN:
       return conf, loc
 
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales,
-                 learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False, dropout=0.05):
+                 learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False, dropout=0.15):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
@@ -222,6 +225,7 @@ class SSNN:
     # smooth_cond = tf.less(tf.abs(diff), 1.0)
     # loc_loss = tf.where(smooth_cond, loc_loss_L1, loc_loss_L2)
     loc_loss = tf.abs(diff)
+    # loc_loss = 0.5*(diff**2)
 
     ia_cast = tf.expand_dims(tf.cast(self.y_ph_cls[...,1], tf.float32), -1)
     ia_dup = tf.tile(ia_cast, [1,1,6])
@@ -250,8 +254,13 @@ class SSNN:
     self.probe_output = pcs
     return np.array(pcs)
 
+  def gaussian_noise_jitter(self, input_layer, std):
+    noise = tf.random_normal(shape=tf.shape(input_layer), mean=0.0, stddev=std, dtype=tf.float32)
+    to_return =  tf.reciprocal(tf.add(tf.reciprocal(input_layer), noise))
+    return tf.where(tf.is_nan(to_return), tf.ones_like(to_return)*1000, to_return)
+
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, y_val_loc=None, epochs=10, 
-                batch_size=4, display_step=100, save_interval=100):
+                batch_size=5, display_step=100, save_interval=10):
     if X_trn is None:
       X_trn = self.probe_ouput
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
@@ -260,11 +269,25 @@ class SSNN:
       indices = list(range(X_trn.shape[0]))
       shuffle(indices)
       X_trn = X_trn[indices]
+
+      # inp = tf.placeholder(tf.float32, shape=X_trn.shape, name='input')
+      # noise = self.gaussian_noise_jitter(inp, .02)
+      # X_trn = noise.eval(session=self.sess, feed_dict={inp: X_trn})
+
       y_trn_cls = y_trn_cls[indices]
       y_trn_loc = y_trn_loc[indices]
 
       for step in range(0, X_trn.shape[0], batch_size): 
         batch_x = X_trn[step:step+batch_size]
+
+        # jitter input probe responses
+        #  noise = np.random.normal(0, .02, batch_x.shape)
+        # batch_x = 1/(1/batch_x + noise)
+        
+        inp = tf.placeholder(tf.float32, shape=batch_x.shape, name='input')
+        noise = self.gaussian_noise_jitter(inp, .003)
+        batch_x = noise.eval(session=self.sess, feed_dict={inp: batch_x})
+
         batch_y_cls = y_trn_cls[step:step+batch_size]
         batch_y_loc = y_trn_loc[step:step+batch_size]
         _, loss, cl, ll = self.sess.run([self.optimizer, self.loss, self.cls_loss, self.loc_loss], feed_dict={self.X_ph: batch_x, 
@@ -284,7 +307,8 @@ class SSNN:
 
         print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
                                                        val_loss*batch_size/X_val.shape[0]))
-      if epoch % save_interval and epoch != 0 and self.ckpt_save is not None:
+      if epoch % save_interval == 0 and epoch != 0 and self.ckpt_save is not None:
+        print('saving checkpoint')
         self.save_checkpoint(self.ckpt_save, epoch)
 
   def test(self, X_test, save_dir=None, batch_size=1):
@@ -305,5 +329,8 @@ class SSNN:
   def load_checkpoint(self, checkpoint_dir):
     ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
     if ckpt and ckpt.model_checkpoint_path:
+      print('loading checkpoint')
       ckpt_name = basename(ckpt.model_checkpoint_path)
       self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
+      return True
+    return False
