@@ -144,7 +144,7 @@ class SSNN:
     # Shape: (batches, x, y, z, features)
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
 
-    
+
     self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=32, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
@@ -156,34 +156,32 @@ class SSNN:
 
     self.pool0 = tf.nn.max_pool3d(self.conv0_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
+    
+    self.conv1_1 = tf.layers.conv3d(self.pool0, filters=32, kernel_size=3, 
+                      strides=1, padding='SAME', activation=tf.nn.relu, 
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+    # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
+    self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=32, kernel_size=3, 
+                      strides=1, padding='SAME', activation=tf.nn.relu, 
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+
+    self.pool1 = tf.nn.max_pool3d(self.conv1_2, ksize=[1, 2, 2, 2, 1], 
+                                  strides=[1, 2, 2, 2, 1], padding='SAME')
 
 
 
-    self.conv1_1 = tf.layers.conv3d(self.pool0, filters=64, kernel_size=3, 
+    self.conv2_1 = tf.layers.conv3d(self.pool1, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # self.conv1_1 = tf.nn.dropout(self.conv1_1, dropout)
-    self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=64, kernel_size=3, 
+    self.conv2_2 = tf.layers.conv3d(self.conv2_1, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 
     # First hook layer.
-    cls_hook1, loc_hook1 = self.hook_layer(self.conv1_2, reuse=reuse_hook)
-
-    self.pool1 = tf.nn.max_pool3d(self.conv1_2, ksize=[1, 2, 2, 2, 1], 
-                                  strides=[1, 2, 2, 2, 1], padding='SAME')
-
-    self.conv2_1 = tf.layers.conv3d(self.pool1, filters=64, kernel_size=3,
-                      strides=1, padding='SAME', activation=tf.nn.relu,
-                      kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-    self.conv2_2 = tf.layers.conv3d(self.conv2_1 , filters=64, kernel_size=3,
-                      strides=1, padding='SAME', activation=tf.nn.relu,
-                      kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-    # Second hook layer, resolution is 1/2 the first
-    cls_hook2, loc_hook2 = self.hook_layer(self.conv2_2, reuse=reuse_hook)
+    cls_hook1, loc_hook1 = self.hook_layer(self.conv2_2, reuse=reuse_hook)
 
     self.pool2 = tf.nn.max_pool3d(self.conv2_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
@@ -196,19 +194,33 @@ class SSNN:
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
+    # Second hook layer, resolution is 1/2 the first
+    cls_hook2, loc_hook2 = self.hook_layer(self.conv3_2, reuse=reuse_hook)
+
+    self.pool3 = tf.nn.max_pool3d(self.conv3_2, ksize=[1, 2, 2, 2, 1], 
+                                  strides=[1, 2, 2, 2, 1], padding='SAME')
+
+    self.conv4_1 = tf.layers.conv3d(self.pool3, filters=64, kernel_size=3,
+                      strides=1, padding='SAME', activation=tf.nn.relu,
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+    self.conv4_2 = tf.layers.conv3d(self.conv4_1 , filters=64, kernel_size=3,
+                      strides=1, padding='SAME', activation=tf.nn.relu,
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+
     # Third hook layer, resolution is 1/4th the first
-    cls_hook3, loc_hook3 = self.hook_layer(self.conv3_2, reuse=reuse_hook)
+    cls_hook3, loc_hook3 = self.hook_layer(self.conv4_2, reuse=reuse_hook)
 
     self.cls_hooks = [cls_hook1, cls_hook2, cls_hook3]
     self.loc_hooks = [loc_hook1, loc_hook2, loc_hook3]
 
-    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv1_2.shape.as_list()[1]*self.conv1_2.shape.as_list()[2]*self.conv1_2.shape.as_list()[3], 2)),
-                               tf.reshape(cls_hook2, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 2)),
-                               tf.reshape(cls_hook3, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 2))],
+    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 2)),
+                               tf.reshape(cls_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 2)),
+                               tf.reshape(cls_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], 2))],
                                axis=1)
-    loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv1_2.shape.as_list()[1]*self.conv1_2.shape.as_list()[2]*self.conv1_2.shape.as_list()[3], 6)),
-                               tf.reshape(loc_hook2, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 6)),
-                               tf.reshape(loc_hook3, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 6))],
+    loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 6)),
+                               tf.reshape(loc_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 6)),
+                               tf.reshape(loc_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], 6))],
                                axis=1)
 
     # Define cls loss.
@@ -251,12 +263,12 @@ class SSNN:
         exit()
 
       pc = np.array([pc])
-      if counter != 597:
+      if counter != 140:
         pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       else:
         problem_pcs.append(counter-1)
       pcs.append(pc_disc)
-      if counter % 100 == 0:
+      if counter % 1 == 0:
         print('Finished probing {} pointclouds'.format(counter))
       counter += 1
     self.probe_output = pcs

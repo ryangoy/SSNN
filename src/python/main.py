@@ -30,13 +30,14 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
-flags.DEFINE_integer('num_epochs', 50, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
-flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample\
+flags.DEFINE_integer('num_steps', 64, 'Number of intervals to sample\
                       from in each xyz direction.')
+flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 32, 'Number of sample points each\
+flags.DEFINE_integer('probes_per_kernel', 16, 'Number of sample points each\
                       kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
 flags.DEFINE_float('loc_loss_lambda', 2, 'Relative weight of localization params.')
@@ -50,7 +51,7 @@ flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid f
 
 # DO NOT CHANGE
 NUM_SCALES = 3
-NUM_HOOK_STEPS = int(FLAGS.num_steps / 2)
+NUM_HOOK_STEPS = int(FLAGS.num_steps / 4)
 
 # Define sets for training and testing
 TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5']
@@ -190,7 +191,7 @@ def main(_):
   y_val_loc = y_loc[:train_split]
   print("Beginning training...")
 
-  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, epochs=FLAGS.num_epochs) #y_l not used yet for localization
+  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size) #y_l not used yet for localization
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
