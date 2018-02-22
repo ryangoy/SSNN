@@ -14,7 +14,7 @@ def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
   return jittered_pc
 
 def augment_pointclouds(pointclouds, ys, copies=0):
-  for pointcloud, y in zip(pointclouds, ys):
+  for pointcloud, y in list(zip(pointclouds, ys)):
     # Jitter pointclouds
     for _ in range(copies):
       jittered_pc = jitter_pointcloud(pointcloud)
@@ -133,7 +133,7 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
     #   continue
     bboxes = []
     cls_vals = []
-    dim = num_steps
+    dim = int(num_steps)
 
     prev_ind = 0
     curr_ksize = kernel_size

@@ -118,6 +118,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   kernel_size = dims / NUM_HOOK_STEPS
   print("Generating bboxes...")
   bboxes = generate_bounding_boxes(ys, bbox_labels)
+  np.save(bbox_labels, bboxes)
   print("Processing labels...")
   y_cls, y_loc = create_jaccard_labels(bboxes, NUM_HOOK_STEPS, kernel_size)
   np.save(cls_labels, y_cls)
