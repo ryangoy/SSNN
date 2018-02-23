@@ -16,6 +16,7 @@ import time
 from object_boundaries import generate_bounding_boxes
 import os
 import psutil
+from compute_bbox_accuracy import compute_accuracy
 
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -30,17 +31,18 @@ flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans
                     'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
                     dataset')
-flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 200, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
 flags.DEFINE_integer('num_steps', 64, 'Number of intervals to sample\
                       from in each xyz direction.')
+flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 16, 'Number of sample points each\
                       kernel has.')
-flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
-flags.DEFINE_float('loc_loss_lambda', 2, 'Relative weight of localization params.')
+flags.DEFINE_integer('num_dot_layers', 8, 'Number of dot product layers per kernel')
+flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
 flags.DEFINE_integer('jittered_copies', 1, 'Number of times the dataset is copied and jittered for data augmentation.')
 
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
@@ -167,7 +169,8 @@ def main(_):
                     dot_layers=FLAGS.num_dot_layers,
                     ckpt_save=FLAGS.checkpoint_save_dir,
                     loc_loss_lambda=FLAGS.loc_loss_lambda,
-                    learning_rate=FLAGS.learning_rate)
+                    learning_rate=FLAGS.learning_rate,
+                    k_size_factor=FLAGS.k_size_factor)
 
 
   load_probe = FLAGS.load_probe_output and FLAGS.load_from_npy
@@ -213,6 +216,8 @@ def main(_):
   bboxes = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
                             dims/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS)
 
+  compute_accuracy(BBOX_PREDS, BBOX_TEST_LABELS)
+  
 # Tensorflow boilerplate code.
 if __name__ == '__main__':
   tf.app.run()

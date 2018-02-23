@@ -15,7 +15,8 @@ import os
 
 class SSNN:
   
-  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1, learning_rate=0.001):
+  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, 
+               num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1, learning_rate=0.001, k_size_factor=3):
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
@@ -27,7 +28,7 @@ class SSNN:
 
     # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
-                       probes_per_kernel=probes_per_kernel)
+                       probes_per_kernel=probes_per_kernel, k_size_factor=k_size_factor)
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
     self.init_model(num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda, learning_rate=learning_rate)
@@ -55,7 +56,7 @@ class SSNN:
         output = activation(output)
       return output
 
-  def init_probe_op(self, dims, steps, num_kernels=1, probes_per_kernel=1):
+  def init_probe_op(self, dims, steps, num_kernels=1, probes_per_kernel=1, k_size_factor=3):
     """
     The idea behind having a separate probe op is that we are converting from
     continuous space to discrete space here. Running backprop on this layer and
@@ -82,7 +83,8 @@ class SSNN:
     self.probe_op = probe3d(self.points_ph, dims, 
                             steps=steps, 
                             num_kernels=num_kernels, 
-                            probes_per_kernel=probes_per_kernel)
+                            probes_per_kernel=probes_per_kernel,
+                            k_size_factor=k_size_factor)
 
   def hook_layer(self, input_layer, reuse=False, activation=None, dropout=0.1):
     # As defined in Singleshot Multibox Detector, hook layers process
@@ -100,8 +102,8 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
-      # input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
-      #                         strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+      input_layer = tf.layers.conv3d(input_layer, filters=16, kernel_size=1, padding='SAME',
+                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
       # input_layer = tf.nn.dropout(input_layer, dropout)
       #input_layer = tf.nn.dropout(input_layer, dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
@@ -171,11 +173,11 @@ class SSNN:
 
 
 
-    self.conv2_1 = tf.layers.conv3d(self.pool1, filters=64, kernel_size=3, 
+    self.conv2_1 = tf.layers.conv3d(self.pool1, filters=32, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # self.conv1_1 = tf.nn.dropout(self.conv1_1, dropout)
-    self.conv2_2 = tf.layers.conv3d(self.conv2_1, filters=64, kernel_size=3, 
+    self.conv2_2 = tf.layers.conv3d(self.conv2_1, filters=32, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 

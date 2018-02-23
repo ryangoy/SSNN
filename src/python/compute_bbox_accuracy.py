@@ -12,19 +12,12 @@ def compute_accuracy(preds, labels):
         for label in labels[scene]:
             label_matched = False
             for pred in preds[scene]:
-            
-                # pred_bbox = np.concatenate([pred[:3]-pred[3:]-1, pred[:3]+pred[3:]+1])
-                # label_bbox = np.concatenate([label[:3]-label[3:]-1, label[:3]+label[3:]+1])
 
                 max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)
                 min_UR = np.min(np.array([pred[3:], label[3:]]), axis=0)
                 intersection = np.prod(min_UR - max_LL)
                 union = np.prod(pred[3:]-pred[:3]) + np.prod(label[3:]-label[:3]) - intersection
-                # print 'stats'
-                # print pred.astype(int)
-                # print label.astype(int)
-                # print intersection
-                # print union
+
                 if min(min_UR - max_LL) > 0 and intersection/union >0.25:
                     if not label_matched:
                         true_positives += 1
