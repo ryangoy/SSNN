@@ -17,7 +17,8 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
         int filter_id = i % (filters*probes_per_filter) / probes_per_filter;
         int probe_id = i % probes_per_filter;
 
-        // Get the query index of the gridlist
+        // Get the query index of the gridlist. Offsets are computed for cases where points of kernels are outside the
+        // current grid.
         int sample_index = filter_id*probes_per_filter*3 + probe_id*3;
         int x_offset = 0;
         if (weights[sample_index] > ksize)
@@ -34,18 +35,19 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
             z_offset = int(weights[sample_index+2]/ksize);
         else if (weights[sample_index+2] < 0)
             z_offset = int(weights[sample_index+2]/ksize) - 1;
-
         int start_index_index = batch*steps*steps*steps+(x_step+x_offset)*steps*steps+(y_step+y_offset)*steps+z_step+z_offset;
         if (start_index_index < 0)
             start_index_index = 0;
         else if (start_index_index >= batches*steps*steps*steps)
             start_index_index = batches*steps*steps*steps-1;
+
+        // Access the proper grid.
         int start_index = gl_indices[start_index_index];
         int end_index = gl_indices[start_index_index+1];
         int num_vox_points = end_index - start_index;
         float* vox_gl_points = gl_points+start_index;
 
-        // Corner of the voxel box
+        // Compute the corner of the voxel box.
         float xc = xdim / steps * x_step;
         float yc = ydim / steps * y_step;
         float zc = zdim / steps * z_step;
@@ -72,6 +74,9 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
                  // closest_z = curr_probe[2] - curr_point[1];
             } 
         }
+
+        // For a higher response for closer points, we take the negative. 0.1 is a hard-coded value for now so that
+        // the response's mean is close to 0, but it doesn't matter too much.
         closest_dist = 0.1-closest_dist;
         if (closest_dist >= 100)
             closest_dist = 100;

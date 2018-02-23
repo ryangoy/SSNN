@@ -39,7 +39,7 @@ flags.DEFINE_integer('num_steps', 64, 'Number of intervals to sample\
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 16, 'Number of sample points each\
+flags.DEFINE_integer('probes_per_kernel', 24, 'Number of sample points each\
                       kernel has.')
 flags.DEFINE_integer('num_dot_layers', 8, 'Number of dot product layers per kernel')
 flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
@@ -49,13 +49,11 @@ flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
 
-
-
 # DO NOT CHANGE
 NUM_SCALES = 3
 NUM_HOOK_STEPS = int(FLAGS.num_steps / 4)
 
-# Define sets for training and testing
+# Define sets for training and testing (Stanford dataset)
 TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5']
 TEST_AREAS = ['Area_6']
 
@@ -67,7 +65,7 @@ output_dir = join(FLAGS.data_dir, 'outputs')
 if not exists(output_dir):
   makedirs(output_dir)
 
-# raw inputs
+# Raw inputs
 X_TRN            = join(intermediate_dir, 'trn_data.npy')
 YS_TRN           = join(intermediate_dir, 'trn_seg_labels.npy')
 YL_TRN           = join(intermediate_dir, 'trn_cls_labels.npy')
@@ -78,7 +76,7 @@ YS_TEST          = join(intermediate_dir, 'test_seg_labels.npy')
 YL_TEST          = join(intermediate_dir, 'test_cls_labels.npy')
 PROBE_TEST       = join(intermediate_dir, 'test_probe_out.npy')
 
-# processed inputs and ouputs
+# Processed inputs and ouputs
 CLS_TRN_LABELS   = join(output_dir, 'cls_trn_labels.npy')
 LOC_TRN_LABELS   = join(output_dir, 'loc_trn_labels.npy')
 BBOX_TRN_LABELS  = join(output_dir, 'bbox_trn_labels.npy')
@@ -95,6 +93,10 @@ BBOX_CLS_PREDS   = join(output_dir, 'bbox_cls_predictions.npy')
 
 def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_path, 
                       cls_labels, loc_labels, bbox_labels, load_from_npy, load_probe_output, num_copies=0, is_train=True):
+  """
+  Converts raw data into form that can be fed into the ML pipeline. Operations include normalization, augmentation, 
+  label ggeneration, and probing.
+  """
 
   # yl not used for now
   X_raw, yb_raw, yl, new_ds = load_points_matterport(path=data_dir, X_npy_path=x_path,
@@ -103,17 +105,18 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
 
   print("Loaded {} pointclouds.".format(len(X_raw)))
   process = psutil.Process(os.getpid())
+ 
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
-
   print("Normalizing pointclouds...")
   X_cont, dims, ys = normalize_pointclouds_matterport(X_raw, yb_raw)
-  # print("Augmenting dataset...")
 
+  # print("Augmenting dataset...")
   # X_cont, ys = augment_pointclouds(X_cont, ys, copies=num_copies)
 
   dims = np.array([7.5, 7.5, 7.5])
   kernel_size = dims / NUM_HOOK_STEPS
+
   # print("Generating bboxes...")
   # bboxes = generate_bounding_boxes(ys, bbox_labels)
   np.save(bbox_labels, ys)
@@ -124,10 +127,6 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   np.save(cls_labels, y_cls)
   np.save(loc_labels, y_loc)
 
-  # Hack-y way of combining samples into one array since each sample has a
-  # different number of points.
-  print("Combining samples...")
-
   # Probe processing.
   if exists(probe_path) and load_probe_output and not new_ds:
     # Used for developing so redudant calculations are omitted.
@@ -137,26 +136,21 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     print("Amount of memory used before probing: {}GB".format(process.memory_info().rss // 1e9))
     print("Running probe operation...")
     probe_start = time.time()
-
-
     probe_shape = (len(X_cont), NUM_HOOK_STEPS, NUM_HOOK_STEPS, NUM_HOOK_STEPS, FLAGS.num_kernels, FLAGS.probes_per_kernel)
     X, problem_pcs = model.probe(X_cont, probe_shape, probe_path)
     probe_time = time.time() - probe_start
+
     print("Probe operation took {:.4f} seconds to run.".format(probe_time))
-    
     print("Amount of memory used after probing: {}GB".format(process.memory_info().rss // 1e9))
     
-
+    # TODO: delete hard-coded elements of problem pointcloud removal (see SSNN.py counter if/else logic).
     for problem_pc in problem_pcs:
       y_cls[problem_pc] = y_cls[problem_pc-1]
       y_loc[problem_pc] = y_loc[problem_pc-1]
 
 
-
   print("Finished pre-processing.")
   return X, y_cls, y_loc
-
-
 
 def main(_):
   dims = np.array([7.5, 7.5, 7.5])
@@ -174,15 +168,16 @@ def main(_):
 
 
   load_probe = FLAGS.load_probe_output and FLAGS.load_from_npy
+
+  # Pre-process train data. Train/test data pre-processing is split for easier data streaming.
   X, y_cls, y_loc = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
                       CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, FLAGS.load_from_npy,
                       load_probe, num_copies=FLAGS.jittered_copies)
 
-
+  # Pre-process test data.
   X_test, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
                       CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, FLAGS.load_from_npy,
                       load_probe, is_train=False)
-
 
   # Train model.
   train_split = int((FLAGS.val_split) * X.shape[0])
@@ -193,7 +188,6 @@ def main(_):
   y_val_cls = y_cls[:train_split]
   y_val_loc = y_loc[:train_split]
   print("Beginning training...")
-
   ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size) #y_l not used yet for localization
 
   # Test model. Using validation since we won't be using real 
@@ -208,14 +202,13 @@ def main(_):
   save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
                              NUM_HOOK_STEPS, NUM_SCALES)
   
-
   cls_f = np.load(CLS_PREDS)
   loc_f = np.load(LOC_PREDS)
-
 
   bboxes = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
                             dims/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS)
 
+  # Compute recall and precision.
   compute_accuracy(BBOX_PREDS, BBOX_TEST_LABELS)
   
 # Tensorflow boilerplate code.
