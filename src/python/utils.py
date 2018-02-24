@@ -388,7 +388,7 @@ def normalize_pointclouds_matterport(pointcloud_arr, seg_arr):
     shifted_pointclouds.append(np.array(xyz-mins))
   return shifted_pointclouds, gmax, shifted_segmentations
 
-def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
+def load_points_stanford(path, X_npy_path, ys_npy_path, yl_npy_path,
                 load_from_npy=True, areas=None):
   """
   Load data from preloaded npy files or from directory.
@@ -508,7 +508,7 @@ def load_directory_matterport(path, train_test_split, is_train):
 
   return input_data, bboxes, labels
 
-def load_directory(path, areas):
+def load_directory_stanford(path, areas):
   """
   Loads pointclouds from Stanford dataset.
 

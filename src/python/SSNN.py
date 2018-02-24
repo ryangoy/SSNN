@@ -144,7 +144,6 @@ class SSNN:
 
     # Shape: (batches, x_steps, y_steps, z_steps)
     self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, 2))
-
     self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, 6))
 
     # Shape: (batches, x, y, z, features)
@@ -286,14 +285,16 @@ class SSNN:
       
     self.probe_output = probe_memmap
 
+    probe_memmap.flush()
+
     # pcs = np.array(pcs)
     # pcs = np.squeeze(pcs, axis=1)
     # np.save(probe_path, probe_memmap)
     return probe_memmap, problem_pcs
 
-  def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, y_val_loc=None, epochs=10, 
-                batch_size=4, display_step=100, save_interval=100):
-    
+  def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, 
+                y_val_loc=None, epochs=10, batch_size=4, display_step=100, save_interval=100):
+
     if X_trn is None:
       X_trn = self.probe_ouput
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
@@ -304,7 +305,6 @@ class SSNN:
       X_trn = X_trn[indices]
       y_trn_cls = y_trn_cls[indices]
       y_trn_loc = y_trn_loc[indices]
-
 
       for step in range(0, X_trn.shape[0], batch_size): 
         batch_x = X_trn[step:step+batch_size]

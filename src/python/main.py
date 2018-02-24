@@ -38,9 +38,10 @@ flags.DEFINE_integer('probe_batch_size', 128, 'Number of samples to run probe op
 flags.DEFINE_integer('jittered_copies', 0, 'Number of times the dataset is copied and jittered for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
+flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 200, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
 flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
@@ -102,9 +103,18 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   Converts raw data into form that can be fed into the ML pipeline. Operations include normalization, augmentation, 
   label ggeneration, and probing.
   """
+  assert FLAGS.dataset_name in ['stanford', 'matterport'], 'Supported datasets are stanford and matterport.'
+
+  if FLAGS.dataset_name == 'stanford':
+    load_points_fn = load_points_stanford
+    normalize_pointclouds_fn = normalize_pointclouds_stanford
+
+  elif FLAGS.dataset_name == 'matterport':
+    load_points_fn = load_points_matterport
+    normalize_pointclouds_fn = normalize_pointclouds_matterport
 
   # yl not used for now
-  X_raw, yb_raw, yl, new_ds = load_points_matterport(path=data_dir, X_npy_path=x_path,
+  X_raw, yb_raw, yl, new_ds = load_points_fn(path=data_dir, X_npy_path=x_path,
                                   yb_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, is_train=is_train)
 
@@ -117,14 +127,16 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   X_cont, dims, ys = normalize_pointclouds_matterport(X_raw, yb_raw)
 
   # print("Augmenting dataset...")
-  # X_cont, ys = augment_pointclouds(X_cont, ys, copies=num_copies)
+  # X_cont, ys, yl = augment_pointclouds(X_cont, ys, copies=num_copies)
 
   kernel_size = DIMS / NUM_HOOK_STEPS
 
-  # print("Generating bboxes...")
-  # bboxes = generate_bounding_boxes(ys, bbox_labels)
-  np.save(bbox_labels, ys)
-  bboxes = ys
+  if FLAGS.dataset_name == 'stanford':
+    print("Generating bboxes...")
+    bboxes = generate_bounding_boxes(ys, bbox_labels)
+  elif FLAGS.dataset_name == 'matterport':
+    bboxes = ys
+  np.save(bbox_labels, bboxes)
 
   print("Processing labels...")
   y_cls, y_loc = create_jaccard_labels(bboxes, NUM_HOOK_STEPS, kernel_size)
@@ -135,7 +147,9 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   if exists(probe_path) and load_probe_output and not new_ds:
     # Used for developing so redudant calculations are omitted.
     print ("Loading previous probe output...")
-    X = np.load(probe_path)
+    # X = np.load(probe_path)
+    X = np.memmap(probe_path, dtype='float32', mode='r', shape=(len(X_cont), FLAGS.num_steps, 
+                             FLAGS.num_steps, FLAGS.num_steps, FLAGS.num_kernels, FLAGS.probes_per_kernel))
   else:
     print("Amount of memory used before probing: {}GB".format(process.memory_info().rss // 1e9))
     print("Running probe operation...")
@@ -146,7 +160,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     print("Probe operation took {:.4f} seconds to run.".format(probe_time))
     print("Amount of memory used after probing: {}GB".format(process.memory_info().rss // 1e9))
     
-    # TODO: delete hard-coded elements of problem pointcloud removal (see SSNN.py counter if/else logic).
+    # TODO: delete hard-coded elements of problem pointcloud removal (see SSNN.py counter var if/else logic).
     for problem_pc in problem_pcs:
       y_cls[problem_pc] = y_cls[problem_pc-1]
       y_loc[problem_pc] = y_loc[problem_pc-1]
@@ -213,7 +227,7 @@ def main(_):
                             DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS)
 
   # Compute recall and precision.
-  compute_accuracy(BBOX_PREDS, BBOX_TEST_LABELS)
+  compute_accuracy(np.load(BBOX_PREDS), np.load(BBOX_TEST_LABELS))
   
 # Tensorflow boilerplate code.
 if __name__ == '__main__':
