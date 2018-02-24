@@ -16,7 +16,8 @@ import os
 class SSNN:
   
   def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, 
-               num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1, learning_rate=0.001, k_size_factor=3):
+               num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1, learning_rate=0.001, k_size_factor=3,
+               probe_batch_size=128):
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
@@ -24,6 +25,9 @@ class SSNN:
     self.probe_output = None
     self.ckpt_save = ckpt_save
     self.ckpt_load = ckpt_load
+    self.num_kernels = num_kernels
+    self.probes_per_kernel = probes_per_kernel
+    self.probe_batch_size = probe_batch_size
 
 
     # Defines self.probe_op
@@ -255,8 +259,10 @@ class SSNN:
     """
     pcs = []
     problem_pcs = []
-    counter = 1
+    counter = 0
     #probe_npy = np.load(probe_path, dtype=np.float32, mmap_mode='w+', shape=())
+    probe_memmap = np.memmap(probe_path, dtype='float32', mode='w+', shape=(len(X), self.probe_steps, 
+                             self.probe_steps, self.probe_steps, self.num_kernels, self.probes_per_kernel))
     for pc in X:
 
       process = psutil.Process(os.getpid())
@@ -264,24 +270,30 @@ class SSNN:
         print("Memory cap surpassed. Exiting...")
         exit()
 
+      ## ADD MEMMAP STUFF HERE
       pc = np.array([pc])
-      if counter != 140:
+      if counter != 139:
         pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       else:
         problem_pcs.append(counter-1)
-      pcs.append(pc_disc)
+      
+      # pcs.append(pc_disc)
+      probe_memmap[counter] = pc_disc[0]
+
+      counter += 1
       if counter % 1 == 0:
         print('Finished probing {} pointclouds'.format(counter))
-      counter += 1
-    self.probe_output = pcs
+      
+    self.probe_output = probe_memmap
 
-    pcs = np.array(pcs)
-    pcs = np.squeeze(pcs, axis=1)
-    np.save(probe_path, pcs)
-    return pcs, problem_pcs
+    # pcs = np.array(pcs)
+    # pcs = np.squeeze(pcs, axis=1)
+    # np.save(probe_path, probe_memmap)
+    return probe_memmap, problem_pcs
 
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, y_val_loc=None, epochs=10, 
                 batch_size=4, display_step=100, save_interval=100):
+    
     if X_trn is None:
       X_trn = self.probe_ouput
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
@@ -292,6 +304,7 @@ class SSNN:
       X_trn = X_trn[indices]
       y_trn_cls = y_trn_cls[indices]
       y_trn_loc = y_trn_loc[indices]
+
 
       for step in range(0, X_trn.shape[0], batch_size): 
         batch_x = X_trn[step:step+batch_size]

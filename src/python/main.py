@@ -18,7 +18,6 @@ import os
 import psutil
 from compute_bbox_accuracy import compute_accuracy
 
-
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
@@ -26,38 +25,44 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
-# Define user inputs.
+#########
+# FLAGS #
+#########
+
+# Data information: loading and saving options.
 flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 
                     'Path to base directory.')
-flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded \
-                    dataset')
+flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded dataset')
+flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
+flags.DEFINE_integer('probe_batch_size', 128, 'Number of samples to run probe operation before writing to memmap file.')
+flags.DEFINE_integer('jittered_copies', 0, 'Number of times the dataset is copied and jittered for data augmentation.')
+flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
+flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
+
+# Training hyperparameters.
 flags.DEFINE_integer('num_epochs', 200, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
-flags.DEFINE_integer('num_steps', 64, 'Number of intervals to sample\
-                      from in each xyz direction.')
+flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
+
+# Probing hyperparameters.
+flags.DEFINE_integer('num_steps', 64, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 24, 'Number of sample points each\
-                      kernel has.')
+flags.DEFINE_integer('probes_per_kernel', 32, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 8, 'Number of dot product layers per kernel')
-flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
-flags.DEFINE_integer('jittered_copies', 1, 'Number of times the dataset is copied and jittered for data augmentation.')
-
-flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
-flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
-flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
 
 # DO NOT CHANGE
 NUM_SCALES = 3
 NUM_HOOK_STEPS = int(FLAGS.num_steps / 4)
+DIMS = np.array([7.5, 7.5, 7.5])
 
 # Define sets for training and testing (Stanford dataset)
 TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5']
 TEST_AREAS = ['Area_6']
 
-# Define constant paths
+# Define constant paths (TODO: make this more organized between datasets)
 intermediate_dir = join(FLAGS.data_dir, 'intermediates')
 if not exists(intermediate_dir):
   makedirs(intermediate_dir)
@@ -69,12 +74,12 @@ if not exists(output_dir):
 X_TRN            = join(intermediate_dir, 'trn_data.npy')
 YS_TRN           = join(intermediate_dir, 'trn_seg_labels.npy')
 YL_TRN           = join(intermediate_dir, 'trn_cls_labels.npy')
-PROBE_TRN        = join(intermediate_dir, 'trn_probe_out.npy')
+PROBE_TRN        = join(intermediate_dir, 'trn_probe_out.npy') # memmap
 
 X_TEST           = join(intermediate_dir, 'test_data.npy')
 YS_TEST          = join(intermediate_dir, 'test_seg_labels.npy')
 YL_TEST          = join(intermediate_dir, 'test_cls_labels.npy')
-PROBE_TEST       = join(intermediate_dir, 'test_probe_out.npy')
+PROBE_TEST       = join(intermediate_dir, 'test_probe_out.npy') # memmap
 
 # Processed inputs and ouputs
 CLS_TRN_LABELS   = join(output_dir, 'cls_trn_labels.npy')
@@ -114,8 +119,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   # print("Augmenting dataset...")
   # X_cont, ys = augment_pointclouds(X_cont, ys, copies=num_copies)
 
-  dims = np.array([7.5, 7.5, 7.5])
-  kernel_size = dims / NUM_HOOK_STEPS
+  kernel_size = DIMS / NUM_HOOK_STEPS
 
   # print("Generating bboxes...")
   # bboxes = generate_bounding_boxes(ys, bbox_labels)
@@ -139,7 +143,6 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     probe_shape = (len(X_cont), NUM_HOOK_STEPS, NUM_HOOK_STEPS, NUM_HOOK_STEPS, FLAGS.num_kernels, FLAGS.probes_per_kernel)
     X, problem_pcs = model.probe(X_cont, probe_shape, probe_path)
     probe_time = time.time() - probe_start
-
     print("Probe operation took {:.4f} seconds to run.".format(probe_time))
     print("Amount of memory used after probing: {}GB".format(process.memory_info().rss // 1e9))
     
@@ -153,10 +156,10 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   return X, y_cls, y_loc
 
 def main(_):
-  dims = np.array([7.5, 7.5, 7.5])
-  kernel_size = dims / FLAGS.num_steps
+  kernel_size = DIMS / FLAGS.num_steps
+
   # Initialize model. max_room_dims and step_size are in meters.
-  ssnn = SSNN(dims, num_kernels=FLAGS.num_kernels, 
+  ssnn = SSNN(DIMS, num_kernels=FLAGS.num_kernels, 
                     probes_per_kernel=FLAGS.probes_per_kernel, 
                     probe_steps=FLAGS.num_steps, probe_hook_steps=NUM_HOOK_STEPS,
                     num_scales=NUM_SCALES,
@@ -164,7 +167,8 @@ def main(_):
                     ckpt_save=FLAGS.checkpoint_save_dir,
                     loc_loss_lambda=FLAGS.loc_loss_lambda,
                     learning_rate=FLAGS.learning_rate,
-                    k_size_factor=FLAGS.k_size_factor)
+                    k_size_factor=FLAGS.k_size_factor,
+                    probe_batch_size=FLAGS.probe_batch_size)
 
 
   load_probe = FLAGS.load_probe_output and FLAGS.load_from_npy
@@ -206,7 +210,7 @@ def main(_):
   loc_f = np.load(LOC_PREDS)
 
   bboxes = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-                            dims/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS)
+                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS)
 
   # Compute recall and precision.
   compute_accuracy(BBOX_PREDS, BBOX_TEST_LABELS)
