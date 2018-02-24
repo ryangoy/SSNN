@@ -40,3 +40,6 @@ This will have to be run per terminal instance. To add it permanently, add it to
 
 ## InvalidArgumentError (see above for traceback): No OpKernel was registered to support Op 'Probe' with these attrs.  Registered devices: [CPU] ##
 This might mean that NVML is not initialized properly. Run nvidia-smi to confirm. Rebooting often solves this issue.
+
+## Memory error or Bus error at the start of training. ##
+Usually these errors are associated with memmapping. After the first run, the probing data is saved to a memmap to avoid redudant calculation. If parameters change between runs, then ensure the flag --load_probe_output is set to False.
