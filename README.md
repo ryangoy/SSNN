@@ -13,8 +13,10 @@ See the doc <a href="https://docs.google.com/document/d/1E5_oou9kKTJgE75LKNbSj97
 
 # Run instructions #
 ```
-cd src
+cd src/cpp
 bash compile_probe.sh
+cd ../python
+python main.py
 ```
 
 # Bugs and how to resolve them #
