@@ -305,14 +305,18 @@ class SSNN:
     for epoch in range(epochs):
       indices = list(range(X_trn.shape[0]))
       shuffle(indices)
-      X_trn = X_trn[indices]
-      y_trn_cls = y_trn_cls[indices]
-      y_trn_loc = y_trn_loc[indices]
+      # X_trn = X_trn[indices]
+      # y_trn_cls = y_trn_cls[indices]
+      # y_trn_loc = y_trn_loc[indices]
 
       for step in range(0, X_trn.shape[0], batch_size): 
-        batch_x = X_trn[step:step+batch_size]
-        batch_y_cls = y_trn_cls[step:step+batch_size]
-        batch_y_loc = y_trn_loc[step:step+batch_size]
+        randomized_indices = indices[step:step+batch_size]
+        # batch_x = X_trn[step:step+batch_size]
+        # batch_y_cls = y_trn_cls[step:step+batch_size]
+        # batch_y_loc = y_trn_loc[step:step+batch_size]
+        batch_x = X_trn[randomized_indices]
+        batch_y_cls = y_trn_cls[randomized_indices]
+        batch_y_loc = y_trn_loc[randomized_indices]
         _, loss, cl, ll = self.sess.run([self.optimizer, self.loss, self.cls_loss, self.loc_loss], feed_dict={self.X_ph: batch_x, 
                                             self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc})
 

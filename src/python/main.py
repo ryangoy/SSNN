@@ -41,7 +41,7 @@ flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 25, 'Number of epochs to train.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
 flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
 flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
@@ -126,7 +126,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   X_raw, yb_raw, yl, new_ds = load_points_fn(path=data_dir, X_npy_path=x_path,
                                   yb_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, is_train=is_train,
-                                  categories=CATEGORIES)
+                                  categories=CATEGORIES, train_test_split=0.8)
 
   print("\tLoaded {} pointclouds for {}.".format(len(X_raw), input_type))
   process = psutil.Process(os.getpid())
