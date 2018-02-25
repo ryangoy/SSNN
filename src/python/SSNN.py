@@ -17,7 +17,7 @@ class SSNN:
   
   def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, 
                num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1, learning_rate=0.001, k_size_factor=3,
-               probe_batch_size=128):
+               probe_batch_size=128, num_classes=2):
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
@@ -35,7 +35,7 @@ class SSNN:
                        probes_per_kernel=probes_per_kernel, k_size_factor=k_size_factor)
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
-    self.init_model(num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda, learning_rate=learning_rate)
+    self.init_model(num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda, learning_rate=learning_rate)
 
     # Initialize variables
     self.saver = tf.train.Saver()
@@ -43,9 +43,9 @@ class SSNN:
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
     if self.ckpt_load and self.load_checkpoint(self.ckpt_load):
-      print('Loaded model from checkpoint successfully.')
+      print('Loaded SSNN model from checkpoint successfully.')
     else:
-      print('Initialized new model.')
+      print('Initialized new SSNN model.')
 
   def fc_layer(self, x, num_nodes, name='fc_layer', activation=tf.nn.elu):
     """
@@ -90,7 +90,7 @@ class SSNN:
                             probes_per_kernel=probes_per_kernel,
                             k_size_factor=k_size_factor)
 
-  def hook_layer(self, input_layer, reuse=False, activation=None, dropout=0.1):
+  def hook_layer(self, input_layer, reuse=False, activation=None, dropout=0.1, num_classes=2):
     # As defined in Singleshot Multibox Detector, hook layers process
     # intermediates at different scales.
 
@@ -111,7 +111,7 @@ class SSNN:
       # input_layer = tf.nn.dropout(input_layer, dropout)
       #input_layer = tf.nn.dropout(input_layer, dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
-      conf = tf.layers.conv3d(input_layer, filters=2, kernel_size=1, padding='SAME',
+      conf = tf.layers.conv3d(input_layer, filters=num_classes, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       # Predicts the center coordinate and relative scale of the box
@@ -122,14 +122,14 @@ class SSNN:
 
       return conf, loc
 
-  def init_model(self, num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales,
+  def init_model(self, num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes,
                  learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False, dropout=0.05):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
     self.X_ph = tf.placeholder(tf.float32, (None, probe_steps, probe_steps, 
                                             probe_steps, num_kernels, 
-                                            probes_per_kernel,))
+                                            probes_per_kernel))
 
     num_features = 0
 
@@ -143,7 +143,7 @@ class SSNN:
         dim_size /= 2
 
     # Shape: (batches, x_steps, y_steps, z_steps)
-    self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, 2))
+    self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, num_classes))
     self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, 6))
 
     # Shape: (batches, x, y, z, features)
@@ -186,7 +186,7 @@ class SSNN:
 
 
     # First hook layer.
-    cls_hook1, loc_hook1 = self.hook_layer(self.conv2_2, reuse=reuse_hook)
+    cls_hook1, loc_hook1 = self.hook_layer(self.conv2_2, reuse=reuse_hook, num_classes=num_classes)
 
     self.pool2 = tf.nn.max_pool3d(self.conv2_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
@@ -200,7 +200,7 @@ class SSNN:
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
     # Second hook layer, resolution is 1/2 the first
-    cls_hook2, loc_hook2 = self.hook_layer(self.conv3_2, reuse=reuse_hook)
+    cls_hook2, loc_hook2 = self.hook_layer(self.conv3_2, reuse=reuse_hook, num_classes=num_classes)
 
     self.pool3 = tf.nn.max_pool3d(self.conv3_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
@@ -214,14 +214,14 @@ class SSNN:
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
     # Third hook layer, resolution is 1/4th the first
-    cls_hook3, loc_hook3 = self.hook_layer(self.conv4_2, reuse=reuse_hook)
+    cls_hook3, loc_hook3 = self.hook_layer(self.conv4_2, reuse=reuse_hook, num_classes=num_classes)
 
     self.cls_hooks = [cls_hook1, cls_hook2, cls_hook3]
     self.loc_hooks = [loc_hook1, loc_hook2, loc_hook3]
 
-    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 2)),
-                               tf.reshape(cls_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 2)),
-                               tf.reshape(cls_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], 2))],
+    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], num_classes)),
+                               tf.reshape(cls_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], num_classes)),
+                               tf.reshape(cls_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], num_classes))],
                                axis=1)
     loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 6)),
                                tf.reshape(loc_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 6)),
@@ -271,15 +271,20 @@ class SSNN:
 
       ## ADD MEMMAP STUFF HERE
       pc = np.array([pc])
-      if counter != 139:
+      counter += 1
+
+      #if counter not in [211, 302, 328, 779, 785, 922, 940] and (counter >922 or counter ==1):
+      # if counter >= 211 or counter == 1:
+      #if counter not in [302, 328, 779, 785, 922, 940]:
+      if counter not in [325, 395, 407, 408]:
         pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       else:
         problem_pcs.append(counter-1)
       
       # pcs.append(pc_disc)
-      probe_memmap[counter] = pc_disc[0]
+      probe_memmap[counter-1] = pc_disc[0]
 
-      counter += 1
+      
       if counter % 1 == 0:
         print('Finished probing {} pointclouds'.format(counter))
       
@@ -295,8 +300,6 @@ class SSNN:
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, 
                 y_val_loc=None, epochs=10, batch_size=4, display_step=100, save_interval=100):
 
-    if X_trn is None:
-      X_trn = self.probe_ouput
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
 
     for epoch in range(epochs):

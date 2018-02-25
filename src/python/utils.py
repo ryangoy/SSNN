@@ -208,11 +208,12 @@ def voxelize_labels(labels, steps, kernel_size):
 
 
 
-def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim_thresh=3):
+def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, num_downsamples=3, max_dim_thresh=3):
   """
   Args:
-    labels (tensor): labeled boxes with (batches, box, 6), with the format for
-                     a box being min_x, min_y, min_z, max_x, max_y, max_z
+    labels (np.array): labeled boxes with shape (batches, box, 6), where the format for
+                     a box is min_x, min_y, min_z, max_x, max_y, max_z
+    categories (np.array): parallel array to labels with shape (batches, box) with the string name of the box category.
     steps (int): dimension of grid to be explored
     kernel_size (float): size of a grid in meters
     num_downsamples (int): number of hook layers
@@ -221,13 +222,14 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
   loc_labels = []
   for d in range(num_downsamples):
     k = int(steps/(2**d))
-    cls_labels.append(np.zeros((len(labels), k, k, k)))
+    cls_null = np.zeros((len(labels), k, k, k, num_classes))
+    cls_null[:, :, :, :, -1] = np.ones((len(labels), k, k, k))
+    cls_labels.append(cls_null)
     loc_labels.append(np.zeros((len(labels), k, k, k, 6)))
 
-  
   for scene_id in range(len(labels)):
-    for bbox in labels[scene_id]:
-
+    for bbox_id in range(len(labels[scene_id])):
+      bbox = labels[scene_id][bbox_id]
       # First phase: for each GT box, set the closest feature box to 1.
 
       # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
@@ -251,11 +253,12 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
         continue
       elif min(coords) < 0:
         continue
-      cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
+      #cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
+      cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = categories[scene_id][bbox_id]
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims - 1
 
-      # Second phase: for each feature box, if the jaccard overlap is > 0.2.5, set it equal to 1 as well.
+      # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.
       
       # Get bbox coords in voxel grid space. This will be divided by 2 every downsample.
       bbox_loc = np.concatenate([bbox[:3] / kernel_size, bbox[3:] / kernel_size], axis=0)
@@ -288,7 +291,8 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
               ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
 
               if ji > 0.1:
-                cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
+                #cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
+                cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = categories[scene_id][bbox_id]
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord
 
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = bbox_UR - bbox_LL - 1
@@ -300,18 +304,17 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
   res_factor = 0
 
   for cls_label, loc_label in zip(cls_labels, loc_labels):
-    cls_labels_flat.append(np.reshape(cls_label, (-1, int((steps/(2**res_factor))**3), 1)))
+    cls_labels_flat.append(np.reshape(cls_label, (-1, int((steps/(2**res_factor))**3), num_classes)))
     loc_labels_flat.append(np.reshape(loc_label, (-1, int((steps/(2**res_factor))**3), 6)))
     res_factor += 1
 
   cls_concat = np.concatenate(cls_labels_flat, axis=1).astype(np.int32)
-  cls_no_class = np.ones_like(cls_concat) - cls_concat
-  cls_concat = np.concatenate([cls_no_class, cls_concat], axis=-1)
-
+  # cls_no_class = np.ones_like(cls_concat) - cls_concat
+  # cls_concat = np.concatenate([cls_no_class, cls_concat], axis=-1)
   loc_concat = np.concatenate(loc_labels_flat, axis=1)
   return cls_concat, loc_concat 
 
-def normalize_pointclouds(pointcloud_arr, seg_arr):
+def normalize_pointclouds_stanford(pointcloud_arr, seg_arr):
   """
   Shifts pointclouds so the smallest xyz values map to the origin. We want to 
   preserve relative scale, but this also leads to excess or missed computation
@@ -395,12 +398,12 @@ def load_points_stanford(path, X_npy_path, ys_npy_path, yl_npy_path,
   """
   if exists(X_npy_path) and load_from_npy:
     assert X_npy_path is not None, "No path given for .npy file."
-    print("Loading points from npy file...")
+    print("\tLoading points from npy file...")
     X, ys, yl = load_npy(X_npy_path, ys_npy_path, yl_npy_path)
     new_ds = False
   else:
     assert path is not None, "No path given for pointcloud directory."
-    print("Loading points from directory...")
+    print("\tLoading points from directory...")
     X, ys, yl = load_directory(path, areas)
     np.save(X_npy_path, X)
     np.save(ys_npy_path, ys)
@@ -409,26 +412,26 @@ def load_points_stanford(path, X_npy_path, ys_npy_path, yl_npy_path,
   return X, ys, yl, new_ds
 
 def load_points_matterport(path, X_npy_path, yb_npy_path, yl_npy_path,
-                           load_from_npy=True, train_test_split=0.9, is_train=True):
+                           load_from_npy=True, train_test_split=0.9, is_train=True, categories=None):
   """
   Load data from preloaded npy files or from directory.
   """
   if exists(X_npy_path) and load_from_npy:
     assert X_npy_path is not None, "No path given for .npy file."
-    print("Loading points from npy file...")
+    print("\tLoading points from npy file...")
     X, yb, yl = load_npy(X_npy_path, yb_npy_path, yl_npy_path)
     new_ds = False
   else:
     assert path is not None, "No path given for pointcloud directory."
-    print("Loading points from directory...")
-    X, yb, yl = load_directory_matterport(path, train_test_split, is_train)
+    print("\tLoading points from directory...")
+    X, yb, yl = load_directory_matterport(path, train_test_split, is_train, categories)
     np.save(X_npy_path, X)
     np.save(yb_npy_path, yb)
     np.save(yl_npy_path, yl)
     new_ds = True
   return X, yb, yl, new_ds
 
-def load_directory_matterport(path, train_test_split, is_train):
+def load_directory_matterport(path, train_test_split, is_train, objects):
   """
   Loads pointclouds from matterport dataset.
 
@@ -474,11 +477,6 @@ def load_directory_matterport(path, train_test_split, is_train):
 
       # Load point cloud
       categories = np.load(room_path+"_labels.npy")
-
-      objects =  ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
-                  'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
-                  'button', 'toilet paper', 'toilet', 'control panel', 'towel']
-      objects = ['bed']
 
       input_pc = read_ply(room_path+".ply")
       bbox = np.load(room_path+"_bboxes.npy")
@@ -577,6 +575,48 @@ def load_npy(X_path, ys_path, yl_path):
   assert exists(ys_path), "Train npy file (ys) does not exist."
   assert exists(yl_path), "Train npy file (yl) does not exist."
   return np.load(X_path), np.load(ys_path), np.load(yl_path)
+
+
+def one_hot_vectorize_categories(yl, mapping=None):
+  """
+  Converts category array into one-hot vectored labels.
+  """
+  if mapping is None:
+    # Loop through all labels to get a set of the labels
+    mapping = dict()
+    curr_index = 0
+    for i in range(len(yl)):
+      pc = yl[i]
+      for obj in pc:
+        if obj not in mapping:
+          mapping[obj] = curr_index
+          curr_index += 1
+  else:
+    classes = set()
+    for i in range(len(yl)):
+      pc = yl[i]
+      for obj in pc:
+        classes.add(obj)
+    num_missing_classes = len(mapping) - len(classes)
+    if num_missing_classes > 0:
+      print("\t[WARNING] Test set doesn't have some of the selected classes that the train set has.")
+    elif num_missing_classes < 0:
+      print("\t[WARNING] Training set doesn't have some of the selected classes that the test set has.")
+
+  # num_classes is the number of categories plus the null class.  
+  num_classes = len(mapping)+1
+
+  # Loop through the labels again and convert to one-hot vector
+  onehot_labels = []
+  for i in range(len(yl)):
+    pc = yl[i]
+    pc_objs = []
+    for obj in pc:
+      onehot = np.zeros(num_classes)
+      onehot[mapping[obj]] = 1
+      pc_objs.append(onehot)
+    onehot_labels.append(pc_objs)
+  return np.array(onehot_labels), mapping
 
 if __name__ == '__main__':
   cls_preds = np.load('/home/rgoy/buildings/outputs/cls_test_labels.npy')

@@ -63,6 +63,13 @@ DIMS = np.array([7.5, 7.5, 7.5])
 TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5']
 TEST_AREAS = ['Area_6']
 
+# Define categories.
+# CATEGORIES = ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
+#                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
+#                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
+CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
+
+
 # Define constant paths (TODO: make this more organized between datasets)
 intermediate_dir = join(FLAGS.data_dir, 'intermediates')
 if not exists(intermediate_dir):
@@ -98,13 +105,16 @@ BBOX_CLS_PREDS   = join(output_dir, 'bbox_cls_predictions.npy')
 
 
 def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_path, 
-                      cls_labels, loc_labels, bbox_labels, load_from_npy, load_probe_output, num_copies=0, is_train=True):
+                      cls_labels, loc_labels, bbox_labels, load_from_npy, load_probe_output, num_copies=0, is_train=True, oh_mapping=None):
   """
   Converts raw data into form that can be fed into the ML pipeline. Operations include normalization, augmentation, 
   label ggeneration, and probing.
   """
+
+  input_type = "train" if is_train else "test"
   assert FLAGS.dataset_name in ['stanford', 'matterport'], 'Supported datasets are stanford and matterport.'
 
+  print("Running pre-processing for {} set.".format(input_type))
   if FLAGS.dataset_name == 'stanford':
     load_points_fn = load_points_stanford
     normalize_pointclouds_fn = normalize_pointclouds_stanford
@@ -113,18 +123,18 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     load_points_fn = load_points_matterport
     normalize_pointclouds_fn = normalize_pointclouds_matterport
 
-  # yl not used for now
   X_raw, yb_raw, yl, new_ds = load_points_fn(path=data_dir, X_npy_path=x_path,
                                   yb_npy_path = ys_path, yl_npy_path = yl_path, 
-                                  load_from_npy=load_from_npy, is_train=is_train)
+                                  load_from_npy=load_from_npy, is_train=is_train,
+                                  categories=CATEGORIES)
 
-  print("Loaded {} pointclouds.".format(len(X_raw)))
+  print("\tLoaded {} pointclouds for {}.".format(len(X_raw), input_type))
   process = psutil.Process(os.getpid())
  
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
-  print("Normalizing pointclouds...")
-  X_cont, dims, ys = normalize_pointclouds_matterport(X_raw, yb_raw)
+  print("\tNormalizing pointclouds...")
+  X_cont, dims, ys = normalize_pointclouds_fn(X_raw, yb_raw)
 
   # print("Augmenting dataset...")
   # X_cont, ys, yl = augment_pointclouds(X_cont, ys, copies=num_copies)
@@ -132,42 +142,42 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   kernel_size = DIMS / NUM_HOOK_STEPS
 
   if FLAGS.dataset_name == 'stanford':
-    print("Generating bboxes...")
+    print("\tGenerating bboxes...")
     bboxes = generate_bounding_boxes(ys, bbox_labels)
   elif FLAGS.dataset_name == 'matterport':
     bboxes = ys
   np.save(bbox_labels, bboxes)
 
-  print("Processing labels...")
-  y_cls, y_loc = create_jaccard_labels(bboxes, NUM_HOOK_STEPS, kernel_size)
+  print("\tProcessing labels...")
+  y_cat_one_hot, mapping = one_hot_vectorize_categories(yl, mapping=oh_mapping)
+  y_cls, y_loc = create_jaccard_labels(bboxes, y_cat_one_hot, len(mapping)+1, NUM_HOOK_STEPS, kernel_size)
   np.save(cls_labels, y_cls)
   np.save(loc_labels, y_loc)
 
   # Probe processing.
   if exists(probe_path) and load_probe_output and not new_ds:
     # Used for developing so redudant calculations are omitted.
-    print ("Loading previous probe output...")
+    print ("\tLoading previous probe output...")
     # X = np.load(probe_path)
     X = np.memmap(probe_path, dtype='float32', mode='r', shape=(len(X_cont), FLAGS.num_steps, 
                              FLAGS.num_steps, FLAGS.num_steps, FLAGS.num_kernels, FLAGS.probes_per_kernel))
   else:
-    print("Amount of memory used before probing: {}GB".format(process.memory_info().rss // 1e9))
-    print("Running probe operation...")
+    print("\tAmount of memory used before probing: {}GB".format(process.memory_info().rss // 1e9))
+    print("\tRunning probe operation...")
     probe_start = time.time()
     probe_shape = (len(X_cont), NUM_HOOK_STEPS, NUM_HOOK_STEPS, NUM_HOOK_STEPS, FLAGS.num_kernels, FLAGS.probes_per_kernel)
     X, problem_pcs = model.probe(X_cont, probe_shape, probe_path)
     probe_time = time.time() - probe_start
-    print("Probe operation took {:.4f} seconds to run.".format(probe_time))
-    print("Amount of memory used after probing: {}GB".format(process.memory_info().rss // 1e9))
+    print("\tProbe operation took {:.4f} seconds to run.".format(probe_time))
+    print("\tAmount of memory used after probing: {}GB".format(process.memory_info().rss // 1e9))
     
     # TODO: delete hard-coded elements of problem pointcloud removal (see SSNN.py counter var if/else logic).
     for problem_pc in problem_pcs:
       y_cls[problem_pc] = y_cls[problem_pc-1]
       y_loc[problem_pc] = y_loc[problem_pc-1]
 
-
-  print("Finished pre-processing.")
-  return X, y_cls, y_loc
+  print("\tFinished pre-processing of {} set.".format(input_type))
+  return X, y_cls, y_loc, mapping
 
 def main(_):
   kernel_size = DIMS / FLAGS.num_steps
@@ -182,20 +192,21 @@ def main(_):
                     loc_loss_lambda=FLAGS.loc_loss_lambda,
                     learning_rate=FLAGS.learning_rate,
                     k_size_factor=FLAGS.k_size_factor,
-                    probe_batch_size=FLAGS.probe_batch_size)
+                    probe_batch_size=FLAGS.probe_batch_size,
+                    num_classes=len(CATEGORIES)+1)
 
 
   load_probe = FLAGS.load_probe_output and FLAGS.load_from_npy
 
   # Pre-process train data. Train/test data pre-processing is split for easier data streaming.
-  X, y_cls, y_loc = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
+  X, y_cls, y_loc, mapping = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
                       CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, FLAGS.load_from_npy,
                       load_probe, num_copies=FLAGS.jittered_copies)
 
   # Pre-process test data.
-  X_test, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
+  X_test, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
                       CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, FLAGS.load_from_npy,
-                      load_probe, is_train=False)
+                      load_probe, is_train=False, oh_mapping=mapping)
 
   # Train model.
   train_split = int((FLAGS.val_split) * X.shape[0])
