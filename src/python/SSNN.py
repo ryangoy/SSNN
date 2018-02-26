@@ -18,6 +18,7 @@ class SSNN:
   def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, 
                num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1, learning_rate=0.001, k_size_factor=3,
                probe_batch_size=128, num_classes=2):
+
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
@@ -28,7 +29,6 @@ class SSNN:
     self.num_kernels = num_kernels
     self.probes_per_kernel = probes_per_kernel
     self.probe_batch_size = probe_batch_size
-
 
     # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
@@ -42,6 +42,7 @@ class SSNN:
     self.sess = tf.Session()
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
+
     if self.ckpt_load and self.load_checkpoint(self.ckpt_load):
       print('Loaded SSNN model from checkpoint successfully.')
     else:
@@ -276,7 +277,7 @@ class SSNN:
       #if counter not in [211, 302, 328, 779, 785, 922, 940] and (counter >922 or counter ==1):
       # if counter >= 211 or counter == 1:
       #if counter not in [302, 328, 779, 785, 922, 940]:
-      if counter not in [325, 395, 407, 408]:
+      if counter not in [75, 325, 395, 407, 408]:
         pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       else:
         problem_pcs.append(counter-1)
@@ -334,7 +335,7 @@ class SSNN:
 
         print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
                                                        val_loss*batch_size/X_val.shape[0]))
-      if epoch % save_interval and epoch != 0 and self.ckpt_save is not None:
+      if epoch % save_interval == 0 and self.ckpt_save is not None:
         self.save_checkpoint(self.ckpt_save, epoch)
 
   def test(self, X_test, save_dir=None, batch_size=1):
@@ -347,13 +348,15 @@ class SSNN:
       loc_preds.append(hooks[3:])
     return cls_preds, loc_preds
 
-  def save_checkpoint(self, checkpoint_dir, step, name='ssnn.model'):
+  def save_checkpoint(self, checkpoint_dir, step, name='ssnn_model'):
     if not isdir(checkpoint_dir):
       makedirs(checkpoint_dir)
+    print("Saving model checkpoint to {}.".format(checkpoint_dir))
     self.saver.save(self.sess, join(checkpoint_dir, name), global_step=step)
 
-  def load_checkpoint(self, checkpoint_dir):
+  def load_checkpoint(self, checkpoint_dir, name='ssnn_model-25'):
     ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
     if ckpt and ckpt.model_checkpoint_path:
-      ckpt_name = basename(ckpt.model_checkpoint_path)
-      self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
+      self.saver.restore(self.sess, os.path.join(checkpoint_dir, name))
+      return True
+    return False

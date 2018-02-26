@@ -27,7 +27,7 @@ def augment_pointclouds(pointclouds, ys, copies=0):
 
   return pointclouds, ys
 
-def flatten_output(cls_preds, loc_preds, steps, res_factor):
+def flatten_output(cls_preds, loc_preds, steps, res_factor, num_classes):
   cls_output = []
   loc_output = []
   
@@ -38,7 +38,7 @@ def flatten_output(cls_preds, loc_preds, steps, res_factor):
     cls_preds_flat = []
     loc_preds_flat = []
     for cls_pred, loc_pred in zip(cls_preds[scene], loc_preds[scene]):
-      cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), 2)))
+      cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), num_classes)))
       loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), 6)))
       res_factor += 1
     cls_output.append(np.concatenate(cls_preds_flat, axis=0))
@@ -54,9 +54,9 @@ def softmax(x):
   exp = np.exp(x)
   return exp / np.sum(exp)
 
-def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor):
+def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor, num_classes):
 
-  cls_output, loc_output = flatten_output(cls_preds, loc_preds, steps, res_factor)
+  cls_output, loc_output = flatten_output(cls_preds, loc_preds, steps, res_factor, num_classes)
 
   print('Saving cls predictions to {}'.format(cls_path))
   np.save(cls_path, cls_output)

@@ -30,21 +30,21 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 
-                    'Path to base directory.')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('probe_batch_size', 128, 'Number of samples to run probe operation before writing to memmap file.')
 flags.DEFINE_integer('jittered_copies', 0, 'Number of times the dataset is copied and jittered for data augmentation.')
-flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
-flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
+flags.DEFINE_string('checkpoint_save_dir', '/home/ryan/cs/datasets/SSNN/checkpoints', 'Path to saving checkpoint.')
+flags.DEFINE_string('checkpoint_load_dir', '/home/ryan/cs/datasets/SSNN/checkpoints', 'Path to loading checkpoint.')
 flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 25, 'Number of epochs to train.')
-flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as test.')
+flags.DEFINE_integer('num_epochs', 26, 'Number of epochs to train.')
+flags.DEFINE_float('test_split', 0.2, 'Percentage of input data to use as test data.')
+flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 0.1, 'Relative weight of localization params.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 64, 'Number of intervals to sample from in each xyz direction.')
@@ -126,7 +126,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   X_raw, yb_raw, yl, new_ds = load_points_fn(path=data_dir, X_npy_path=x_path,
                                   yb_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, is_train=is_train,
-                                  categories=CATEGORIES, train_test_split=0.8)
+                                  categories=CATEGORIES, train_test_split=1.0 - FLAGS.test_split)
 
   print("\tLoaded {} pointclouds for {}.".format(len(X_raw), input_type))
   process = psutil.Process(os.getpid())
@@ -189,6 +189,7 @@ def main(_):
                     num_scales=NUM_SCALES,
                     dot_layers=FLAGS.num_dot_layers,
                     ckpt_save=FLAGS.checkpoint_save_dir,
+                    ckpt_load=FLAGS.checkpoint_load_dir,
                     loc_loss_lambda=FLAGS.loc_loss_lambda,
                     learning_rate=FLAGS.learning_rate,
                     k_size_factor=FLAGS.k_size_factor,
@@ -217,19 +218,20 @@ def main(_):
   y_val_cls = y_cls[:train_split]
   y_val_loc = y_loc[:train_split]
   print("Beginning training...")
-  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size) #y_l not used yet for localization
+  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=5)
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
   start_test = time.time()
-  cls_preds, loc_preds = ssnn.test(X_test)
+  # cls_preds, loc_preds = ssnn.test(X_test)
+  cls_preds, loc_preds = ssnn.test(X_trn[:200])
   end_test = time.time()
 
   print("Time to run {} test samples took {} seconds.".format(X_test.shape[0], end_test-start_test))
   
   # Save output.
   save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
-                             NUM_HOOK_STEPS, NUM_SCALES)
+                             NUM_HOOK_STEPS, NUM_SCALES, len(CATEGORIES)+1)
   
   cls_f = np.load(CLS_PREDS)
   loc_f = np.load(LOC_PREDS)
@@ -238,7 +240,7 @@ def main(_):
                             DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS)
 
   # Compute recall and precision.
-  compute_accuracy(np.load(BBOX_PREDS), np.load(BBOX_TEST_LABELS))
+  compute_accuracy(np.load(BBOX_PREDS), np.load(BBOX_TRN_LABELS))
   
 # Tensorflow boilerplate code.
 if __name__ == '__main__':
