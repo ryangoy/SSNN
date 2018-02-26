@@ -138,15 +138,17 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
 
     prev_ind = 0
     curr_ksize = kernel_size
+
     for scale in range(num_downsamples):
-      cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, 1]
-      cls_hook = np.reshape(cls_hook, (dim, dim, dim))
+      num_categories = cls_preds.shape[2] - 1
+      cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, :-1]
+      cls_hook = np.reshape(cls_hook, (dim, dim, dim, num_categories))
       loc_hook = loc_preds[scene, prev_ind:prev_ind+dim**3]
       loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6))
       for i in range(dim):
         for j in range(dim):
           for k in range(dim):
-            if cls_hook[i, j, k] > conf_threshold:
+            if max(cls_hook[i, j, k]) > conf_threshold:
               center_pt = loc_hook[i, j, k, :3] + [i,j,k]
               half_dims = (loc_hook[i, j, k, 3:]+1)/2
               LL = (center_pt - half_dims) * curr_ksize
@@ -167,6 +169,8 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
   np.save(bbox_path, all_bboxes)
   print('Saving bbox cls predictions to {}'.format(cls_path))
   np.save(cls_path, all_cls_vals)
+
+
 
   return all_bboxes, all_cls_vals
 
@@ -227,7 +231,6 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
     cls_labels.append(cls_null)
     loc_labels.append(np.zeros((len(labels), k, k, k, 6)))
 
-  print len(labels)
   for scene_id in range(len(labels)):
     for bbox_id in range(len(labels[scene_id])):
       bbox = labels[scene_id][bbox_id]
@@ -623,12 +626,12 @@ def one_hot_vectorize_categories(yl, mapping=None):
       onehot[mapping[obj]] = 1
       pc_objs.append(onehot)
     onehot_labels.append(pc_objs)
-  print mapping
+
   return np.array(onehot_labels), mapping
 
 if __name__ == '__main__':
-  cls_preds = np.load('/home/rgoy/buildings/outputs/cls_test_labels.npy')
-  loc_preds = np.load('/home/rgoy/buildings/outputs/loc_test_labels.npy')
+  cls_preds = np.load('/home/ryan/cs/datasets/SSNN/matterport/v1/scans/outputs/cls_predictions.npy')
+  loc_preds = np.load('/home/ryan/cs/datasets/SSNN/matterport/v1/scans/outputs/loc_predictions.npy')
 
   output_to_bboxes(cls_preds, loc_preds, 16, 3, 
-                     .46875, '/home/rgoy/buildings/outputs/bbox_predictions.npy', '/home/rgoy/buildings/outputs/bbox_cls_predictions.npy')
+                     .46875, '/home/ryan/cs/datasets/SSNN/matterport/v1/scans/outputs/bbox_predictions.npy', '/home/ryan/cs/datasets/SSNN/buildings/outputs/bbox_cls_predictions.npy')
