@@ -552,9 +552,11 @@ def load_directory_stanford(path, areas, categories):
       annotation_pc = []
       annotation_label = []
       for annotation in listdir(join(room_path, 'Annotations')):
-        if annotation.startswith('wall') or annotation.startswith('ceiling') or\
-           annotation.startswith('beam') or annotation.startswith('floor') or\
-           annotation.startswith('door') or not annotation.endswith('.txt'):
+        # if annotation.startswith('wall') or annotation.startswith('ceiling') or\
+        #    annotation.startswith('beam') or annotation.startswith('floor') or\
+        #    annotation.startswith('door') or not annotation.endswith('.txt'):
+        #   continue
+        if annotation not in categories:
           continue
         annotation_pc.append(np.genfromtxt(
                   join(room_path, 'Annotations', annotation), dtype=np.float32))
