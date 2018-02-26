@@ -1,10 +1,13 @@
 import numpy as np
 import sys
+if sys.version_info[0] >= 3:
+  from pyntcloud.io import read_ply, write_ply
 from os.path import join, exists, isdir, isfile, basename
 from os import makedirs, listdir
 import time
 from scipy.misc import imsave
 import matplotlib.pyplot as plt
+
 
 # From PointNet
 def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
@@ -24,7 +27,7 @@ def augment_pointclouds(pointclouds, ys, copies=0):
 
   return pointclouds, ys
 
-def flatten_output(cls_preds, loc_preds, steps, res_factor):
+def flatten_output(cls_preds, loc_preds, steps, res_factor, num_classes):
   cls_output = []
   loc_output = []
   
@@ -35,7 +38,7 @@ def flatten_output(cls_preds, loc_preds, steps, res_factor):
     cls_preds_flat = []
     loc_preds_flat = []
     for cls_pred, loc_pred in zip(cls_preds[scene], loc_preds[scene]):
-      cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), 2)))
+      cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), num_classes)))
       loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), 6)))
       res_factor += 1
     cls_output.append(np.concatenate(cls_preds_flat, axis=0))
@@ -51,9 +54,9 @@ def softmax(x):
   exp = np.exp(x)
   return exp / np.sum(exp)
 
-def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor):
+def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor, num_classes):
 
-  cls_output, loc_output = flatten_output(cls_preds, loc_preds, steps, res_factor)
+  cls_output, loc_output = flatten_output(cls_preds, loc_preds, steps, res_factor, num_classes)
 
   print('Saving cls predictions to {}'.format(cls_path))
   np.save(cls_path, cls_output)
@@ -129,8 +132,6 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
   all_bboxes = []
   all_cls_vals = []
   for scene in range(cls_preds.shape[0]):
-    # if scene != 1:
-    #   continue
     bboxes = []
     cls_vals = []
     dim = int(num_steps)
@@ -146,25 +147,13 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
         for j in range(dim):
           for k in range(dim):
             if cls_hook[i, j, k] > conf_threshold:
-              # print 
-              # print 'ijk'
-              # print [i,j,k]
-              # print 'loc hook'
-              # print loc_hook[i,j,k]
               center_pt = loc_hook[i, j, k, :3] + [i,j,k]
-
               half_dims = (loc_hook[i, j, k, 3:]+1)/2
-              # print 'center pt'
-              # print center_pt
-              # print half_dims
               LL = (center_pt - half_dims) * curr_ksize
               UR = (center_pt + half_dims) * curr_ksize
               bbox = np.concatenate([LL, UR], axis=0)
               cls_vals.append(cls_hook[i, j, k])
-              # print 'bbox'
-              # print bbox
               bboxes.append(bbox)
-              
       prev_ind += dim**3
       dim //= 2
       curr_ksize *= 2  
@@ -194,7 +183,6 @@ def voxelize_labels(labels, steps, kernel_size):
   for scene_id in range(len(labels)):
     for bbox in labels[scene_id]:
       # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
-
       c1 = np.floor(bbox[:3] / kernel_size).astype(int)
       c2 = np.ceil(bbox[3:] / kernel_size).astype(int)
       diff = c2 - c1
@@ -220,11 +208,12 @@ def voxelize_labels(labels, steps, kernel_size):
 
 
 
-def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim_thresh=3):
+def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, num_downsamples=3, max_dim_thresh=3):
   """
   Args:
-    labels (tensor): labeled boxes with (batches, box, 6), with the format for
-                     a box being min_x, min_y, min_z, max_x, max_y, max_z
+    labels (np.array): labeled boxes with shape (batches, box, 6), where the format for
+                     a box is min_x, min_y, min_z, max_x, max_y, max_z
+    categories (np.array): parallel array to labels with shape (batches, box) with the string name of the box category.
     steps (int): dimension of grid to be explored
     kernel_size (float): size of a grid in meters
     num_downsamples (int): number of hook layers
@@ -233,13 +222,14 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
   loc_labels = []
   for d in range(num_downsamples):
     k = int(steps/(2**d))
-    cls_labels.append(np.zeros((len(labels), k, k, k)))
+    cls_null = np.zeros((len(labels), k, k, k, num_classes))
+    cls_null[:, :, :, :, -1] = np.ones((len(labels), k, k, k))
+    cls_labels.append(cls_null)
     loc_labels.append(np.zeros((len(labels), k, k, k, 6)))
 
-  
   for scene_id in range(len(labels)):
-    for bbox in labels[scene_id]:
-
+    for bbox_id in range(len(labels[scene_id])):
+      bbox = labels[scene_id][bbox_id]
       # First phase: for each GT box, set the closest feature box to 1.
 
       # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
@@ -263,11 +253,12 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
         continue
       elif min(coords) < 0:
         continue
-      cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
+      #cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
+      cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = categories[scene_id][bbox_id]
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims - 1
 
-      # Second phase: for each feature box, if the jaccard overlap is > 0.5, set it equal to 1 as well.
+      # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.
       
       # Get bbox coords in voxel grid space. This will be divided by 2 every downsample.
       bbox_loc = np.concatenate([bbox[:3] / kernel_size, bbox[3:] / kernel_size], axis=0)
@@ -300,7 +291,8 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
               ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
 
               if ji > 0.1:
-                cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
+                #cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
+                cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = categories[scene_id][bbox_id]
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord
 
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = bbox_UR - bbox_LL - 1
@@ -312,18 +304,17 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
   res_factor = 0
 
   for cls_label, loc_label in zip(cls_labels, loc_labels):
-    cls_labels_flat.append(np.reshape(cls_label, (-1, int((steps/(2**res_factor))**3), 1)))
+    cls_labels_flat.append(np.reshape(cls_label, (-1, int((steps/(2**res_factor))**3), num_classes)))
     loc_labels_flat.append(np.reshape(loc_label, (-1, int((steps/(2**res_factor))**3), 6)))
     res_factor += 1
 
   cls_concat = np.concatenate(cls_labels_flat, axis=1).astype(np.int32)
-  cls_no_class = np.ones_like(cls_concat) - cls_concat
-  cls_concat = np.concatenate([cls_no_class, cls_concat], axis=-1)
-
+  # cls_no_class = np.ones_like(cls_concat) - cls_concat
+  # cls_concat = np.concatenate([cls_no_class, cls_concat], axis=-1)
   loc_concat = np.concatenate(loc_labels_flat, axis=1)
   return cls_concat, loc_concat 
 
-def normalize_pointclouds(pointcloud_arr, seg_arr):
+def normalize_pointclouds_stanford(pointcloud_arr, seg_arr):
   """
   Shifts pointclouds so the smallest xyz values map to the origin. We want to 
   preserve relative scale, but this also leads to excess or missed computation
@@ -361,19 +352,58 @@ def normalize_pointclouds(pointcloud_arr, seg_arr):
     shifted_pointclouds.append(np.array([xyz-mins]))
   return shifted_pointclouds, gmax, shifted_segmentations
 
-def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
+def normalize_pointclouds_matterport(pointcloud_arr, seg_arr):
+  """
+  Shifts pointclouds so the smallest xyz values map to the origin. We want to 
+  preserve relative scale, but this also leads to excess or missed computation
+  between rooms. 
+
+  TODO: allow layers to input a dynamic dimension (requires changes number of 
+  steps as well)
+
+  Args:
+    pointcloud_arr (np.ndarray): array of all pointclouds with shape 
+                                 (clouds, points, 6)
+  """
+  # Find the minimum x, y, and z values.
+  shifted_pointclouds = []
+  shifted_segmentations = []
+  gmax = None
+
+  # Loop through scenes.
+  for pointcloud, seg in zip(pointcloud_arr, seg_arr):
+    xyz = pointcloud[:, :3]
+    mins = xyz.min(axis=0)
+    maxes = xyz.max(axis=0)
+    dims = maxes-mins
+    if gmax is None:
+      gmax = maxes
+    else:
+      gmax = np.array([dims, gmax]).max(axis=0)
+
+    shifted_objs = []
+    # Loop through each object label in this scene.
+    for obj in seg:
+      bmins = [mins[0], mins[1], mins[2], mins[0], mins[1], mins[2]]
+      shifted_objs.append(obj-bmins)
+    shifted_segmentations.append(shifted_objs)
+
+    shifted_pointclouds.append(np.array(xyz-mins))
+  return shifted_pointclouds, gmax, shifted_segmentations
+
+def load_points_stanford(path, X_npy_path, ys_npy_path, yl_npy_path,
                 load_from_npy=True, areas=None):
   """
   Load data from preloaded npy files or from directory.
   """
   if exists(X_npy_path) and load_from_npy:
     assert X_npy_path is not None, "No path given for .npy file."
-    print("Loading points from npy file...")
+    print("\tLoading points from npy file...")
     X, ys, yl = load_npy(X_npy_path, ys_npy_path, yl_npy_path)
     new_ds = False
   else:
     assert path is not None, "No path given for pointcloud directory."
-    print("Loading points from directory...")
+    print("\tLoading points from directory...")
     X, ys, yl = load_directory(path, areas)
     np.save(X_npy_path, X)
     np.save(ys_npy_path, ys)
@@ -381,9 +411,104 @@ def load_points(path, X_npy_path, ys_npy_path, yl_npy_path,
     new_ds = True
   return X, ys, yl, new_ds
 
-def load_directory(path, areas):
+def load_points_matterport(path, X_npy_path, yb_npy_path, yl_npy_path,
+                           load_from_npy=True, train_test_split=0.9, is_train=True, categories=None):
   """
-  Loads pointclouds from dataset.
+  Load data from preloaded npy files or from directory.
+  """
+  if exists(X_npy_path) and load_from_npy:
+    assert X_npy_path is not None, "No path given for .npy file."
+    print("\tLoading points from npy file...")
+    X, yb, yl = load_npy(X_npy_path, yb_npy_path, yl_npy_path)
+    new_ds = False
+  else:
+    assert path is not None, "No path given for pointcloud directory."
+    print("\tLoading points from directory...")
+    X, yb, yl = load_directory_matterport(path, train_test_split, is_train, categories)
+    np.save(X_npy_path, X)
+    np.save(yb_npy_path, yb)
+    np.save(yl_npy_path, yl)
+    new_ds = True
+  return X, yb, yl, new_ds
+
+def load_directory_matterport(path, train_test_split, is_train, objects):
+  """
+  Loads pointclouds from matterport dataset.
+
+  Assumes dataset structure is as follows:
+  base
+    building_name
+      processed_regions
+        region0.npy
+        region0_bboxes.npy
+        region0_labels.npy
+        ...
+    ...
+  """
+  all_areas = sorted(listdir(path))
+
+  if is_train:
+    areas = all_areas[:int(len(all_areas)*train_test_split)]
+    #areas = all_areas[int(len(all_areas)*(.65)):]
+  else:
+    areas = all_areas[int(len(all_areas)*train_test_split):]
+    #areas = all_areas[:int(len(all_areas)*.05)]
+
+  input_data = []
+  bboxes = []
+  labels = []
+  total_regions = 0
+  # Loop through buildings
+  if areas is None:
+    areas = sorted(listdir(path))
+  for area in areas:
+    print("Loading area {}...".format(area))
+    area_path = join(path, area, "processed_regions")
+    if not isdir(area_path):
+      continue
+      
+    ri = 0
+    while exists(join(area_path, "region{}.ply".format(ri))):
+      room = "region{}".format(ri)
+      ri += 1
+      room_path = join(area_path, room)
+
+      # print("\tLoading room {}...".format(room))
+
+      # Load point cloud
+      categories = np.load(room_path+"_labels.npy")
+
+      input_pc = read_ply(room_path+".ply")
+      bbox = np.load(room_path+"_bboxes.npy")
+      
+      input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z"])
+
+      fbbox = []
+      flabel = []
+      matches = 0
+      for ibbox, ilabel in zip(bbox, categories):
+        if ilabel in objects:
+          fbbox.append(ibbox)
+          flabel.append(ilabel)
+          matches += 1
+      
+      if matches > 0:
+        bboxes.append(fbbox)
+        labels.append(flabel)
+        input_data.append(input_pc)
+
+    print("Loaded {} regions from area {}".format(ri, area))
+    total_regions += ri
+
+  input_data = np.array(input_data)
+  bboxes = np.array(bboxes)
+  labels = np.array(labels)
+
+  return input_data, bboxes, labels
+
+def load_directory_stanford(path, areas):
+  """
+  Loads pointclouds from Stanford dataset.
 
   Assumes dataset structure is as follows:
   base
@@ -450,6 +575,48 @@ def load_npy(X_path, ys_path, yl_path):
   assert exists(ys_path), "Train npy file (ys) does not exist."
   assert exists(yl_path), "Train npy file (yl) does not exist."
   return np.load(X_path), np.load(ys_path), np.load(yl_path)
+
+
+def one_hot_vectorize_categories(yl, mapping=None):
+  """
+  Converts category array into one-hot vectored labels.
+  """
+  if mapping is None:
+    # Loop through all labels to get a set of the labels
+    mapping = dict()
+    curr_index = 0
+    for i in range(len(yl)):
+      pc = yl[i]
+      for obj in pc:
+        if obj not in mapping:
+          mapping[obj] = curr_index
+          curr_index += 1
+  else:
+    classes = set()
+    for i in range(len(yl)):
+      pc = yl[i]
+      for obj in pc:
+        classes.add(obj)
+    num_missing_classes = len(mapping) - len(classes)
+    if num_missing_classes > 0:
+      print("\t[WARNING] Test set doesn't have some of the selected classes that the train set has.")
+    elif num_missing_classes < 0:
+      print("\t[WARNING] Training set doesn't have some of the selected classes that the test set has.")
+
+  # num_classes is the number of categories plus the null class.  
+  num_classes = len(mapping)+1
+
+  # Loop through the labels again and convert to one-hot vector
+  onehot_labels = []
+  for i in range(len(yl)):
+    pc = yl[i]
+    pc_objs = []
+    for obj in pc:
+      onehot = np.zeros(num_classes)
+      onehot[mapping[obj]] = 1
+      pc_objs.append(onehot)
+    onehot_labels.append(pc_objs)
+  return np.array(onehot_labels), mapping
 
 if __name__ == '__main__':
   cls_preds = np.load('/home/rgoy/buildings/outputs/cls_test_labels.npy')

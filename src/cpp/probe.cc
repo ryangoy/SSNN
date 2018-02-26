@@ -10,13 +10,14 @@ REGISTER_OP("Probe")
   .Attr("xdim: float = 10.0")
   .Attr("ydim: float = 10.0")
   .Attr("zdim: float = 10.0")
+  .Attr("ksize: float = 1.0")
   .Input("input: float32")
   .Input("weights: float32")
   .Output("output: float32");
 
 // Boilerplate code for CUDA call
 void probeLauncher(int batches, int kernels, int samples_per_probe, int points, const float* input_tensor, const float* weights,
-      float xdim, float ydim, float zdim, int steps, float* output_tensor);
+      float xdim, float ydim, float zdim, int steps, float ksize, float* output_tensor);
 class ProbeOp : public OpKernel {
 public:
   explicit ProbeOp(OpKernelConstruction* context) : OpKernel(context) {
@@ -24,6 +25,7 @@ public:
     OP_REQUIRES_OK(context, context->GetAttr("xdim", &xdim_));
     OP_REQUIRES_OK(context, context->GetAttr("ydim", &ydim_));
     OP_REQUIRES_OK(context, context->GetAttr("zdim", &zdim_));
+    OP_REQUIRES_OK(context, context->GetAttr("ksize", &ksize_));
   }
 
   void Compute(OpKernelContext* context) override {
@@ -41,6 +43,7 @@ public:
 
     // Fetch extra information (there's probably a better way to do this)
     int steps = steps_;
+    float ksize = ksize_;
     float xdim = xdim_;
     float ydim = ydim_;
     float zdim = zdim_;
@@ -60,10 +63,11 @@ public:
     const float* inp = &(input_tensor.flat<float>()(0));
     float* out = &(output_tensor->flat<float>()(0));
     const float* cweights = &(weights.flat<float>()(0));
-    probeLauncher(nbatches, nkernels, nsamples, npoints, inp, cweights, xdim, ydim, zdim, steps, out);
+    probeLauncher(nbatches, nkernels, nsamples, npoints, inp, cweights, xdim, ydim, zdim, steps, ksize, out);
   }
 private:
   int steps_;
+  float ksize_;
   float xdim_;
   float ydim_;
   float zdim_;

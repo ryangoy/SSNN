@@ -16,6 +16,7 @@ def visualize_scales(voxels_path, n_steps, n_scale):
   for scene in range(voxels.shape[0]):
     print('Scene {}:'.format(scene))
 
+  
     f, axarr = plt.subplots(num_graphs/4, 4)
 
     last_index = 0

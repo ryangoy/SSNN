@@ -5,7 +5,7 @@
 
 /* Takes in gridlist datastructure and runs K-means per sample for each step */
 __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int points, 
-    float* gl_points, int* gl_indices, const float* weights, float xdim, float ydim, float zdim, int steps, float* output) {
+    float* gl_points, int* gl_indices, const float* weights, float xdim, float ydim, float zdim, int steps, float ksize, float* output) {
 
     // N threads
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < batches*steps*steps*steps*filters*probes_per_filter; i+= blockDim.x * gridDim.x){
@@ -17,20 +17,44 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
         int filter_id = i % (filters*probes_per_filter) / probes_per_filter;
         int probe_id = i % probes_per_filter;
 
-        // Get the query index of the gridlist
-        int start_index = gl_indices[batch*steps*steps*steps+x_step*steps*steps+y_step*steps+z_step];
-        int end_index = gl_indices[batch*steps*steps*steps+x_step*steps*steps+y_step*steps+z_step+1];
+        // Get the query index of the gridlist. Offsets are computed for cases where points of kernels are outside the
+        // current grid.
+        int sample_index = filter_id*probes_per_filter*3 + probe_id*3;
+        int x_offset = 0;
+        if (weights[sample_index] > ksize)
+            x_offset = int(weights[sample_index]/ksize);
+        else if (weights[sample_index] < 0)
+            x_offset = int(weights[sample_index]/ksize) - 1;
+        int y_offset = 0;
+        if (weights[sample_index+1] > ksize)
+            y_offset = int(weights[sample_index+1]/ksize);
+        else if (weights[sample_index] < 0)
+            y_offset = int(weights[sample_index+1]/ksize) - 1;
+        int z_offset = 0;
+        if (weights[sample_index+2] > ksize)
+            z_offset = int(weights[sample_index+2]/ksize);
+        else if (weights[sample_index+2] < 0)
+            z_offset = int(weights[sample_index+2]/ksize) - 1;
+        int start_index_index = batch*steps*steps*steps+(x_step+x_offset)*steps*steps+(y_step+y_offset)*steps+z_step+z_offset;
+        if (start_index_index < 0)
+            start_index_index = 0;
+        else if (start_index_index >= batches*steps*steps*steps)
+            start_index_index = batches*steps*steps*steps-1;
+
+        // Access the proper grid.
+        int start_index = gl_indices[start_index_index];
+        int end_index = gl_indices[start_index_index+1];
         int num_vox_points = end_index - start_index;
         float* vox_gl_points = gl_points+start_index;
 
-        // Corner of the voxel box
+        // Compute the corner of the voxel box.
         float xc = xdim / steps * x_step;
         float yc = ydim / steps * y_step;
         float zc = zdim / steps * z_step;
 
         // Weight dims (this is coordinates of the probes, not the dot product weights)
         // Shape: (filters, probes_per_filter, xyz)
-        int sample_index = filter_id*probes_per_filter*3 + probe_id*3;
+        
         float sample_coord []= {weights[sample_index] + xc,
                                 weights[sample_index+1] + yc,
                                 weights[sample_index+2] + zc};
@@ -50,7 +74,10 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
                  // closest_z = curr_probe[2] - curr_point[1];
             } 
         }
-        closest_dist = 1/closest_dist;
+
+        // For a higher response for closer points, we take the negative. 0.1 is a hard-coded value for now so that
+        // the response's mean is close to 0, but it doesn't matter too much.
+        closest_dist = 0.1-closest_dist;
         if (closest_dist >= 100)
             closest_dist = 100;
 
@@ -164,7 +191,7 @@ __global__ void GenerateGridList(int batches, int points, int steps, float x_ste
 }
 
 void probeLauncher(int batches, int filters, int probes_per_filter, int points, const float* input_tensor, const float* weights,
-      float xdim, float ydim, float zdim, int steps, float* output_tensor){
+      float xdim, float ydim, float zdim, int steps, float ksize, float* output_tensor){
 
     // nb is the number of SM's we want to use
     // threads_per_block are number of threads per SM
@@ -222,7 +249,7 @@ void probeLauncher(int batches, int filters, int probes_per_filter, int points, 
     cudaEventCreate(&stop_4);
     cudaEventRecord(start_4);
     ProbeKernel<<<nb, threads_per_block>>>
-        (batches, filters, probes_per_filter, points, gl_points, gl_indices, weights, xdim, ydim, zdim, steps, output_tensor);
+        (batches, filters, probes_per_filter, points, gl_points, gl_indices, weights, xdim, ydim, zdim, steps, ksize, output_tensor);
     cudaEventRecord(stop_4);
     cudaEventSynchronize(stop_4);
     float milliseconds_4 = 0;
