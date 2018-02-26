@@ -269,14 +269,14 @@ class SSNN:
         print("Memory cap surpassed. Exiting...")
         exit()
 
-      ## ADD MEMMAP STUFF HERE
       pc = np.array([pc])
       counter += 1
 
       #if counter not in [211, 302, 328, 779, 785, 922, 940] and (counter >922 or counter ==1):
-      # if counter >= 211 or counter == 1:
-      #if counter not in [302, 328, 779, 785, 922, 940]:
-      if counter not in [75, 325, 395, 407, 408]:
+
+      # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
+      #if counter not in [75, 325, 395, 407, 408]: # matterport
+      if counter not in [124]: # stanford
         pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       else:
         problem_pcs.append(counter-1)

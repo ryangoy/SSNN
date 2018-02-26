@@ -30,13 +30,13 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 'Path to base directory.')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('jittered_copies', 0, 'Number of times the dataset is copied and jittered for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
-flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
 
 # Training hyperparameters.
 flags.DEFINE_integer('num_epochs', 26, 'Number of epochs to train.')
@@ -66,7 +66,8 @@ TEST_AREAS = ['Area_6']
 # CATEGORIES = ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
 #                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
-CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
+# CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
+CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
 
 
 # Define constant paths (TODO: make this more organized between datasets)
@@ -128,7 +129,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   elif FLAGS.dataset_name == 'stanford':
     X_raw, yb_raw, yl, new_ds = load_points_stanford(path=data_dir, X_npy_path=x_path,
                                   ys_npy_path = ys_path, yl_npy_path = yl_path, 
-                                  load_from_npy=load_from_npy, areas=areas)
+                                  load_from_npy=load_from_npy, areas=areas, categories=CATEGORIES)
 
   print("\tLoaded {} pointclouds for {}.".format(len(X_raw), input_type))
   process = psutil.Process(os.getpid())

@@ -227,6 +227,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
     cls_labels.append(cls_null)
     loc_labels.append(np.zeros((len(labels), k, k, k, 6)))
 
+  print len(labels)
   for scene_id in range(len(labels)):
     for bbox_id in range(len(labels[scene_id])):
       bbox = labels[scene_id][bbox_id]
@@ -349,7 +350,7 @@ def normalize_pointclouds_stanford(pointcloud_arr, seg_arr):
       shifted_objs.append(np.array(obj[:,:3]-mins))
     shifted_segmentations.append(shifted_objs)
 
-    shifted_pointclouds.append(np.array([xyz-mins]))
+    shifted_pointclouds.append(np.array(xyz-mins))
   return shifted_pointclouds, gmax, shifted_segmentations
 
 def normalize_pointclouds_matterport(pointcloud_arr, seg_arr):
@@ -392,7 +393,7 @@ def normalize_pointclouds_matterport(pointcloud_arr, seg_arr):
   return shifted_pointclouds, gmax, shifted_segmentations
 
 def load_points_stanford(path, X_npy_path, ys_npy_path, yl_npy_path,
-                load_from_npy=True, areas=None):
+                load_from_npy=True, areas=None, categories=None):
   """
   Load data from preloaded npy files or from directory.
   """
@@ -404,7 +405,7 @@ def load_points_stanford(path, X_npy_path, ys_npy_path, yl_npy_path,
   else:
     assert path is not None, "No path given for pointcloud directory."
     print("\tLoading points from directory...")
-    X, ys, yl = load_directory(path, areas)
+    X, ys, yl = load_directory_stanford(path, areas, categories)
     np.save(X_npy_path, X)
     np.save(ys_npy_path, ys)
     np.save(yl_npy_path, yl)
@@ -506,7 +507,7 @@ def load_directory_matterport(path, train_test_split, is_train, objects):
 
   return input_data, bboxes, labels
 
-def load_directory_stanford(path, areas):
+def load_directory_stanford(path, areas, categories):
   """
   Loads pointclouds from Stanford dataset.
 
@@ -588,6 +589,8 @@ def one_hot_vectorize_categories(yl, mapping=None):
     for i in range(len(yl)):
       pc = yl[i]
       for obj in pc:
+        if '_' in obj:
+          obj = obj[:obj.index('_')]
         if obj not in mapping:
           mapping[obj] = curr_index
           curr_index += 1
@@ -596,6 +599,8 @@ def one_hot_vectorize_categories(yl, mapping=None):
     for i in range(len(yl)):
       pc = yl[i]
       for obj in pc:
+        if '_' in obj:
+          obj = obj[:obj.index('_')]
         classes.add(obj)
     num_missing_classes = len(mapping) - len(classes)
     if num_missing_classes > 0:
@@ -612,10 +617,13 @@ def one_hot_vectorize_categories(yl, mapping=None):
     pc = yl[i]
     pc_objs = []
     for obj in pc:
+      if '_' in obj:
+        obj = obj[:obj.index('_')]
       onehot = np.zeros(num_classes)
       onehot[mapping[obj]] = 1
       pc_objs.append(onehot)
     onehot_labels.append(pc_objs)
+  print mapping
   return np.array(onehot_labels), mapping
 
 if __name__ == '__main__':

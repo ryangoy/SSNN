@@ -41,8 +41,8 @@ def generate_bounding_boxes(pointcloud, npy_path):
       bounding_boxes (np.array): output bounding box labels with shape (batches, sample, min_x/min_y/min_z/max_x/max_y/max_z).
             Since samples is not constant per scene, output in a fashion similar to the input.
     """
-    if os.path.exists(npy_path):
-        return np.load(npy_path)
+    # if os.path.exists(npy_path):
+    #     return np.load(npy_path)
 
     bboxes = np.array([np.array([np.array(create_bounds(pointcloud[i][j])) for j in range(len(pointcloud[i]))]) for i in range(len(pointcloud))])
     np.save(npy_path, bboxes)
