@@ -24,7 +24,8 @@ def visualize_scales(voxels_path, n_steps, n_scale):
     num_steps = NUM_STEPS
 
     for scale in range(NUM_SCALE):
-      d_slice = voxels[scene, last_index:last_index+num_steps**3, 1]
+      d_slice = voxels[scene, last_index:last_index+num_steps**3, 1:]
+      d_slice = d_slice.sum(axis=-1)
       d_slice = np.reshape(d_slice, (num_steps, num_steps, num_steps))
 
       for z_dim in range(num_steps):
@@ -38,4 +39,5 @@ def visualize_scales(voxels_path, n_steps, n_scale):
     plt.show()
 
 if __name__ == '__main__':
+
   visualize_scales(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))

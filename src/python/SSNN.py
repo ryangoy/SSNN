@@ -106,10 +106,10 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
-      input_layer = tf.layers.conv3d(input_layer, filters=16, kernel_size=1, padding='SAME',
+      input_layer = tf.layers.conv3d(input_layer, filters=64, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
       # input_layer = tf.nn.dropout(input_layer, dropout)
-      #input_layer = tf.nn.dropout(input_layer, dropout)
+      input_layer = tf.nn.dropout(input_layer, dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
       conf = tf.layers.conv3d(input_layer, filters=num_classes, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
@@ -162,11 +162,11 @@ class SSNN:
     self.pool0 = tf.nn.max_pool3d(self.conv0_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
     
-    self.conv1_1 = tf.layers.conv3d(self.pool0, filters=32, kernel_size=3, 
+    self.conv1_1 = tf.layers.conv3d(self.pool0, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
-    self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=32, kernel_size=3, 
+    self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -176,11 +176,11 @@ class SSNN:
 
 
 
-    self.conv2_1 = tf.layers.conv3d(self.pool1, filters=32, kernel_size=3, 
+    self.conv2_1 = tf.layers.conv3d(self.pool1, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # self.conv1_1 = tf.nn.dropout(self.conv1_1, dropout)
-    self.conv2_2 = tf.layers.conv3d(self.conv2_1, filters=32, kernel_size=3, 
+    self.conv2_2 = tf.layers.conv3d(self.conv2_1, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 

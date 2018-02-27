@@ -39,7 +39,7 @@ flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 26, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 50, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.2, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')

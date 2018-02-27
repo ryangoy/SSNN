@@ -259,7 +259,9 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
       elif min(coords) < 0:
         continue
       #cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
+
       cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = categories[scene_id][bbox_id]
+
       # cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = np.array([1, 0])
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims - 1
@@ -631,6 +633,8 @@ def one_hot_vectorize_categories(yl, mapping=None):
       onehot[mapping[obj]+1] = 1
       pc_objs.append(onehot)
     onehot_labels.append(pc_objs)
+
+  print('\tDictionary for class mapping: {}'.format(mapping))
 
   return np.array(onehot_labels), mapping
 
