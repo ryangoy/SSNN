@@ -31,8 +31,8 @@ FLAGS = flags.FLAGS
 
 # Data information: loading and saving options.
 flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 'Path to base directory.')
-flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
-flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
+flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded dataset')
+flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('jittered_copies', 0, 'Number of times the dataset is copied and jittered for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
@@ -42,7 +42,7 @@ flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported da
 flags.DEFINE_integer('num_epochs', 26, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.2, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
-flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
+flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
 flags.DEFINE_float('loc_loss_lambda', 2, 'Relative weight of localization params.')
 
 # Probing hyperparameters.
@@ -67,8 +67,8 @@ TEST_AREAS = ['Area_6']
 #                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
 # CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
-#CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
-CATEGORIES = ['bed']
+CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
+#CATEGORIES = ['bed']
 
 # Define constant paths (TODO: make this more organized between datasets)
 intermediate_dir = join(FLAGS.data_dir, 'intermediates')
@@ -223,16 +223,13 @@ def main(_):
   y_val_cls = y_cls[:train_split]
   y_val_loc = y_loc[:train_split]
   print("Beginning training...")
-  print X_trn.shape
-  print y_trn_cls.shape
-  print y_trn_loc.shape
   ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=5)
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
   start_test = time.time()
   # cls_preds, loc_preds = ssnn.test(X_test)
-  cls_preds, loc_preds = ssnn.test(X_trn[:200])
+  cls_preds, loc_preds = ssnn.test(X_test)
   end_test = time.time()
 
   print("Time to run {} test samples took {} seconds.".format(X_test.shape[0], end_test-start_test))
@@ -248,7 +245,7 @@ def main(_):
                             DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS)
 
   # Compute recall and precision.
-  compute_accuracy(np.load(BBOX_PREDS), np.load(BBOX_TRN_LABELS))
+  compute_accuracy(np.load(BBOX_PREDS), np.load(BBOX_TEST_LABELS))
   
 # Tensorflow boilerplate code.
 if __name__ == '__main__':

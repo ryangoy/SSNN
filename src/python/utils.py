@@ -141,7 +141,7 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
 
     for scale in range(num_downsamples):
       num_categories = cls_preds.shape[2] - 1
-      cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, :-1]
+      cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, 1:]
       cls_hook = np.reshape(cls_hook, (dim, dim, dim, num_categories))
       loc_hook = loc_preds[scene, prev_ind:prev_ind+dim**3]
       loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6))
@@ -228,7 +228,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
   for d in range(num_downsamples):
     k = int(steps/(2**d))
     cls_null = np.zeros((len(labels), k, k, k, num_classes))
-    cls_null[:, :, :, :, -1] = np.ones((len(labels), k, k, k))
+    cls_null[:, :, :, :, 0] = np.ones((len(labels), k, k, k))
     cls_labels.append(cls_null)
     loc_labels.append(np.zeros((len(labels), k, k, k, 6)))
 
@@ -260,6 +260,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
         continue
       #cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
       cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = categories[scene_id][bbox_id]
+      # cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = np.array([1, 0])
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims - 1
 
@@ -626,7 +627,8 @@ def one_hot_vectorize_categories(yl, mapping=None):
       if '_' in obj:
         obj = obj[:obj.index('_')]
       onehot = np.zeros(num_classes)
-      onehot[mapping[obj]] = 1
+      # Reserve the 0th index for the null class.
+      onehot[mapping[obj]+1] = 1
       pc_objs.append(onehot)
     onehot_labels.append(pc_objs)
 
