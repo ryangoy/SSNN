@@ -305,12 +305,13 @@ class SSNN:
 
     for epoch in range(epochs):
       indices = list(range(X_trn.shape[0]))
-      shuffle(indices)
+      
       # X_trn = X_trn[indices]
       # y_trn_cls = y_trn_cls[indices]
       # y_trn_loc = y_trn_loc[indices]
 
       for step in range(0, X_trn.shape[0], batch_size): 
+        shuffle(indices)
         randomized_indices = indices[step:step+batch_size]
         # batch_x = X_trn[step:step+batch_size]
         # batch_y_cls = y_trn_cls[step:step+batch_size]

@@ -218,10 +218,14 @@ def main(_):
   X_trn = X[train_split:]
   y_trn_cls = y_cls[train_split:]
   y_trn_loc = y_loc[train_split:]
+  np.save('y_cls.npy', y_trn_cls)
   X_val = X[:train_split]
   y_val_cls = y_cls[:train_split]
   y_val_loc = y_loc[:train_split]
   print("Beginning training...")
+  print X_trn.shape
+  print y_trn_cls.shape
+  print y_trn_loc.shape
   ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=5)
 
   # Test model. Using validation since we won't be using real 

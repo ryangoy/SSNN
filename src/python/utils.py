@@ -166,6 +166,7 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
   all_cls_vals = np.array(all_cls_vals)
 
   print('Saving bbox predictions to {}'.format(bbox_path))
+
   np.save(bbox_path, all_bboxes)
   print('Saving bbox cls predictions to {}'.format(cls_path))
   np.save(cls_path, all_cls_vals)
