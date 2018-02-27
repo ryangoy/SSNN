@@ -16,7 +16,7 @@ import os
 class SSNN:
   
   def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, 
-               num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1, learning_rate=0.001, k_size_factor=3,
+               num_scales=3, ckpt_load=None, ckpt_save=None, ckpt_load_iter=50, loc_loss_lambda=1, learning_rate=0.001, k_size_factor=3,
                num_classes=2):
 
     self.hook_num = 1
@@ -28,6 +28,7 @@ class SSNN:
     self.ckpt_load = ckpt_load
     self.num_kernels = num_kernels
     self.probes_per_kernel = probes_per_kernel
+    self.ckpt_load_iter = ckpt_load_iter
 
     # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
@@ -42,7 +43,7 @@ class SSNN:
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
 
-    if self.ckpt_load and self.load_checkpoint(self.ckpt_load):
+    if self.ckpt_load and self.load_checkpoint(self.ckpt_load, iteration=self.ckpt_load_iter):
       print('Loaded SSNN model from checkpoint successfully.')
     else:
       print('Initialized new SSNN model.')
@@ -355,9 +356,9 @@ class SSNN:
     print("Saving model checkpoint to {}.".format(checkpoint_dir))
     self.saver.save(self.sess, join(checkpoint_dir, name), global_step=step)
 
-  def load_checkpoint(self, checkpoint_dir, name='ssnn_model-25'):
+  def load_checkpoint(self, checkpoint_dir, name='ssnn_model-', iteration=50):
     ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
     if ckpt and ckpt.model_checkpoint_path:
-      self.saver.restore(self.sess, os.path.join(checkpoint_dir, name))
+      self.saver.restore(self.sess, os.path.join(checkpoint_dir, name+str(iteration)))
       return True
     return False

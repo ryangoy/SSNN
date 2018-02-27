@@ -36,14 +36,16 @@ flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid 
 flags.DEFINE_integer('jittered_copies', 0, 'Number of times the dataset is copied and jittered for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
+flags.DEFINE_string('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
 flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 50, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.2, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 2, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
+flags.DEFINE_float('checkpoint_save_interval', 10, 'If checkpoint_save_interval is defined, then sets save interval.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 64, 'Number of intervals to sample from in each xyz direction.')
@@ -59,7 +61,7 @@ NUM_HOOK_STEPS = int(FLAGS.num_steps / 4)
 DIMS = np.array([7.5, 7.5, 7.5])
 
 # Define sets for training and testing (Stanford dataset)
-TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5']
+TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5'] 
 TEST_AREAS = ['Area_6']
 
 # Define categories.
@@ -195,6 +197,7 @@ def main(_):
                     dot_layers=FLAGS.num_dot_layers,
                     ckpt_save=FLAGS.checkpoint_save_dir,
                     ckpt_load=FLAGS.checkpoint_load_dir,
+                    ckpt_load_iter=FLAGS.checkpoint_load_iter,
                     loc_loss_lambda=FLAGS.loc_loss_lambda,
                     learning_rate=FLAGS.learning_rate,
                     k_size_factor=FLAGS.k_size_factor,
@@ -223,7 +226,7 @@ def main(_):
   y_val_cls = y_cls[:train_split]
   y_val_loc = y_loc[:train_split]
   print("Beginning training...")
-  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=5)
+  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=FLAGS.checkpoint_save_interval)
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
