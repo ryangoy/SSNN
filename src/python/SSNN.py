@@ -107,16 +107,16 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
-      input_layer = tf.layers.conv3d(input_layer, filters=64, kernel_size=1, padding='SAME',
+      input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
       # input_layer = tf.nn.dropout(input_layer, dropout)
-      input_layer = tf.nn.dropout(input_layer, dropout)
+      # input_layer = tf.nn.dropout(input_layer, dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
-      conf = tf.layers.conv3d(input_layer, filters=num_classes, kernel_size=1, padding='SAME',
+      conf = tf.layers.conv3d(input_layer, filters=num_classes, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       # Predicts the center coordinate and relative scale of the box
-      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=1, padding='SAME',
+      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       self.hook_num += 1
@@ -151,11 +151,11 @@ class SSNN:
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
 
 
-    self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=32, kernel_size=3, 
+    self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=128, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
-    self.conv0_2 = tf.layers.conv3d(self.conv0_1, filters=32, kernel_size=3, 
+    self.conv0_2 = tf.layers.conv3d(self.conv0_1, filters=128, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -337,7 +337,7 @@ class SSNN:
 
         print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
                                                        val_loss*batch_size/X_val.shape[0]))
-      if epoch % save_interval == 0 and self.ckpt_save is not None:
+      if epoch != 0 and (epoch % save_interval == 0 or epoch == epochs-1) and self.ckpt_save is not None:
         self.save_checkpoint(self.ckpt_save, epoch)
 
   def test(self, X_test, save_dir=None, batch_size=1):

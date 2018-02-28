@@ -37,6 +37,7 @@ for scene in range(bboxes.shape[0]):
          (bbox[5] >= curr_z+kernel_size and bbox[2] <= curr_z):
 
         axarr[z_dim/4, z_dim%4].add_patch(patches.Rectangle(bbox[:2], bbox_size[0], bbox_size[1]))
-        axarr[z_dim/4, z_dim%4].text(bbox[0], bbox[1], str(most_likely_class), color='orange')
+        if cls_vals is not None:
+          axarr[z_dim/4, z_dim%4].text(bbox[0], bbox[1], str(most_likely_class), color='orange')
 
   plt.show()

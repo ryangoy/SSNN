@@ -38,14 +38,14 @@ flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_string('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
 flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_float('checkpoint_save_interval', 10, 'If checkpoint_save_interval is defined, then sets save interval.')
 
 # Training hyperparameters.
 flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.2, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
-flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
+flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
 flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
-flags.DEFINE_float('checkpoint_save_interval', 10, 'If checkpoint_save_interval is defined, then sets save interval.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 64, 'Number of intervals to sample from in each xyz direction.')
