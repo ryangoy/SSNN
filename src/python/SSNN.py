@@ -91,7 +91,7 @@ class SSNN:
                             probes_per_kernel=probes_per_kernel,
                             k_size_factor=k_size_factor)
 
-  def hook_layer(self, input_layer, reuse=False, activation=None, dropout=0.1, num_classes=2):
+  def hook_layer(self, input_layer, reuse=False, activation=None, dropout=0.9, num_classes=2):
     # As defined in Singleshot Multibox Detector, hook layers process
     # intermediates at different scales.
 
@@ -107,16 +107,16 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
-      input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=3, padding='SAME',
+      input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
-      # input_layer = tf.nn.dropout(input_layer, dropout)
+      #input_layer = tf.nn.dropout(input_layer, dropout)
       # input_layer = tf.nn.dropout(input_layer, dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
-      conf = tf.layers.conv3d(input_layer, filters=num_classes, kernel_size=3, padding='SAME',
+      conf = tf.layers.conv3d(input_layer, filters=num_classes, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       # Predicts the center coordinate and relative scale of the box
-      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=3, padding='SAME',
+      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       self.hook_num += 1
@@ -124,7 +124,7 @@ class SSNN:
       return conf, loc
 
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes,
-                 learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False, dropout=0.05):
+                 learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False, dropout=0.9):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
@@ -150,12 +150,13 @@ class SSNN:
     # Shape: (batches, x, y, z, features)
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
 
+    #self.dot_product = tf.nn.dropout(self.dot_product, dropout)
 
-    self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=128, kernel_size=3, 
+    self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
-    self.conv0_2 = tf.layers.conv3d(self.conv0_1, filters=128, kernel_size=3, 
+    self.conv0_2 = tf.layers.conv3d(self.conv0_1, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -276,9 +277,9 @@ class SSNN:
       #if counter not in [211, 302, 328, 779, 785, 922, 940] and (counter >922 or counter ==1):
 
       # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
-      if counter not in [75, 325, 395, 407, 408]: # matterport
+      #if counter not in [75, 325, 395, 407, 408]: # matterport
       #if counter not in [124]: # stanford
-      # if counter not in [140]: # matterport bed
+      if counter not in [140]: # matterport bed
         pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       else:
         problem_pcs.append(counter-1)
@@ -311,6 +312,9 @@ class SSNN:
       # y_trn_cls = y_trn_cls[indices]
       # y_trn_loc = y_trn_loc[indices]
 
+      curr_cl_sum = 0
+      curr_ll_sum = 0
+      counter = 0
       for step in range(0, X_trn.shape[0], batch_size): 
         shuffle(indices)
         randomized_indices = indices[step:step+batch_size]
@@ -323,20 +327,32 @@ class SSNN:
         _, loss, cl, ll = self.sess.run([self.optimizer, self.loss, self.cls_loss, self.loc_loss], feed_dict={self.X_ph: batch_x, 
                                             self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc})
 
-        if step % display_step == 0:
-          print("Epoch: {}, Iter: {}, Loss: {:.6f}.".format(epoch, step, loss))
+        curr_cl_sum += cl
+        curr_ll_sum += ll
+        counter += 1
+        if step % display_step == 0 and step != 0:
+          print("Epoch: {}, Iter: {}, Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, step, curr_cl_sum / counter, curr_ll_sum / counter))
+          curr_cl_sum = 0
+          curr_ll_sum = 0
 
       if X_val is not None and y_val_cls is not None and y_val_loc is not None:
         val_loss = 0
+        val_cls_loss = 0
+        val_loc_loss = 0
+        counter = 0
         for step in range(0, X_val.shape[0], batch_size):
           val_batch_x = X_val[step:step+batch_size]
           val_batch_y_cls = y_val_cls[step:step+batch_size]
           val_batch_y_loc = y_val_loc[step:step+batch_size]
-          val_loss += self.sess.run(self.loss, 
+          vl, vcl, vll = self.sess.run([self.loss, self.cls_loss, self.loc_loss],
                       feed_dict={self.X_ph: val_batch_x, self.y_ph_cls: val_batch_y_cls, self.y_ph_loc: val_batch_y_loc})
+          val_loss += vl
+          val_cls_loss += vcl
+          val_loc_loss += vll
+          counter += 1
 
-        print("Epoch: {}, Validation Loss: {:6f}.".format(epoch, 
-                                                       val_loss*batch_size/X_val.shape[0]))
+        print("Epoch: {}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, 
+                                                       val_loss / counter, val_cls_loss / counter, val_loc_loss / counter))
       if epoch != 0 and (epoch % save_interval == 0 or epoch == epochs-1) and self.ckpt_save is not None:
         self.save_checkpoint(self.ckpt_save, epoch)
 
