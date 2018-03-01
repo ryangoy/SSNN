@@ -38,10 +38,10 @@ flags.DEFINE_integer('num_kernels', 8, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 32, 'Number of sample points each\
                       kernel has.')
 flags.DEFINE_integer('num_dot_layers', 8, 'Number of dot product layers per kernel')
-flags.DEFINE_float('loc_loss_lambda', 2, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 2, 'l')
 flags.DEFINE_integer('jittered_copies', 1, 'Number of times the dataset is copied and jittered for data augmentation.')
 
-flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
+flags.DEFINE_string('checkpoint_save_dir', 'anchor_ckpt_save', 'Path to saving checkpoint.')
 flags.DEFINE_bool('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
 
@@ -123,7 +123,8 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   y_cls, y_loc = create_jaccard_labels(bboxes, NUM_HOOK_STEPS, kernel_size)
   np.save(cls_labels, y_cls)
   np.save(loc_labels, y_loc)
-
+  
+  
   # Hack-y way of combining samples into one array since each sample has a
   # different number of points.
   print("combining samples...")
@@ -178,26 +179,15 @@ def main(_):
 
 
   # Train model.
-  # train_split = int((FLAGS.val_split) * X.shape[0])
-  # X_trn = X[train_split:]
-  # y_trn_cls = y_cls[train_split:]
-  # y_trn_loc = y_loc[train_split:]
-  # X_val = X[:train_split]
-  # y_val_cls = y_cls[:train_split]
-  # y_val_loc = y_loc[:train_split]
   print("Beginning training...")
 
   ssnn.train_val(X_trn[:-10], y_trn_cls[:-10], y_trn_loc[:-10], X_trn[-10:], y_trn_cls[-10:], y_trn_loc[-10:], epochs=FLAGS.num_epochs) #y_l not used yet for localization
 
-  # Test model. Using validation since we won't be using real 
-  # "test" data yet. Preds will be an array of bounding boxes. 
   cls_preds, loc_preds = ssnn.test(X_test)
   
   # Save output.
-  save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
-                             NUM_HOOK_STEPS, NUM_SCALES)
+  save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, NUM_HOOK_STEPS, NUM_SCALES)
   
-
   cls_f = np.load(CLS_PREDS)
   loc_f = np.load(LOC_PREDS)
   bboxes = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 

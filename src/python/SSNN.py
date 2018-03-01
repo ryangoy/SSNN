@@ -13,7 +13,7 @@ from os import makedirs
 
 class SSNN:
   
-  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1):
+  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, num_scales=3, ckpt_load=None, ckpt_save=None, loc_loss_lambda=1, num_anchors=9):
     self.hook_num = 1
     self.dims = dims
     self.probe_steps = probe_steps
@@ -21,6 +21,7 @@ class SSNN:
     self.probe_output = None
     self.ckpt_save = ckpt_save
     self.ckpt_load = ckpt_load
+    self.num_anchors = num_anchors
 
     # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
@@ -71,6 +72,7 @@ class SSNN:
     else:
       assert len(steps) == 3, \
           "Must have a step size for each xyz dimension, or input an int."
+              # print bbox
 
     # Shape: (batches, num_points, xyz)
     self.points_ph = tf.placeholder(tf.float32, (None, None, 3))
@@ -81,7 +83,7 @@ class SSNN:
                             num_kernels=num_kernels, 
                             probes_per_kernel=probes_per_kernel)
 
-  def hook_layer(self, input_layer, reuse=False, activation=None, dropout=0.1):
+  def hook_layer(self, input_layer, reuse=False, activation=None, dropout=0.15):
     # As defined in Singleshot Multibox Detector, hook layers process
     # intermediates at different scales.
 
@@ -100,15 +102,15 @@ class SSNN:
       # input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
       #                         strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
       # input_layer = tf.nn.dropout(input_layer, dropout)
-      input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
+      input_layer = tf.layers.conv3d(input_layer, filters=128, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
       #input_layer = tf.nn.dropout(input_layer, dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
-      conf = tf.layers.conv3d(input_layer, filters=2, kernel_size=1, padding='SAME',
+      conf = tf.layers.conv3d(input_layer, filters=2*self.num_anchors, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       # Predicts the center coordinate and relative scale of the box
-      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=1, padding='SAME',
+      loc = tf.layers.conv3d(input_layer, filters=6*self.num_anchors, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       self.hook_num += 1
@@ -116,7 +118,7 @@ class SSNN:
       return conf, loc
 
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales,
-                 learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False, dropout=0.05):
+                 learning_rate=0.00005, loc_loss_lambda=1, dot_layers=8, reuse_hook=False, dropout=0.1):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
@@ -135,10 +137,12 @@ class SSNN:
         p_dim_size /= 2
         dim_size /= 2
 
+    num_features = int(num_features)
+    num_p_features = int(num_p_features)
     # Shape: (batches, x_steps, y_steps, z_steps)
-    self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, 2))
+    self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, 2*self.num_anchors))
 
-    self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, 6))
+    self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, 6*self.num_anchors))
 
     # Shape: (batches, x, y, z, features)
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
@@ -201,17 +205,19 @@ class SSNN:
     self.cls_hooks = [cls_hook1, cls_hook2, cls_hook3]
     self.loc_hooks = [loc_hook1, loc_hook2, loc_hook3]
 
-    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv1_2.shape.as_list()[1]*self.conv1_2.shape.as_list()[2]*self.conv1_2.shape.as_list()[3], 2)),
-                               tf.reshape(cls_hook2, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 2)),
-                               tf.reshape(cls_hook3, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 2))],
+    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv1_2.shape.as_list()[1]*self.conv1_2.shape.as_list()[2]*self.conv1_2.shape.as_list()[3], 2*self.num_anchors)),
+                               tf.reshape(cls_hook2, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 2*self.num_anchors)),
+                               tf.reshape(cls_hook3, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 2*self.num_anchors))],
                                axis=1)
-    loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv1_2.shape.as_list()[1]*self.conv1_2.shape.as_list()[2]*self.conv1_2.shape.as_list()[3], 6)),
-                               tf.reshape(loc_hook2, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 6)),
-                               tf.reshape(loc_hook3, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 6))],
+    loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv1_2.shape.as_list()[1]*self.conv1_2.shape.as_list()[2]*self.conv1_2.shape.as_list()[3], 6*self.num_anchors)),
+                               tf.reshape(loc_hook2, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 6*self.num_anchors)),
+                               tf.reshape(loc_hook3, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 6*self.num_anchors))],
                                axis=1)
 
+    cls_labels = tf.transpose(tf.reshape(self.y_ph_cls, (-1, num_p_features, 2, self.num_anchors)), perm=(0, 1, 3, 2))
+    cls_logits = tf.transpose(tf.reshape(cls_hooks_flat, (-1, num_p_features, 2, self.num_anchors)), perm=(0, 1, 3, 2))
     # Define cls loss.
-    cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=cls_hooks_flat)
+    cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=cls_labels, logits=cls_logits)
     cls_loss = tf.reduce_mean(cls_loss)
     self.cls_loss = cls_loss
 
@@ -223,8 +229,10 @@ class SSNN:
     # loc_loss = tf.where(smooth_cond, loc_loss_L1, loc_loss_L2)
     loc_loss = tf.abs(diff)
 
-    ia_cast = tf.expand_dims(tf.cast(self.y_ph_cls[...,1], tf.float32), -1)
-    ia_dup = tf.tile(ia_cast, [1,1,6])
+    ia_cast = self.y_ph_cls[...,self.num_anchors:]
+    ia_cast = tf.tile(ia_cast, (6, 1, 1))
+    ia_cast = tf.reshape(tf.transpose(ia_cast), (-1, num_p_features, self.num_anchors*6))
+    ia_dup = tf.cast(ia_cast, tf.float32)
     loc_loss = tf.reduce_mean(tf.multiply(loc_loss, ia_dup))
     self.loc_loss = loc_loss
     # Combine losses linearly.

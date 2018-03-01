@@ -6,6 +6,11 @@ import time
 from scipy.misc import imsave
 import matplotlib.pyplot as plt
 
+# added for anchor boxes
+width_height_ratios = np.array([2, 1, 1/2])
+height_depth_ratios = np.array([2, 1, 1/2])
+num_anchors = len(width_height_ratios) * len(height_depth_ratios)
+
 # From PointNet
 def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
   B, N, C = pointcloud.shape
@@ -35,15 +40,19 @@ def flatten_output(cls_preds, loc_preds, steps, res_factor):
     cls_preds_flat = []
     loc_preds_flat = []
     for cls_pred, loc_pred in zip(cls_preds[scene], loc_preds[scene]):
-      cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), 2)))
-      loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), 6)))
+      # reshape to have proper probability distributions for each anchor box, compute softmax, and then reshape back
+      cls_temp = np.transpose(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), 2, num_anchors)), (0, 2, 1))
+      cls_temp = np.apply_along_axis(softmax, 2, cls_temp)
+      cls_temp = np.reshape(np.transpose(cls_temp, (0, 2, 1)), (int((steps/(2**res_factor))**3), 2*num_anchors))
+      cls_preds_flat.append(cls_temp)
+
+      loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), 6*num_anchors)))
       res_factor += 1
     cls_output.append(np.concatenate(cls_preds_flat, axis=0))
     loc_output.append(np.concatenate(loc_preds_flat, axis=0))
 
   cls_output = np.array(cls_output)
   loc_output = np.array(loc_output)
-  cls_output = np.apply_along_axis(softmax, 2, cls_output)
  
   return cls_output, loc_output
 
@@ -75,16 +84,22 @@ def nms(cls_preds, loc_preds, overlap_thresh, steps, res_factor, needs_flattenin
     all_loc_preds = []
 
     # iterate over rooms    
-    for i in range(len(cls_preds)):
-        x1 = loc_preds[i,:,0]
-        y1 = loc_preds[i,:,1]
-        z1 = loc_preds[i,:,2]
-        x2 = loc_preds[i,:,3]
-        y2 = loc_preds[i,:,4]
-        z2 = loc_preds[i,:,5]
+    for i in range(len(loc_preds)):
+        g = np.array(loc_preds[i])
+        print(g.shape[0])
+        if g.shape[0] < 1:
+            all_loc_preds.append(g) 
+            continue
+        x1 = g[:, 0]
+        y1 = g[:, 1]
+        z1 = g[:, 2]
+        x2 = g[:, 3]
+        y2 = g[:, 4]
+        z2 = g[:, 5]
  
+        score = np.array(cls_preds[i])
         # scores are the probability of a given bbox being an ROI
-        score = cls_preds[i,:,1] 
+        # score = h[:,1] 
         volume = (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1)
         idxs = np.argsort(score)
         pick = []
@@ -116,10 +131,11 @@ def nms(cls_preds, loc_preds, overlap_thresh, steps, res_factor, needs_flattenin
                 np.where(o > overlap_thresh)[0])))
  
         # keep only the bounding boxes that were picked
-        all_loc_preds.append(np.array(loc_preds[i, pick]))
+        all_loc_preds.append(np.array(g[pick]))
 
     return np.array(all_loc_preds)
 
+# modify for anchor boxes
 def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples, 
                      kernel_size, bbox_path, cls_path, conf_threshold=0.5):
 
@@ -138,32 +154,34 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
     prev_ind = 0
     curr_ksize = kernel_size
     for scale in range(num_downsamples):
-      cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, 1]
-      cls_hook = np.reshape(cls_hook, (dim, dim, dim))
+      cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, num_anchors:]
+      cls_hook = np.reshape(cls_hook, (dim, dim, dim, num_anchors))
       loc_hook = loc_preds[scene, prev_ind:prev_ind+dim**3]
-      loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6))
+      loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6*num_anchors))
       for i in range(dim):
         for j in range(dim):
           for k in range(dim):
-            if cls_hook[i, j, k] > conf_threshold:
-              # print 
-              # print 'ijk'
-              # print [i,j,k]
-              # print 'loc hook'
-              # print loc_hook[i,j,k]
-              center_pt = loc_hook[i, j, k, :3] + [i,j,k]
-
-              half_dims = (loc_hook[i, j, k, 3:]+1)/2
-              # print 'center pt'
-              # print center_pt
-              # print half_dims
-              LL = (center_pt - half_dims) * curr_ksize
-              UR = (center_pt + half_dims) * curr_ksize
-              bbox = np.concatenate([LL, UR], axis=0)
-              cls_vals.append(cls_hook[i, j, k])
-              # print 'bbox'
-              # print bbox
-              bboxes.append(bbox)
+            for l in range(len(width_height_ratios)):
+              for m in range(len(height_depth_ratios)):
+                anchor_num = l*len(height_depth_ratios) + m
+                if cls_hook[i, j, k, anchor_num] > conf_threshold:
+                  wh = width_height_ratios[l]
+                  hd = height_depth_ratios[m]
+                  depth = 1
+                  # if we have a fraction of a voxel, scale up
+                  if min(wh, hd) < 1:
+                    depth /= min(wh, hd, wh*hd)
+                  height = depth*hd
+                  width = height*wh
+                  anchor_dims = np.array([width, height, depth])
+                  estimate_dims = anchor_dims * np.exp(loc_hook[i, j, k, anchor_num*6+3:anchor_num*6+6])
+                  center_pt = anchor_dims * loc_hook[i, j, k, anchor_num*6:anchor_num*6+3] + np.array([i, j, k])
+                  
+                  LL = (center_pt - estimate_dims/2) * curr_ksize
+                  UR = (center_pt + estimate_dims/2) * curr_ksize
+                  bbox = np.concatenate([LL, UR], axis=0)
+                  cls_vals.append(cls_hook[i, j, k, anchor_num])
+                  bboxes.append(bbox)
               
       prev_ind += dim**3
       dim //= 2
@@ -193,7 +211,6 @@ def voxelize_labels(labels, steps, kernel_size):
 
   for scene_id in range(len(labels)):
     for bbox in labels[scene_id]:
-      # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
 
       c1 = np.floor(bbox[:3] / kernel_size).astype(int)
       c2 = np.ceil(bbox[3:] / kernel_size).astype(int)
@@ -219,7 +236,7 @@ def voxelize_labels(labels, steps, kernel_size):
   return vox_label
 
 
-
+# Currently modifying this code to use anchor boxes rather than equal sized boxes with a fixed scale
 def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim_thresh=3):
   """
   Args:
@@ -233,78 +250,138 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
   loc_labels = []
   for d in range(num_downsamples):
     k = int(steps/(2**d))
-    cls_labels.append(np.zeros((len(labels), k, k, k)))
-    loc_labels.append(np.zeros((len(labels), k, k, k, 6)))
+    # modified to allow for 25 anchor boxes (1/3, 1/2, 1, 2, 3)^2 (taken from SSD)
+    cls_labels.append(np.zeros((len(labels), k, k, k, num_anchors)))
+    loc_labels.append(np.zeros((len(labels), k, k, k, num_anchors*6)))
 
   
   for scene_id in range(len(labels)):
     for bbox in labels[scene_id]:
 
       # First phase: for each GT box, set the closest feature box to 1.
+      # First phase eliminated for anchor boxes
 
       # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
-      bbox_dims = (bbox[3:] - bbox[:3]) / kernel_size
-      bbox_loc = ((bbox[3:] + bbox[:3]) / 2) / kernel_size
-      max_dim = np.max(bbox_dims)
-      scale = 0
+      # bbox_dims = (bbox[3:] - bbox[:3]) / kernel_size
+      # bbox_loc = ((bbox[3:] + bbox[:3]) / 2) / kernel_size
+      # max_dim = np.max(bbox_dims)
+      # scale = 0
+      
+      # for _ in range(num_downsamples-1):
+      #  if max_dim < max_dim_thresh:
+      #    break
+      #  max_dim /= 2
+      #  bbox_dims /= 2
+      #  bbox_loc /= 2
+      #  scale += 1
+      # best_kernel_size = kernel_size * 2**scale
+      # best_num_steps = steps / (2**scale)
+      # coords = np.floor(bbox_loc).astype(int)
 
-      for _ in range(num_downsamples-1):
-        if max_dim < max_dim_thresh:
-          break
-        max_dim /= 2
-        bbox_dims /= 2
-        bbox_loc /= 2
-        scale += 1
-      best_kernel_size = kernel_size * 2**scale
-      best_num_steps = steps / (2**scale)
-      coords = np.floor(bbox_loc).astype(int)
-
-      if coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps:
-        continue
-      elif min(coords) < 0:
-        continue
-      cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
-      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
-      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims - 1
+      # if coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps:
+      #  continue
+      # elif min(coords) < 0:
+      #  continue
+      # cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
+      # loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
+      # loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims - 1
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.5, set it equal to 1 as well.
-      
+      # Anchor boxes: for each feature box, if jaccard overlap > 0.1 OR if jaccard overlap is greatest, set equal to 1
+      max_ji = 0
+      max_ji_scale = 0
+      max_ji_coords = np.zeros(3)
+      max_ji_params_first = np.zeros(3)
+      max_ji_params_second = np.zeros(3)
+      max_ji_anchor_num = 0     
+ 
       # Get bbox coords in voxel grid space. This will be divided by 2 every downsample.
       bbox_loc = np.concatenate([bbox[:3] / kernel_size, bbox[3:] / kernel_size], axis=0)
       for s in range(num_downsamples):
-        diff = (np.ceil(bbox_loc[3:]) - np.floor(bbox_loc[:3])).astype(int)
 
+        # (rounded) voxel grid size of the box at the current resolution
+        diff = (np.ceil(bbox_loc[3:]) - np.floor(bbox_loc[:3])).astype(int)
+        
         # For each voxel grid the bbox overlaps...
+        # i, j, k denote number of voxels offset from LL of bbox
         for i in range(diff[0]):
           for j in range(diff[1]):
             for k in range(diff[2]):
 
-              # Get the current coordinate to check.
+              # Get the current center coordinate to check
               curr_coord = np.floor(bbox_loc[:3]).astype(int) + [i,j,k]
 
               # If the current coordinate is outside of the voxel grid, skip it.
+              # Note: when could this possibly happen?  -Arda
               if max(curr_coord -(steps / (2**s))) >= 0:
                 continue
 
               # Calculate the Jaccard coefficient.
-              bbox_LL = bbox_loc[:3]
-              bbox_UR = bbox_loc[3:]
-              fb_LL = np.array(curr_coord)
-              fb_UR = np.array(curr_coord+1)
-              if min(fb_UR - bbox_LL) < 0 or min(bbox_UR - fb_LL) < 0:
-                continue
-              max_UR = np.maximum(fb_UR, bbox_UR)
-              max_LL = np.maximum(fb_LL, bbox_LL)
-              min_UR = np.minimum(fb_UR, bbox_UR)
-              min_LL = np.minimum(fb_LL, bbox_LL)
-              ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
+              bbox_LL = bbox_loc[:3] # bbox lower left
+              bbox_UR = bbox_loc[3:] # bbox upper right
+              bbox_center = (bbox_LL + bbox_UR) / 2
+              bbox_dims = bbox_UR - bbox_LL              
 
-              if ji > 0.1:
-                cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
-                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord
+              # for each specific anchor box shape, calculate jaccard overlap
+              for l in range(len(width_height_ratios)):
+                for m in range(len(height_depth_ratios)):
+                  wh = width_height_ratios[l]
+                  hd = height_depth_ratios[m]
+                  anchor_num = l*len(height_depth_ratios) + m
+                  depth = 1
+                  # if we have a fraction of a voxel, scale up
+                  if min(wh, hd) < 1:
+                    depth /= min(wh, hd, wh*hd)
+                  
+                  # now we can define height, width, and depth of bbox in voxdls
+                  height = depth * hd
+                  width = height * wh
+                  anchor_dims = np.array([width, height, depth])
+                  anchor_LL = curr_coord - anchor_dims/2
+                  anchor_UR = curr_coord + anchor_dims/2
+                  
+                  # ensure our anchor box is fully in bounds
+                  if min(anchor_LL) < 0:
+                    continue
+                  if max(anchor_UR - (steps/(2**s))) >= 0:
+                    continue
+                  
+                  # ensure anchor box overlaps to some degree with bbox
+                  if min(anchor_UR - bbox_LL) < 0 or min(bbox_UR - anchor_LL) < 0:
+                    continue
+                  
+                  # calculate jaccard overlap
+                  max_UR = np.maximum(anchor_UR, bbox_UR)
+                  max_LL = np.maximum(anchor_LL, bbox_LL)
+                  min_UR = np.minimum(anchor_UR, bbox_UR)
+                  min_LL = np.minimum(anchor_LL, bbox_LL)
+                  ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
 
-                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = bbox_UR - bbox_LL - 1
+                  # track best overlapping proposed bbox
+                  if ji > max_ji:
+                    max_ji = ji
+                    max_ji_scale = s
+                    max_ji_coords = curr_coord
+                    max_ji_params_first = (bbox_center - curr_coord) / anchor_dims
+                    max_ji_params_second = np.log(bbox_dims / anchor_dims)
+                    max_ji_anchor_num = anchor_num
+
+                  # indicate a label of 1 if jaccard overlap meets threshold
+                  if ji > 0.2:
+                    cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], anchor_num] = 1
+                    # first 3 values are relative displacement from center of GT
+                    start_idx = 6*anchor_num
+                    loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], start_idx:start_idx + 3] = (bbox_center - curr_coord) / anchor_dims
+                    loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], start_idx+3:start_idx + 6] = np.log(bbox_dims / anchor_dims)
+
         bbox_loc /= 2
+      
+      # label as positive the best overlapping proposed bbox
+      start_idx = 6 * max_ji_anchor_num
+      if max_ji > 0:
+      	cls_labels[max_ji_scale][scene_id, max_ji_coords[0], max_ji_coords[1], max_ji_coords[2], max_ji_anchor_num] = 1
+      	loc_labels[max_ji_scale][scene_id, max_ji_coords[0], max_ji_coords[1], max_ji_coords[2], start_idx:start_idx + 3] = max_ji_params_first
+      	loc_labels[max_ji_scale][scene_id, max_ji_coords[0], max_ji_coords[1], max_ji_coords[2], start_idx+3:start_idx + 6] = max_ji_params_second
 
   # Format into the correct sized array for passing in labels to model.
   cls_labels_flat = []
@@ -312,8 +389,8 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
   res_factor = 0
 
   for cls_label, loc_label in zip(cls_labels, loc_labels):
-    cls_labels_flat.append(np.reshape(cls_label, (-1, int((steps/(2**res_factor))**3), 1)))
-    loc_labels_flat.append(np.reshape(loc_label, (-1, int((steps/(2**res_factor))**3), 6)))
+    cls_labels_flat.append(np.reshape(cls_label, (-1, int((steps/(2**res_factor))**3), num_anchors)))
+    loc_labels_flat.append(np.reshape(loc_label, (-1, int((steps/(2**res_factor))**3), num_anchors*6)))
     res_factor += 1
 
   cls_concat = np.concatenate(cls_labels_flat, axis=1).astype(np.int32)
@@ -321,6 +398,7 @@ def create_jaccard_labels(labels, steps, kernel_size, num_downsamples=3, max_dim
   cls_concat = np.concatenate([cls_no_class, cls_concat], axis=-1)
 
   loc_concat = np.concatenate(loc_labels_flat, axis=1)
+
   return cls_concat, loc_concat 
 
 def normalize_pointclouds(pointcloud_arr, seg_arr):
