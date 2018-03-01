@@ -16,3 +16,4 @@ build
 *.meta
 *.index
 src/python/ckpt_save/
+src/python/anchor_ckpt_save/
