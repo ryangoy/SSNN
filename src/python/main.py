@@ -31,7 +31,7 @@ FLAGS = flags.FLAGS
 
 # Data information: loading and saving options.
 flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 'Path to base directory.')
-flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
+flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('jittered_copies', 0, 'Number of times the dataset is copied and jittered for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
@@ -68,8 +68,8 @@ TEST_AREAS = ['Area_6']
 # CATEGORIES = ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
 #                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
-CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
-# CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
+# CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
+CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
 #CATEGORIES = ['bed']
 
 # Define constant paths (TODO: make this more organized between datasets)

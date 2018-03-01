@@ -56,7 +56,6 @@ def compute_accuracy(preds, labels):
     print("Overall true positive ratio: {}".format(float(total_found_positives)/total_label_positives))
     print("Overall false positive ratio: {}".format(float(total_found_negatives)/total_pred_positives))
 
-
 if __name__ == '__main__':
     preds = np.load(sys.argv[1])
     labels = np.load(sys.argv[2])
