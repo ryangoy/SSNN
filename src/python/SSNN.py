@@ -286,11 +286,10 @@ class SSNN:
       else:
         problem_pcs.append(counter-1)
       
-      # probe_memmap[counter-1] = pc_disc[0]
+      probe_memmap[counter-1] = pc_disc[0]
 
       if counter % 1 == 0:
         print('Finished probing {} pointclouds'.format(counter))
-    exit()
       
     self.probe_output = probe_memmap
     probe_memmap.flush()
