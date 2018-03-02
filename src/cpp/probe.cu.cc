@@ -10,7 +10,7 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
     // N threads
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < batches*steps*steps*steps*filters*probes_per_filter; i+= blockDim.x * gridDim.x){
         // Compute the sample the thread corresponds to. Could have used CUDA dim3, but we need to loop through more for loops than 3.
-        int batch = i / (steps*steps*steps*filters*probes_per_filter) ;
+        int batch = i / (steps*steps*steps*filters*probes_per_filter);
         int x_step = i % (steps*steps*steps*filters*probes_per_filter) / (steps*steps*filters*probes_per_filter);
         int y_step = i % (steps*steps*filters*probes_per_filter) / (steps*filters*probes_per_filter);
         int z_step = i % (steps*filters*probes_per_filter) / (filters*probes_per_filter);
@@ -50,7 +50,7 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
         float sample_coord []= {weights[sample_index] + xc,
                                 weights[sample_index+1] + yc,
                                 weights[sample_index+2] + zc};
-        float closest_dist = 100.0;
+        float closest_dist = 1.1;
 
         // Loop through each point to find the nearest distance
         for (int point_index = 0; point_index < num_vox_points; point_index+=3) {
@@ -70,8 +70,6 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
         // For a higher response for closer points, we take the negative. 0.1 is a hard-coded value for now so that
         // the response's mean is close to 0, but it doesn't matter too much.
         closest_dist = 0.1-closest_dist;
-        if (closest_dist >= 100)
-            closest_dist = 100;
 
         // Add closest_dist to output
         output[batch*steps*steps*steps*filters*probes_per_filter
