@@ -233,20 +233,27 @@ class SSNN:
 
     # Define cls loss.
     cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=cls_hooks_flat)
-    cls_loss = tf.reduce_mean(cls_loss)
-    self.cls_loss = cls_loss
+    cls_loss = tf.reduce_sum(cls_loss)
+    
 
     # Define loc loss.
-    diff = self.y_ph_loc - loc_hooks_flat
+    loc_loss = tf.square(self.y_ph_loc - loc_hooks_flat)
     # loc_loss_L2 = 0.5*(diff**2)
     # loc_loss_L1 = tf.abs(diff) - 0.5
     # smooth_cond = tf.less(tf.abs(diff), 1.0)
     # loc_loss = tf.where(smooth_cond, loc_loss_L1, loc_loss_L2)
-    loc_loss = tf.abs(diff)
+    #loc_loss = tf.abs(diff)
 
-    ia_cast = tf.expand_dims(tf.cast(self.y_ph_cls[...,1], tf.float32), -1)
+    # Mask out the voxels that don't have a bounding box associated with it. Note that y_ph_cls holds one-hot vectors.
+    ia_cast = tf.expand_dims(tf.cast(tf.reduce_sum(self.y_ph_cls[...,1:], axis=-1), tf.float32), -1)
     ia_dup = tf.tile(ia_cast, [1,1,6])
-    loc_loss = tf.reduce_mean(tf.multiply(loc_loss, ia_dup))
+    loc_loss = tf.reduce_sum(tf.multiply(loc_loss, ia_dup))
+    N = tf.reduce_sum(ia_cast)
+
+    loc_loss /= N
+    cls_loss /= N
+
+    self.cls_loss = cls_loss
     self.loc_loss = loc_loss
     # Combine losses linearly.
     self.loss = cls_loss + loc_loss_lambda * loc_loss
@@ -267,20 +274,20 @@ class SSNN:
     for pc in X:
 
       process = psutil.Process(os.getpid())
-      if process.memory_info().rss // 1e9 > 63.0:
-        print("Memory cap surpassed. Exiting...")
+      if process.memory_info().rss // 1e9 > 50.0:
+        print("[ERROR] Memory cap surpassed. Exiting...")
         exit()
 
-
+      # Batch size of 1.
       pc = np.array([pc])
       counter += 1
 
       #if counter not in [211, 302, 328, 779, 785, 922, 940] and (counter >922 or counter ==1):
 
       # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
-      #if counter not in [75, 325, 395, 407, 408]: # matterport
+      if counter not in [75, 325, 395, 407, 408]: # matterport
       #if counter not in [124]: # stanford
-      if counter not in [140]: # matterport bed
+      #if counter not in [140]: # matterport bed
       # if counter is 1 or counter is 139 or counter is 140 or counter is 141 or counter is 142:
         pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       else:
@@ -289,7 +296,7 @@ class SSNN:
       probe_memmap[counter-1] = pc_disc[0]
 
       if counter % 1 == 0:
-        print('Finished probing {} pointclouds'.format(counter))
+        print('\t\tFinished probing {} pointclouds'.format(counter))
       
     self.probe_output = probe_memmap
     probe_memmap.flush()
@@ -319,10 +326,11 @@ class SSNN:
         curr_cl_sum += cl
         curr_ll_sum += ll
         counter += 1
-        if step % display_step == 0 and step != 0:
-          print("Epoch: {}, Iter: {}, Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, step, curr_cl_sum / counter, curr_ll_sum / counter))
+        if step % display_step < batch_size and step != 0:
+          print("Epoch: {}/{}, Iter: {}, Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, epochs, step, curr_cl_sum / counter, curr_ll_sum / counter))
           curr_cl_sum = 0
           curr_ll_sum = 0
+          counter = 0
 
       if X_val is not None and y_val_cls is not None and y_val_loc is not None:
         val_loss = 0
