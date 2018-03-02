@@ -108,22 +108,22 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
-      input_layer_cls = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
-                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+      # input_layer_cls = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
+      #                         strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-      input_layer_cls = tf.nn.dropout(input_layer_cls, self.dropout)
+      # input_layer_cls = tf.nn.dropout(input_layer_cls, self.dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
       conf = tf.layers.conv3d(input_layer, filters=num_classes, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 
-      input_layer_loc = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
-                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+      # input_layer_loc = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
+      #                         strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-      input_layer_loc = tf.nn.dropout(input_layer_loc, self.dropout)
+      # input_layer_loc = tf.nn.dropout(input_layer_loc, self.dropout)
 
       # Predicts the center coordinate and relative scale of the box
-      loc = tf.layers.conv3d(input_layer_loc, filters=6, kernel_size=1, padding='SAME',
+      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       self.hook_num += 1
@@ -156,7 +156,7 @@ class SSNN:
     # Shape: (batches, x, y, z, features)
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
 
-    self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
+    # self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
 
     self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
@@ -233,25 +233,27 @@ class SSNN:
 
     # Define cls loss.
     cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=cls_hooks_flat)
-    cls_loss = tf.reduce_sum(cls_loss)
+    cls_loss = tf.reduce_mean(cls_loss)
     
 
     # Define loc loss.
-    loc_loss = tf.square(self.y_ph_loc - loc_hooks_flat)
+    diff = self.y_ph_loc - loc_hooks_flat
+    #loc_loss = tf.square(self.y_ph_loc - loc_hooks_flat)
     # loc_loss_L2 = 0.5*(diff**2)
     # loc_loss_L1 = tf.abs(diff) - 0.5
     # smooth_cond = tf.less(tf.abs(diff), 1.0)
     # loc_loss = tf.where(smooth_cond, loc_loss_L1, loc_loss_L2)
-    #loc_loss = tf.abs(diff)
+    loc_loss = tf.abs(diff)
 
     # Mask out the voxels that don't have a bounding box associated with it. Note that y_ph_cls holds one-hot vectors.
-    ia_cast = tf.expand_dims(tf.cast(tf.reduce_sum(self.y_ph_cls[...,1:], axis=-1), tf.float32), -1)
+    #ia_cast = tf.expand_dims(tf.cast(tf.reduce_sum(self.y_ph_cls[...,1:], axis=-1), tf.float32), -1)
+    ia_cast = tf.expand_dims(tf.cast(self.y_ph_cls[...,1], tf.float32), -1)
     ia_dup = tf.tile(ia_cast, [1,1,6])
-    loc_loss = tf.reduce_sum(tf.multiply(loc_loss, ia_dup))
-    N = tf.reduce_sum(ia_cast)
+    loc_loss = tf.reduce_mean(tf.multiply(loc_loss, ia_dup))
+    # N = tf.reduce_sum(ia_cast)
 
-    loc_loss /= N
-    cls_loss /= N
+    # loc_loss /= N
+    # cls_loss /= N
 
     self.cls_loss = cls_loss
     self.loc_loss = loc_loss
@@ -285,10 +287,10 @@ class SSNN:
       #if counter not in [211, 302, 328, 779, 785, 922, 940] and (counter >922 or counter ==1):
 
       # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
-      if counter not in [75, 325, 395, 407, 408]: # matterport
+      #if counter not in [75, 325, 395, 407, 408]: # matterport
       #if counter not in [124]: # stanford
-      #if counter not in [140]: # matterport bed
-      # if counter is 1 or counter is 139 or counter is 140 or counter is 141 or counter is 142:
+      if counter not in [140]: # matterport bed
+      #if counter is 1 or counter is 139 or counter is 140 or counter is 141 or counter is 142:
         pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       else:
         problem_pcs.append(counter-1)
@@ -320,14 +322,15 @@ class SSNN:
         batch_x = X_trn[randomized_indices]
         batch_y_cls = y_trn_cls[randomized_indices]
         batch_y_loc = y_trn_loc[randomized_indices]
-        _, loss, cl, ll = self.sess.run([self.optimizer, self.loss, self.cls_loss, self.loc_loss], feed_dict={self.X_ph: batch_x, 
-                                            self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc})
+        _, loss, cl, ll = self.sess.run([self.optimizer, self.loss, self.cls_loss, self.loc_loss], 
+                                 feed_dict={self.X_ph: batch_x, self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc})
 
         curr_cl_sum += cl
         curr_ll_sum += ll
         counter += 1
         if step % display_step < batch_size and step != 0:
-          print("Epoch: {}/{}, Iter: {}, Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, epochs, step, curr_cl_sum / counter, curr_ll_sum / counter))
+          print("Epoch: {}/{}, Iter: {}, Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, epochs, 
+                                            step - (step % display_step), curr_cl_sum / counter, curr_ll_sum / counter))
           curr_cl_sum = 0
           curr_ll_sum = 0
           counter = 0

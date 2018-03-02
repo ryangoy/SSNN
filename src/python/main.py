@@ -44,7 +44,7 @@ flags.DEFINE_float('checkpoint_save_interval', 10, 'If checkpoint_save_interval 
 flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
-flags.DEFINE_float('learning_rate', 0.000005, 'Learning rate for training.')
+flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
 flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 1.0, 'Keep probability for layers with dropout.')
 
@@ -69,9 +69,9 @@ TEST_AREAS = ['Area_6']
 # CATEGORIES = ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
 #                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
-CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
+# CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
 #CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
-#CATEGORIES = ['bed']
+CATEGORIES = ['bed']
 
 # Define constant paths (TODO: make this more organized between datasets)
 intermediate_dir = join(FLAGS.data_dir, 'intermediates')
