@@ -149,10 +149,13 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
         for j in range(dim):
           for k in range(dim):
             if max(cls_hook[i, j, k]) > conf_threshold:
-              center_pt = loc_hook[i, j, k, :3] + [i,j,k]
-              half_dims = (loc_hook[i, j, k, 3:]+1)/2
-              LL = (center_pt - half_dims) * curr_ksize
-              UR = (center_pt + half_dims) * curr_ksize
+              # center_pt = loc_hook[i, j, k, :3] + [i,j,k]
+              # half_dims = (loc_hook[i, j, k, 3:]+1)/2
+              # LL = (center_pt - half_dims) * curr_ksize
+              # UR = (center_pt + half_dims) * curr_ksize
+              LL = (loc_hook[i, j, k, :3] + [i,j,k]) * curr_ksize
+              UR = (loc_hook[i, j, k, 3:] + [i,j,k]) * curr_ksize
+
               bbox = np.concatenate([LL, UR], axis=0)
               cls_vals.append(cls_hook[i, j, k])
               bboxes.append(bbox)
@@ -238,8 +241,12 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
       # First phase: for each GT box, set the closest feature box to 1.
 
       # bbox is [min_x, min_y, min_z, max_x, max_y, max_z]
+      # bbox_dims = (bbox[3:] - bbox[:3]) / kernel_size
+      # bbox_loc = ((bbox[3:] + bbox[:3]) / 2) / kernel_size
+      bbox_min = bbox[:3] / kernel_size
+      bbox_max = bbox[3:] / kernel_size
       bbox_dims = (bbox[3:] - bbox[:3]) / kernel_size
-      bbox_loc = ((bbox[3:] + bbox[:3]) / 2) / kernel_size
+      bbox_loc = (bbox[:3] + bbox[3:] ) / 2 / kernel_size
       max_dim = np.max(bbox_dims)
       scale = 0
 
@@ -249,8 +256,10 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
         max_dim /= 2
         bbox_dims /= 2
         bbox_loc /= 2
+        bbox_min /= 2
+        bbox_max /= 2
         scale += 1
-      best_kernel_size = kernel_size * 2**scale
+      best_kernel_size = kernel_size * (2**scale)
       best_num_steps = steps / (2**scale)
       coords = np.floor(bbox_loc).astype(int)
 
@@ -263,48 +272,49 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
       cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = categories[scene_id][bbox_id]
 
       # cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = np.array([1, 0])
-      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
-      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_dims - 1
+      print bbox_min - coords
+      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_min - coords
+      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = bbox_max - coords
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.
       
       # Get bbox coords in voxel grid space. This will be divided by 2 every downsample.
-      bbox_loc = np.concatenate([bbox[:3] / kernel_size, bbox[3:] / kernel_size], axis=0)
-      for s in range(num_downsamples):
-        diff = (np.ceil(bbox_loc[3:]) - np.floor(bbox_loc[:3])).astype(int)
+      # bbox_loc = np.concatenate([bbox[:3] / kernel_size, bbox[3:] / kernel_size], axis=0)
+      # for s in range(num_downsamples):
+      #   diff = (np.ceil(bbox_loc[3:]) - np.floor(bbox_loc[:3])).astype(int)
 
-        # For each voxel grid the bbox overlaps...
-        for i in range(diff[0]):
-          for j in range(diff[1]):
-            for k in range(diff[2]):
+      #   # For each voxel grid the bbox overlaps...
+      #   for i in range(diff[0]):
+      #     for j in range(diff[1]):
+      #       for k in range(diff[2]):
 
-              # Get the current coordinate to check.
-              curr_coord = np.floor(bbox_loc[:3]).astype(int) + [i,j,k]
+      #         # Get the current coordinate to check.
+      #         curr_coord = np.floor(bbox_loc[:3]).astype(int) + [i,j,k]
 
-              # If the current coordinate is outside of the voxel grid, skip it.
-              if max(curr_coord -(steps / (2**s))) >= 0:
-                continue
+      #         # If the current coordinate is outside of the voxel grid, skip it.
+      #         if max(curr_coord -(steps / (2**s))) >= 0:
+      #           continue
 
-              # Calculate the Jaccard coefficient.
-              bbox_LL = bbox_loc[:3]
-              bbox_UR = bbox_loc[3:]
-              fb_LL = np.array(curr_coord)
-              fb_UR = np.array(curr_coord+1)
-              if min(fb_UR - bbox_LL) < 0 or min(bbox_UR - fb_LL) < 0:
-                continue
-              max_UR = np.maximum(fb_UR, bbox_UR)
-              max_LL = np.maximum(fb_LL, bbox_LL)
-              min_UR = np.minimum(fb_UR, bbox_UR)
-              min_LL = np.minimum(fb_LL, bbox_LL)
-              ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
+      #         # Calculate the Jaccard coefficient.
+      #         bbox_LL = bbox_loc[:3]
+      #         bbox_UR = bbox_loc[3:]
+      #         fb_LL = np.array(curr_coord)
+      #         fb_UR = np.array(curr_coord+1)
+      #         if min(fb_UR - bbox_LL) < 0 or min(bbox_UR - fb_LL) < 0:
+      #           continue
+      #         max_UR = np.maximum(fb_UR, bbox_UR)
+      #         max_LL = np.maximum(fb_LL, bbox_LL)
+      #         min_UR = np.minimum(fb_UR, bbox_UR)
+      #         min_LL = np.minimum(fb_LL, bbox_LL)
+      #         ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
 
-              if ji > 0.1:
-                #cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
-                cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = categories[scene_id][bbox_id]
-                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord
-
-                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = bbox_UR - bbox_LL - 1
-        bbox_loc /= 2
+      #         if ji > 0.1:
+      #           #cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
+      #           cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = categories[scene_id][bbox_id]
+      #           # loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord
+      #           loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = bbox_LL - curr_coord
+      #           loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = bbox_UR - curr_coord
+      #   bbox_loc /= 2
 
   # Format into the correct sized array for passing in labels to model.
   cls_labels_flat = []
