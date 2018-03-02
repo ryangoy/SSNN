@@ -470,7 +470,7 @@ def load_directory_matterport(path, train_test_split, is_train, objects):
   if areas is None:
     areas = sorted(listdir(path))
   for area in areas:
-    print("Loading area {}...".format(area))
+    print("\tLoading area {}...".format(area))
     area_path = join(path, area, "processed_regions")
     if not isdir(area_path):
       continue
@@ -505,7 +505,7 @@ def load_directory_matterport(path, train_test_split, is_train, objects):
         labels.append(flabel)
         input_data.append(input_pc)
 
-    print("Loaded {} regions from area {}".format(ri, area))
+    print("\tLoaded {} regions from area {}".format(ri, area))
     total_regions += ri
 
   input_data = np.array(input_data)

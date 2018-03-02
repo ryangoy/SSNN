@@ -20,26 +20,18 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
         // Get the query index of the gridlist. Offsets are computed for cases where points of kernels are outside the
         // current grid.
         int sample_index = filter_id*probes_per_filter*3 + probe_id*3;
-        int x_offset = 0;
-        if (weights[sample_index] > ksize)
-            x_offset = int(weights[sample_index]/ksize);
-        else if (weights[sample_index] < 0)
-            x_offset = int(weights[sample_index]/ksize) - 1;
-        int y_offset = 0;
-        if (weights[sample_index+1] > ksize)
-            y_offset = int(weights[sample_index+1]/ksize);
-        else if (weights[sample_index] < 0)
-            y_offset = int(weights[sample_index+1]/ksize) - 1;
-        int z_offset = 0;
-        if (weights[sample_index+2] > ksize)
-            z_offset = int(weights[sample_index+2]/ksize);
-        else if (weights[sample_index+2] < 0)
-            z_offset = int(weights[sample_index+2]/ksize) - 1;
+
+        int x_offset = max(-x_step, min(steps-1-x_step, int(floor(weights[sample_index]/ksize))));
+        int y_offset = max(-y_step, min(steps-1-y_step, int(floor(weights[sample_index+1]/ksize))));
+        int z_offset = max(-z_step, min(steps-1-z_step, int(floor(weights[sample_index+2]/ksize))));
+
+        // if (!printed && (x_offset != 0 || y_offset!= 0 || z_offset!=0)){
+        //     printf("[DEBUG] a %i %i %i\n [DEBUG] b %f %f %f %f %i %i \n", x_offset, y_offset, z_offset, weights[sample_index], weights[sample_index+1], weights[sample_index+2], ksize, -x_step, steps-1-x_step);
+        //     printed = true;
+
+        // }
+
         int start_index_index = batch*steps*steps*steps+(x_step+x_offset)*steps*steps+(y_step+y_offset)*steps+z_step+z_offset;
-        if (start_index_index < 0)
-            start_index_index = 0;
-        else if (start_index_index >= batches*steps*steps*steps)
-            start_index_index = batches*steps*steps*steps-1;
 
         // Access the proper grid.
         int start_index = gl_indices[start_index_index];

@@ -17,24 +17,24 @@ def visualize_scales(voxels_path, n_steps, n_scale):
     print('Scene {}:'.format(scene))
 
   
-    f, axarr = plt.subplots(num_graphs/4, 4)
+    f, axarr = plt.subplots(int(num_graphs/4), 4)
 
     last_index = 0
     curr_index = 0
     num_steps = NUM_STEPS
 
     for scale in range(NUM_SCALE):
-      d_slice = voxels[scene, last_index:last_index+num_steps**3, 1:]
+      d_slice = voxels[scene, last_index:last_index+int(num_steps)**3, 1:]
       d_slice = d_slice.sum(axis=-1)
       d_slice = np.reshape(d_slice, (num_steps, num_steps, num_steps))
 
       for z_dim in range(num_steps):
-        axarr[curr_index/4, curr_index%4].imshow(d_slice[:,:,z_dim].T, interpolation='nearest', cmap='hot', vmin=0, vmax=1)
-        axarr[curr_index/4, curr_index%4].invert_yaxis()
+        axarr[int(curr_index/4), curr_index%4].imshow(d_slice[:,:,z_dim].T, interpolation='nearest', cmap='hot', vmin=0, vmax=1)
+        axarr[int(curr_index/4), curr_index%4].invert_yaxis()
         curr_index += 1
 
       last_index += num_steps**3
-      num_steps /= 2
+      num_steps = int(num_steps/2)
 
     plt.show()
 

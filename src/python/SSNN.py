@@ -17,7 +17,7 @@ class SSNN:
   
   def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, 
                num_scales=3, ckpt_load=None, ckpt_save=None, ckpt_load_iter=50, loc_loss_lambda=1, learning_rate=0.001, k_size_factor=3,
-               num_classes=2):
+               num_classes=2, dropout=0.9):
 
     self.hook_num = 1
     self.dims = dims
@@ -29,6 +29,7 @@ class SSNN:
     self.num_kernels = num_kernels
     self.probes_per_kernel = probes_per_kernel
     self.ckpt_load_iter = ckpt_load_iter
+    self.dropout=dropout
 
     # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
@@ -91,7 +92,7 @@ class SSNN:
                             probes_per_kernel=probes_per_kernel,
                             k_size_factor=k_size_factor)
 
-  def hook_layer(self, input_layer, reuse=False, activation=None, dropout=0.9, num_classes=2):
+  def hook_layer(self, input_layer, reuse=False, activation=None, num_classes=2):
     # As defined in Singleshot Multibox Detector, hook layers process
     # intermediates at different scales.
 
@@ -107,16 +108,22 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
-      input_layer = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
+      input_layer_cls = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
-      #input_layer = tf.nn.dropout(input_layer, dropout)
-      # input_layer = tf.nn.dropout(input_layer, dropout)
+
+      input_layer_cls = tf.nn.dropout(input_layer_cls, self.dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
       conf = tf.layers.conv3d(input_layer, filters=num_classes, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
+
+      input_layer_loc = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
+                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+      input_layer_loc = tf.nn.dropout(input_layer_loc, self.dropout)
+
       # Predicts the center coordinate and relative scale of the box
-      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=1, padding='SAME',
+      loc = tf.layers.conv3d(input_layer_loc, filters=6, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       self.hook_num += 1
@@ -124,7 +131,7 @@ class SSNN:
       return conf, loc
 
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes,
-                 learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False, dropout=0.9):
+                 learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel)
@@ -133,7 +140,6 @@ class SSNN:
                                             probes_per_kernel))
 
     num_features = 0
-
     dim_size = probe_steps
     p_dim_size= probe_hook_steps
     num_p_features = 0
@@ -150,7 +156,7 @@ class SSNN:
     # Shape: (batches, x, y, z, features)
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
 
-    #self.dot_product = tf.nn.dropout(self.dot_product, dropout)
+    self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
 
     self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
@@ -159,7 +165,6 @@ class SSNN:
     self.conv0_2 = tf.layers.conv3d(self.conv0_1, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
-
 
     self.pool0 = tf.nn.max_pool3d(self.conv0_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
@@ -172,11 +177,8 @@ class SSNN:
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-
     self.pool1 = tf.nn.max_pool3d(self.conv1_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
-
-
 
     self.conv2_1 = tf.layers.conv3d(self.pool1, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
@@ -185,7 +187,6 @@ class SSNN:
     self.conv2_2 = tf.layers.conv3d(self.conv2_1, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
-
 
     # First hook layer.
     cls_hook1, loc_hook1 = self.hook_layer(self.conv2_2, reuse=reuse_hook, num_classes=num_classes)
@@ -251,7 +252,7 @@ class SSNN:
     self.loss = cls_loss + loc_loss_lambda * loc_loss
 
     # Define optimizer.
-    self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
+    self.optimizer = tf.contrib.opt.NadamOptimizer(learning_rate).minimize(self.loss)
 
   def probe(self, X, shape, probe_path):
     """
@@ -261,7 +262,6 @@ class SSNN:
     pcs = []
     problem_pcs = []
     counter = 0
-    #probe_npy = np.load(probe_path, dtype=np.float32, mmap_mode='w+', shape=())
     probe_memmap = np.memmap(probe_path, dtype='float32', mode='w+', shape=(len(X), self.probe_steps, 
                              self.probe_steps, self.probe_steps, self.num_kernels, self.probes_per_kernel))
     for pc in X:
@@ -270,6 +270,7 @@ class SSNN:
       if process.memory_info().rss // 1e9 > 63.0:
         print("Memory cap surpassed. Exiting...")
         exit()
+
 
       pc = np.array([pc])
       counter += 1
@@ -280,24 +281,20 @@ class SSNN:
       #if counter not in [75, 325, 395, 407, 408]: # matterport
       #if counter not in [124]: # stanford
       if counter not in [140]: # matterport bed
+      # if counter is 1 or counter is 139 or counter is 140 or counter is 141 or counter is 142:
         pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       else:
         problem_pcs.append(counter-1)
       
-      # pcs.append(pc_disc)
-      probe_memmap[counter-1] = pc_disc[0]
+      # probe_memmap[counter-1] = pc_disc[0]
 
-      
       if counter % 1 == 0:
         print('Finished probing {} pointclouds'.format(counter))
+    exit()
       
     self.probe_output = probe_memmap
-
     probe_memmap.flush()
 
-    # pcs = np.array(pcs)
-    # pcs = np.squeeze(pcs, axis=1)
-    # np.save(probe_path, probe_memmap)
     return probe_memmap, problem_pcs
 
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, 
@@ -307,10 +304,6 @@ class SSNN:
 
     for epoch in range(epochs):
       indices = list(range(X_trn.shape[0]))
-      
-      # X_trn = X_trn[indices]
-      # y_trn_cls = y_trn_cls[indices]
-      # y_trn_loc = y_trn_loc[indices]
 
       curr_cl_sum = 0
       curr_ll_sum = 0
@@ -318,9 +311,6 @@ class SSNN:
       for step in range(0, X_trn.shape[0], batch_size): 
         shuffle(indices)
         randomized_indices = indices[step:step+batch_size]
-        # batch_x = X_trn[step:step+batch_size]
-        # batch_y_cls = y_trn_cls[step:step+batch_size]
-        # batch_y_loc = y_trn_loc[step:step+batch_size]
         batch_x = X_trn[randomized_indices]
         batch_y_cls = y_trn_cls[randomized_indices]
         batch_y_loc = y_trn_loc[randomized_indices]
@@ -351,7 +341,7 @@ class SSNN:
           val_loc_loss += vll
           counter += 1
 
-        print("Epoch: {}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, 
+        print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, epochs,
                                                        val_loss / counter, val_cls_loss / counter, val_loc_loss / counter))
       if epoch != 0 and (epoch % save_interval == 0 or epoch == epochs-1) and self.ckpt_save is not None:
         self.save_checkpoint(self.ckpt_save, epoch)
