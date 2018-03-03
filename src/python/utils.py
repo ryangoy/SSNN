@@ -532,6 +532,7 @@ def load_directory_stanford(path, areas, categories):
   input_data = []
   segmentations = []
   labels = []
+  print(categories)
   # Loop through Areas
   if areas is None:
     areas = sorted(listdir(path))
@@ -560,7 +561,7 @@ def load_directory_stanford(path, areas, categories):
         #    annotation.startswith('beam') or annotation.startswith('floor') or\
         #    annotation.startswith('door') or not annotation.endswith('.txt'):
         #   continue
-        if annotation not in categories:
+        if annotation.split('_')[0] not in categories:
           continue
         annotation_pc.append(np.genfromtxt(
                   join(room_path, 'Annotations', annotation), dtype=np.float32))

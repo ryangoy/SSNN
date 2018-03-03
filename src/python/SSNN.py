@@ -1,4 +1,3 @@
-####################################################
 # Defines the SSNN model.
 #                        
 # @author Ryan Goy
@@ -40,7 +39,8 @@ class SSNN:
 
     # Initialize variables
     self.saver = tf.train.Saver()
-    self.sess = tf.Session()
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.75)
+    self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
 
@@ -274,18 +274,20 @@ class SSNN:
 
       pc = np.array([pc])
       counter += 1
-
+      print(counter)
       #if counter not in [211, 302, 328, 779, 785, 922, 940] and (counter >922 or counter ==1):
 
       # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
       #if counter not in [75, 325, 395, 407, 408]: # matterport
-      #if counter not in [124]: # stanford
-      if counter not in [140]: # matterport bed
+      try:
+        if counter not in [1, 2, 3, 124]: # stanford
+      #if counter not in [140]: # matterport bed
       # if counter is 1 or counter is 139 or counter is 140 or counter is 141 or counter is 142:
-        pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
-      else:
-        problem_pcs.append(counter-1)
-      
+          pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
+        else:
+          problem_pcs.append(counter-1)
+      except:
+        print(counter, 'failed')
       # probe_memmap[counter-1] = pc_disc[0]
 
       if counter % 1 == 0:
