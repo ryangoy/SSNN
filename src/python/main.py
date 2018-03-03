@@ -69,17 +69,10 @@ TEST_AREAS = ['Area_6']
 # CATEGORIES = ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
 #                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
-<<<<<<< HEAD
-# CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
-CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
-#CATEGORIES = ['bed']
-#CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
-#CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
-=======
+
 CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
 #CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
 #CATEGORIES = ['bed']
->>>>>>> 3fc9fb7a071ea957684dfaa1b473746fd3de1d7d
 
 # Define constant paths (TODO: make this more organized between datasets)
 intermediate_dir = join(FLAGS.data_dir, 'intermediates')
