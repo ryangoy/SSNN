@@ -500,7 +500,7 @@ def load_directory_matterport(path, train_test_split, is_train, objects):
       flabel = []
       matches = 0
       for ibbox, ilabel in zip(bbox, categories):
-        if ilabel in objects:
+        if objects is None or ilabel in objects:
           fbbox.append(ibbox)
           flabel.append(ilabel)
           matches += 1
@@ -537,7 +537,6 @@ def load_directory_stanford(path, areas, categories):
   input_data = []
   segmentations = []
   labels = []
-  print(categories)
   # Loop through Areas
   if areas is None:
     areas = sorted(listdir(path))
@@ -566,7 +565,7 @@ def load_directory_stanford(path, areas, categories):
         #    annotation.startswith('beam') or annotation.startswith('floor') or\
         #    annotation.startswith('door') or not annotation.endswith('.txt'):
         #   continue
-        if annotation.split('_')[0] not in categories:
+        if (not categories is None) and annotation.split('_')[0] not in categories:
           continue
         annotation_pc.append(np.genfromtxt(
                   join(room_path, 'Annotations', annotation), dtype=np.float32))
