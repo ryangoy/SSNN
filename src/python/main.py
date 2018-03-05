@@ -69,6 +69,7 @@ TEST_AREAS = ['Area_6']
 # CATEGORIES = ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
 #                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
+
 CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
 #CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
 #CATEGORIES = ['bed']
@@ -133,6 +134,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     X_raw, yb_raw, yl, new_ds = load_points_stanford(path=data_dir, X_npy_path=x_path,
                                   ys_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, areas=areas, categories=CATEGORIES)
+    print(np.array(yb_raw.shape))
 
   print("\tLoaded {} pointclouds for {}.".format(len(X_raw), input_type))
   process = psutil.Process(os.getpid())
@@ -147,6 +149,8 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   # X_cont, ys, yl = augment_pointclouds(X_cont, ys, copies=num_copies)
 
   kernel_size = DIMS / NUM_HOOK_STEPS
+  print(np.array(ys).shape)
+  print(np.array(X_cont).shape)
 
   if FLAGS.dataset_name == 'stanford':
     print("\tGenerating bboxes...")

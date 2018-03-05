@@ -1,4 +1,3 @@
-####################################################
 # Defines the SSNN model.
 #                        
 # @author Ryan Goy
@@ -45,7 +44,8 @@ class SSNN:
 
     # Initialize variables
     self.saver = tf.train.Saver()
-    self.sess = tf.Session()
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.75)
+    self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
 
@@ -288,7 +288,7 @@ class SSNN:
       # Batch size of 1.
       pc = np.array([pc])
       counter += 1
-
+      print(counter)
       #if counter not in [211, 302, 328, 779, 785, 922, 940] and (counter >922 or counter ==1):
 
       # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
