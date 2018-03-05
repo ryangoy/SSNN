@@ -3,13 +3,15 @@ import sys
 import functools
 
 
-def compute_accuracy(preds, labels):
+def compute_accuracy(preds, labels, hide_print=False):
     true_arr = []
     false_arr = []
+    ap_arr = []
     total_label_positives = 0
     total_found_positives = 0
     total_pred_positives = 0
     total_found_negatives = 0
+
     for scene in range(len(preds)):
         true_positives = 0
         false_positives = 0
@@ -35,6 +37,7 @@ def compute_accuracy(preds, labels):
             true_arr.append(1)
         else:
             # sometimes we may have multiple predictions map to the same ground truth box
+            # question from Ryan: shouldn't this not happen due to our use of the pred_matched inidicator?
             true_arr.append(min(true_positives/len(labels[scene]), 1))
         if len(preds[scene]) == 0:
             false_arr.append(0)
@@ -44,16 +47,28 @@ def compute_accuracy(preds, labels):
         total_found_positives += true_positives
         total_pred_positives += len(preds[scene])
         total_found_negatives += false_positives
-        print("{}/{} true positives for scene {}.".format(true_positives, max(len(labels[scene]), true_positives), scene))
-        print("{}/{} false positives for scene {}.".format(false_positives, len(preds[scene]), scene))
+        if not hide_print:
+            print("{}/{} true positives for scene {}.".format(true_positives, max(len(labels[scene]), true_positives), scene))
+            print("{}/{} false positives for scene {}.".format(false_positives, len(preds[scene]), scene))
+
+        if len(preds[scene]) == 0 and len(labels[scene]) != 0:
+            ap_arr.append(0)
+        elif len(preds[scene]) == 0 and len(labels[scene]) == 0:
+            ap_arr.append(1)
+        else:
+            ap_arr.append(float(true_positives) / len(preds[scene]))
     avg_true = functools.reduce(lambda x, y: x+y, true_arr)
     avg_false = functools.reduce(lambda x, y: x+y, false_arr)
+    mAP = float(functools.reduce(lambda x, y: x+y, ap_arr)) / len(preds)
 
-    print("Average true positive ratio: {}".format(float(avg_true)/len(true_arr)))
-    print("Average false positive ratio: {}".format(float(avg_false)/len(false_arr)))
-    print("Overall true positive ratio: {}".format(float(total_found_positives)/total_label_positives))
-    print("Overall false positive ratio: {}".format(float(total_found_negatives)/total_pred_positives))
+    if not hide_print:
+        print("Average true positive ratio: {}".format(float(avg_true)/len(true_arr)))
+        print("Average false positive ratio: {}".format(float(avg_false)/len(false_arr)))
+        print("Overall true positive ratio: {}".format(float(total_found_positives)/total_label_positives))
+        print("Overall false positive ratio: {}".format(float(total_found_negatives)/total_pred_positives))
+        print("mAP: {}".format(mAP))
 
+    return mAP
 
 if __name__ == '__main__':
     preds = np.load(sys.argv[1])

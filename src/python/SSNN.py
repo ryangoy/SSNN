@@ -12,6 +12,9 @@ from os.path import isdir, join
 from os import makedirs
 import psutil
 import os
+from utils import output_to_bboxes, flatten_output
+from compute_bbox_accuracy import compute_accuracy
+from utils import softmax
 
 class SSNN:
   
@@ -26,10 +29,12 @@ class SSNN:
     self.probe_output = None
     self.ckpt_save = ckpt_save
     self.ckpt_load = ckpt_load
+    self.probe_hook_steps = probe_hook_steps
     self.num_kernels = num_kernels
     self.probes_per_kernel = probes_per_kernel
     self.ckpt_load_iter = ckpt_load_iter
     self.dropout=dropout
+    self.num_classes=num_classes
 
     # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
@@ -222,38 +227,38 @@ class SSNN:
     self.cls_hooks = [cls_hook1, cls_hook2, cls_hook3]
     self.loc_hooks = [loc_hook1, loc_hook2, loc_hook3]
 
-    cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], num_classes)),
+    self.cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], num_classes)),
                                tf.reshape(cls_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], num_classes)),
                                tf.reshape(cls_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], num_classes))],
                                axis=1)
-    loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 6)),
+    self.loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 6)),
                                tf.reshape(loc_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 6)),
                                tf.reshape(loc_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], 6))],
                                axis=1)
 
     # Define cls loss.
-    cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=cls_hooks_flat)
-    cls_loss = tf.reduce_mean(cls_loss)
+    cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=self.cls_hooks_flat)
+    cls_loss = tf.reduce_sum(cls_loss)
     
 
     # Define loc loss.
-    diff = self.y_ph_loc - loc_hooks_flat
+    diff = self.y_ph_loc - self.loc_hooks_flat
     #loc_loss = tf.square(self.y_ph_loc - loc_hooks_flat)
     # loc_loss_L2 = 0.5*(diff**2)
     # loc_loss_L1 = tf.abs(diff) - 0.5
     # smooth_cond = tf.less(tf.abs(diff), 1.0)
     # loc_loss = tf.where(smooth_cond, loc_loss_L1, loc_loss_L2)
-    loc_loss = tf.abs(diff)
+    loc_loss = tf.square(diff)
 
     # Mask out the voxels that don't have a bounding box associated with it. Note that y_ph_cls holds one-hot vectors.
-    #ia_cast = tf.expand_dims(tf.cast(tf.reduce_sum(self.y_ph_cls[...,1:], axis=-1), tf.float32), -1)
-    ia_cast = tf.expand_dims(tf.cast(self.y_ph_cls[...,1], tf.float32), -1)
+    ia_cast = tf.expand_dims(tf.cast(tf.reduce_sum(self.y_ph_cls[...,1:], axis=-1), tf.float32), -1)
+    #ia_cast = tf.expand_dims(tf.cast(self.y_ph_cls[...,1], tf.float32), -1)
     ia_dup = tf.tile(ia_cast, [1,1,6])
-    loc_loss = tf.reduce_mean(tf.multiply(loc_loss, ia_dup))
-    # N = tf.reduce_sum(ia_cast)
+    loc_loss = tf.reduce_sum(tf.multiply(loc_loss, ia_dup))
+    N = tf.reduce_sum(ia_cast)
 
-    # loc_loss /= N
-    # cls_loss /= N
+    loc_loss /= N
+    cls_loss /= N
 
     self.cls_loss = cls_loss
     self.loc_loss = loc_loss
@@ -276,9 +281,9 @@ class SSNN:
     for pc in X:
 
       process = psutil.Process(os.getpid())
-      if process.memory_info().rss // 1e9 > 50.0:
-        print("[ERROR] Memory cap surpassed. Exiting...")
-        exit()
+      if process.memory_info().rss // 1e9 > 63.0:
+        print("[WARRNING] Memory cap surpassed. Flushing to hard disk.")
+        probe_memmap.flush()
 
       # Batch size of 1.
       pc = np.array([pc])
@@ -287,9 +292,9 @@ class SSNN:
       #if counter not in [211, 302, 328, 779, 785, 922, 940] and (counter >922 or counter ==1):
 
       # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
-      #if counter not in [75, 325, 395, 407, 408]: # matterport
+      if counter not in [75, 325, 395, 407, 408, 641]: # matterport
       #if counter not in [124]: # stanford
-      if counter not in [140]: # matterport bed
+      # if counter not in [140]: # matterport bed
       #if counter is 1 or counter is 139 or counter is 140 or counter is 141 or counter is 142:
         pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
       else:
@@ -306,7 +311,7 @@ class SSNN:
     return probe_memmap, problem_pcs
 
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, 
-                y_val_loc=None, epochs=10, batch_size=4, display_step=100, save_interval=100):
+                y_val_loc=None, val_bboxes=None, epochs=10, batch_size=4, display_step=100, save_interval=100):
 
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
 
@@ -328,9 +333,12 @@ class SSNN:
         curr_cl_sum += cl
         curr_ll_sum += ll
         counter += 1
+
+
         if step % display_step < batch_size and step != 0:
           print("Epoch: {}/{}, Iter: {}, Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, epochs, 
-                                            step - (step % display_step), curr_cl_sum / counter, curr_ll_sum / counter))
+                                            step - (step % display_step), 
+                                             curr_cl_sum / counter, curr_ll_sum / counter))
           curr_cl_sum = 0
           curr_ll_sum = 0
           counter = 0
@@ -340,19 +348,32 @@ class SSNN:
         val_cls_loss = 0
         val_loc_loss = 0
         counter = 0
+        val_cls_preds = []
+        val_loc_preds = []
+
         for step in range(0, X_val.shape[0], batch_size):
           val_batch_x = X_val[step:step+batch_size]
           val_batch_y_cls = y_val_cls[step:step+batch_size]
           val_batch_y_loc = y_val_loc[step:step+batch_size]
-          vl, vcl, vll = self.sess.run([self.loss, self.cls_loss, self.loc_loss],
+          vl, vcl, vll, val_cls_pred, val_loc_pred = self.sess.run([self.loss, self.cls_loss, self.loc_loss, self.cls_hooks_flat, self.loc_hooks_flat],
                       feed_dict={self.X_ph: val_batch_x, self.y_ph_cls: val_batch_y_cls, self.y_ph_loc: val_batch_y_loc})
+
+          val_cls_preds.append(val_cls_pred)
+          val_loc_preds.append(val_loc_pred)
           val_loss += vl
           val_cls_loss += vcl
           val_loc_loss += vll
           counter += 1
 
-        print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, epochs,
-                                                       val_loss / counter, val_cls_loss / counter, val_loc_loss / counter))
+        val_cls_preds = np.concatenate(val_cls_preds, axis=0)
+        val_loc_preds = np.concatenate(val_loc_preds, axis=0)
+        val_cls_preds = np.apply_along_axis(softmax, 2, val_cls_preds)
+        val_bbox_preds, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
+                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0.5)
+        mAP = compute_accuracy(val_bbox_preds, val_bboxes, hide_print=True)
+
+        print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f}.".format(epoch, epochs,
+                                                       val_loss / counter, val_cls_loss / counter, mAP))
       if epoch != 0 and (epoch % save_interval == 0 or epoch == epochs-1) and self.ckpt_save is not None:
         self.save_checkpoint(self.ckpt_save, epoch)
 
@@ -364,6 +385,10 @@ class SSNN:
       hooks = self.sess.run(self.cls_hooks + self.loc_hooks, feed_dict={self.X_ph: batch_x})
       cls_preds.append(hooks[:3])
       loc_preds.append(hooks[3:])
+    print len(cls_preds)
+    print len(cls_preds[0])
+    print len(cls_preds[0][0])
+    print cls_preds[0][0].shape
     return cls_preds, loc_preds
 
   def save_checkpoint(self, checkpoint_dir, step, name='ssnn_model'):

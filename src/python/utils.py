@@ -33,11 +33,14 @@ def flatten_output(cls_preds, loc_preds, steps, res_factor, num_classes):
   
   assert len(cls_preds) == len(loc_preds), "Cls and loc prediction arrays are not the same size."
 
+  print("num scenes: {}".format(len(cls_preds)))
   for scene in range(len(cls_preds)):
     res_factor = 0
     cls_preds_flat = []
     loc_preds_flat = []
+
     for cls_pred, loc_pred in zip(cls_preds[scene], loc_preds[scene]):
+      print("shape of scene: {}".format(cls_pred.shape))
       cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), num_classes)))
       loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), 6)))
       res_factor += 1
@@ -165,11 +168,13 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
   all_bboxes = np.array(all_bboxes)
   all_cls_vals = np.array(all_cls_vals)
 
-  print('Saving bbox predictions to {}'.format(bbox_path))
+  if bbox_path is not None:
+    print('Saving bbox predictions to {}'.format(bbox_path))
 
-  np.save(bbox_path, all_bboxes)
-  print('Saving bbox cls predictions to {}'.format(cls_path))
-  np.save(cls_path, all_cls_vals)
+    np.save(bbox_path, all_bboxes)
+  if cls_path is not None:
+    print('Saving bbox cls predictions to {}'.format(cls_path))
+    np.save(cls_path, all_cls_vals)
 
 
 
