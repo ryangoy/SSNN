@@ -33,14 +33,12 @@ def flatten_output(cls_preds, loc_preds, steps, res_factor, num_classes):
   
   assert len(cls_preds) == len(loc_preds), "Cls and loc prediction arrays are not the same size."
 
-  print("num scenes: {}".format(len(cls_preds)))
   for scene in range(len(cls_preds)):
     res_factor = 0
     cls_preds_flat = []
     loc_preds_flat = []
 
     for cls_pred, loc_pred in zip(cls_preds[scene], loc_preds[scene]):
-      print("shape of scene: {}".format(cls_pred.shape))
       cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), num_classes)))
       loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), 6)))
       res_factor += 1

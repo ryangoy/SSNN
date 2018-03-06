@@ -34,6 +34,7 @@ def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_s
     weights = tf.Variable(tf.random_uniform(shape=[num_kernels, probes_per_kernel, 3], minval=minval, maxval=maxval), name='probe3D')
     #weights = tf.Variable(tf.truncated_normal(shape=[num_kernels, probes_per_kernel, 3], mean = (minval+maxval)/2, stddev=(maxval-minval)/2), name='probe3D')
     output = probe_module.probe(inp, weights, xdim=dims[0], ydim=dims[1], zdim=dims[2], steps=steps[0], ksize=kernel_size[0])
+
     return output
 
 def dot_product(inputs, filters=1, stddev=0.01, name='dot_product'):

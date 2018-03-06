@@ -113,22 +113,22 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
-      # input_layer_cls = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
-      #                         strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+      input_layer_cls = tf.layers.conv3d(input_layer, filters=32, kernel_size=3, padding='SAME',
+                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-      # input_layer_cls = tf.nn.dropout(input_layer_cls, self.dropout)
+      input_layer_cls = tf.nn.dropout(input_layer_cls, self.dropout)
       # Predicts the confidence of whether or not an objects exists per feature.
-      conf = tf.layers.conv3d(input_layer, filters=num_classes, kernel_size=1, padding='SAME',
+      conf = tf.layers.conv3d(input_layer_cls, filters=num_classes, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 
-      # input_layer_loc = tf.layers.conv3d(input_layer, filters=32, kernel_size=1, padding='SAME',
-      #                         strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
+      input_layer_loc = tf.layers.conv3d(input_layer, filters=32, kernel_size=3, padding='SAME',
+                              strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-      # input_layer_loc = tf.nn.dropout(input_layer_loc, self.dropout)
+      input_layer_loc = tf.nn.dropout(input_layer_loc, self.dropout)
 
       # Predicts the center coordinate and relative scale of the box
-      loc = tf.layers.conv3d(input_layer, filters=6, kernel_size=1, padding='SAME',
+      loc = tf.layers.conv3d(input_layer_loc, filters=6, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       self.hook_num += 1
@@ -161,7 +161,7 @@ class SSNN:
     # Shape: (batches, x, y, z, features)
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
 
-    # self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
+    self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
 
     self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
