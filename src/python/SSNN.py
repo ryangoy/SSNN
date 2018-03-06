@@ -385,10 +385,10 @@ class SSNN:
       hooks = self.sess.run(self.cls_hooks + self.loc_hooks, feed_dict={self.X_ph: batch_x})
       cls_preds.append(hooks[:3])
       loc_preds.append(hooks[3:])
-    print len(cls_preds)
-    print len(cls_preds[0])
-    print len(cls_preds[0][0])
-    print cls_preds[0][0].shape
+    print(len(cls_preds))
+    print(len(cls_preds[0]))
+    print(len(cls_preds[0][0]))
+    print(cls_preds[0][0].shape)
     return cls_preds, loc_preds
 
   def save_checkpoint(self, checkpoint_dir, step, name='ssnn_model'):
