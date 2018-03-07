@@ -35,7 +35,7 @@ def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_s
     #weights = tf.Variable(tf.truncated_normal(shape=[num_kernels, probes_per_kernel, 3], mean = (minval+maxval)/2, stddev=(maxval-minval)/2), name='probe3D')
     output = probe_module.probe(inp, weights, xdim=dims[0], ydim=dims[1], zdim=dims[2], steps=steps[0], ksize=kernel_size[0])
 
-    return output
+    return output, weights
 
 def dot_product(inputs, filters=1, stddev=0.01, name='dot_product'):
     """
@@ -44,7 +44,7 @@ def dot_product(inputs, filters=1, stddev=0.01, name='dot_product'):
     assert len(inputs.shape) == 6, "Dot product expects input of shape (batches, x, y, z, kernels, probes_per_kernel)"
     # Weight dims are similar to convolutional weights:
     #   Convolutional weights are (kernel_width, kernel_height, num_input_features, num_output_features)
-    #   Dot product weights are (probes, num_input_features, num_output_features)
+    #   Dot product weights are (kernels, probes_per_kernel, num_output_features)
     weights = tf.Variable(tf.truncated_normal(shape=inputs.shape[-2:].as_list() + [filters], stddev=stddev), name=name)
     
     # Hooray for Tensorflow methods :)

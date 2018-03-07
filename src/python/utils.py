@@ -301,7 +301,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
               min_LL = np.minimum(fb_LL, bbox_LL)
               ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
 
-              if ji > 0.1:
+              if ji > 0.25:
                 #cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
                 cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = categories[scene_id][bbox_id]
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord

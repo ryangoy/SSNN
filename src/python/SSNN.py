@@ -91,7 +91,7 @@ class SSNN:
     self.points_ph = tf.placeholder(tf.float32, (None, None, 3))
 
     # Shape: (batches, x, y, z, probes, samples per probe)
-    self.probe_op = probe3d(self.points_ph, dims, 
+    self.probe_op, self.probe_coords = probe3d(self.points_ph, dims, 
                             steps=steps, 
                             num_kernels=num_kernels, 
                             probes_per_kernel=probes_per_kernel,
@@ -236,32 +236,31 @@ class SSNN:
                                tf.reshape(loc_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], 6))],
                                axis=1)
 
-    # Define cls loss.
-    cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=self.cls_hooks_flat)
-    cls_loss = tf.reduce_sum(cls_loss)
-    
-
-    # Define loc loss.
-    diff = self.y_ph_loc - self.loc_hooks_flat
-    #loc_loss = tf.square(self.y_ph_loc - loc_hooks_flat)
-    # loc_loss_L2 = 0.5*(diff**2)
-    # loc_loss_L1 = tf.abs(diff) - 0.5
-    # smooth_cond = tf.less(tf.abs(diff), 1.0)
-    # loc_loss = tf.where(smooth_cond, loc_loss_L1, loc_loss_L2)
-    loc_loss = tf.square(diff)
 
     # Mask out the voxels that don't have a bounding box associated with it. Note that y_ph_cls holds one-hot vectors.
-    ia_cast = tf.expand_dims(tf.cast(tf.reduce_sum(self.y_ph_cls[...,1:], axis=-1), tf.float32), -1)
-    #ia_cast = tf.expand_dims(tf.cast(self.y_ph_cls[...,1], tf.float32), -1)
-    ia_dup = tf.tile(ia_cast, [1,1,6])
-    loc_loss = tf.reduce_sum(tf.multiply(loc_loss, ia_dup))
-    N = tf.reduce_sum(ia_cast)
+    pos_mask = tf.cast(tf.reduce_sum(self.y_ph_cls[...,1:], axis=-1), tf.float32)
+    pos_mask_exp = tf.expand_dims(pos_mask, -1)
+    pos_mask_loc = tf.tile(pos_mask_exp, [1,1,6])
+    neg_mask = tf.cast(self.y_ph_cls[...,0], tf.float32)
+    neg_mask_exp = tf.expand_dims(neg_mask, -1)
+    neg_mask_loc = tf.tile(neg_mask_exp, [1,1,6])
 
-    loc_loss /= N
-    cls_loss /= N
+    N_pos = tf.reduce_sum(pos_mask)
+    N_neg = tf.reduce_sum(neg_mask)
+
+    # Define cls loss.
+    cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=self.cls_hooks_flat)
+
+    cls_loss = tf.multiply(pos_mask, cls_loss) / N_pos + 100* tf.multiply(neg_mask, cls_loss) / N_neg
+    cls_loss = tf.reduce_sum(cls_loss)
+    
+    # Define loc loss.
+    loc_loss = tf.square(self.y_ph_loc - self.loc_hooks_flat)
+    loc_loss = tf.reduce_sum(tf.multiply(loc_loss, pos_mask_loc)) / N_pos
 
     self.cls_loss = cls_loss
     self.loc_loss = loc_loss
+
     # Combine losses linearly.
     self.loss = cls_loss + loc_loss_lambda * loc_loss
 
@@ -288,15 +287,16 @@ class SSNN:
       # Batch size of 1.
       pc = np.array([pc])
       counter += 1
-      print(counter)
       #if counter not in [211, 302, 328, 779, 785, 922, 940] and (counter >922 or counter ==1):
 
       # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
-      if counter not in [75, 325, 395, 407, 408, 641]: # matterport
+      #if counter not in [75, 325, 395, 407, 408, 641]: # matterport
       #if counter not in [124]: # stanford
-      # if counter not in [140]: # matterport bed
-      #if counter is 1 or counter is 139 or counter is 140 or counter is 141 or counter is 142:
-        pc_disc = self.sess.run(self.probe_op, feed_dict={self.points_ph: pc})
+      #if counter not in [140]: # matterport bed
+      if counter not in [117, 218]: # matterport toilet
+      #if counter not in [225, 444, 445]:  # matterport chair
+      # if counter is 1 or counter > 445:
+        pc_disc, probe_coords = self.sess.run([self.probe_op, self.probe_coords], feed_dict={self.points_ph: pc})
       else:
         problem_pcs.append(counter-1)
       
@@ -306,7 +306,11 @@ class SSNN:
         print('\t\tFinished probing {} pointclouds'.format(counter))
       
     self.probe_output = probe_memmap
+
     probe_memmap.flush()
+
+    # DEBUG
+    np.save('probe_coords.npy', probe_coords)
 
     return probe_memmap, problem_pcs
 
@@ -382,13 +386,13 @@ class SSNN:
     loc_preds = []
     for i in range(0, X_test.shape[0], batch_size):
       batch_x = X_test[i:i+batch_size]
-      hooks = self.sess.run(self.cls_hooks + self.loc_hooks, feed_dict={self.X_ph: batch_x})
+      hooks, dp_weights = self.sess.run([self.cls_hooks + self.loc_hooks, self.dp_weights], feed_dict={self.X_ph: batch_x})
       cls_preds.append(hooks[:3])
       loc_preds.append(hooks[3:])
-    print len(cls_preds)
-    print len(cls_preds[0])
-    print len(cls_preds[0][0])
-    print cls_preds[0][0].shape
+
+      # DEBUG
+      np.save('dp_weights.npy', dp_weights)
+
     return cls_preds, loc_preds
 
   def save_checkpoint(self, checkpoint_dir, step, name='ssnn_model'):

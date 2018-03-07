@@ -41,20 +41,20 @@ flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported da
 flags.DEFINE_float('checkpoint_save_interval', 10, 'If checkpoint_save_interval is defined, then sets save interval.')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 300, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 200, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.05, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
-flags.DEFINE_float('learning_rate', 0.000005, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
+flags.DEFINE_float('learning_rate', 0.0001, 'Learning rate for training.')
+flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 0.9, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 64, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 1, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 8, 'Batch size for training.')
-flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 32, 'Number of sample points each kernel has.')
-flags.DEFINE_integer('num_dot_layers', 8, 'Number of dot product layers per kernel')
+flags.DEFINE_integer('num_kernels', 1, 'Number of kernels to probe with.')
+flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
+flags.DEFINE_integer('num_dot_layers', 32, 'Number of dot product layers per kernel')
 
 # DO NOT CHANGE
 NUM_SCALES = 3
@@ -70,9 +70,10 @@ TEST_AREAS = ['Area_6']
 #                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
 
-CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
+#CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
 #CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
 #CATEGORIES = ['bed']
+CATEGORIES = ['toilet']
 
 
 # Define constant paths (TODO: make this more organized between datasets)
