@@ -293,15 +293,15 @@ class SSNN:
       # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
       #if counter not in [75, 325, 395, 407, 408, 641]: # matterport
       #if counter not in [124]: # stanford
-      #if counter not in [140]: # matterport bed
+      if counter not in [140]: # matterport bed
       #if counter not in [117, 218]: # matterport toilet
       #if counter not in [80, 397]: # matterport table
       #if counter not in [225, 444, 445]:  # matterport chair
       #if counter not in [29, 77]: # matterport bathtub
       # if counter is 1 or counter > 445:
-      pc_disc, probe_coords = self.sess.run([self.probe_op, self.probe_coords], feed_dict={self.points_ph: pc})
-      #else:
-      #  problem_pcs.append(counter-1)
+        pc_disc, probe_coords = self.sess.run([self.probe_op, self.probe_coords], feed_dict={self.points_ph: pc})
+      else:
+        problem_pcs.append(counter-1)
       
       probe_memmap[counter-1] = pc_disc[0]
 

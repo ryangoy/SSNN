@@ -49,7 +49,7 @@ flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params
 flags.DEFINE_float('dropout', 1, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
-flags.DEFINE_integer('num_steps', 64, 'Number of intervals to sample from in each xyz direction.')
+flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 1, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 8, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 1, 'Number of kernels to probe with.')
