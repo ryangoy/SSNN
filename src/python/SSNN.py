@@ -18,7 +18,7 @@ from utils import softmax
 class SSNN:
   
   def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, 
-               num_scales=3, ckpt_load=None, ckpt_save=None, ckpt_load_iter=50, loc_loss_lambda=1, learning_rate=0.001, k_size_factor=3,
+               num_scales=3, ckpt_load=None, ckpt_save=None, ckpt_load_iter=50, loc_loss_lambda=1, learning_rate=0.0001, k_size_factor=1,
                num_classes=2, dropout=0.9):
 
     self.hook_num = 1
@@ -44,8 +44,9 @@ class SSNN:
 
     # Initialize variables
     self.saver = tf.train.Saver()
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.75)
-    self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+    # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.75)
+    # self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+    self.sess = tf.Session()
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
 
@@ -163,18 +164,18 @@ class SSNN:
 
     self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
 
-    self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
-                      strides=1, padding='SAME', activation=tf.nn.relu, 
-                      kernel_initializer=tf.contrib.layers.xavier_initializer())
-    # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
-    self.conv0_2 = tf.layers.conv3d(self.conv0_1, filters=64, kernel_size=3, 
-                      strides=1, padding='SAME', activation=tf.nn.relu, 
-                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+    # self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
+    #                   strides=1, padding='SAME', activation=tf.nn.relu, 
+    #                   kernel_initializer=tf.contrib.layers.xavier_initializer())
+    # # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
+    # self.conv0_2 = tf.layers.conv3d(self.conv0_1, filters=64, kernel_size=3, 
+    #                   strides=1, padding='SAME', activation=tf.nn.relu, 
+    #                   kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.pool0 = tf.nn.max_pool3d(self.conv0_2, ksize=[1, 2, 2, 2, 1], 
-                                  strides=[1, 2, 2, 2, 1], padding='SAME')
+    # self.pool0 = tf.nn.max_pool3d(self.conv0_2, ksize=[1, 2, 2, 2, 1], 
+    #                               strides=[1, 2, 2, 2, 1], padding='SAME')
     
-    self.conv1_1 = tf.layers.conv3d(self.pool0, filters=64, kernel_size=3, 
+    self.conv1_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
@@ -251,7 +252,7 @@ class SSNN:
     # Define cls loss.
     cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=self.cls_hooks_flat)
 
-    cls_loss = tf.multiply(pos_mask, cls_loss) / N_pos + 100* tf.multiply(neg_mask, cls_loss) / N_neg
+    cls_loss = tf.multiply(pos_mask, cls_loss) / N_pos + 300* tf.multiply(neg_mask, cls_loss) / N_neg
     cls_loss = tf.reduce_sum(cls_loss)
     
     # Define loc loss.
@@ -293,12 +294,14 @@ class SSNN:
       #if counter not in [75, 325, 395, 407, 408, 641]: # matterport
       #if counter not in [124]: # stanford
       #if counter not in [140]: # matterport bed
-      if counter not in [117, 218]: # matterport toilet
+      #if counter not in [117, 218]: # matterport toilet
+      #if counter not in [80, 397]: # matterport table
       #if counter not in [225, 444, 445]:  # matterport chair
+      #if counter not in [29, 77]: # matterport bathtub
       # if counter is 1 or counter > 445:
-        pc_disc, probe_coords = self.sess.run([self.probe_op, self.probe_coords], feed_dict={self.points_ph: pc})
-      else:
-        problem_pcs.append(counter-1)
+      pc_disc, probe_coords = self.sess.run([self.probe_op, self.probe_coords], feed_dict={self.points_ph: pc})
+      #else:
+      #  problem_pcs.append(counter-1)
       
       probe_memmap[counter-1] = pc_disc[0]
 
