@@ -70,9 +70,9 @@ TEST_AREAS = ['Area_6']
 #                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
 
-CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
-#CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
-CATEGORIES = ['bed']
+#CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
+CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
+#CATEGORIES = ['bed']
 #CATEGORIES = ['table']
 #CATEGORIES = ['nightstand']
 
