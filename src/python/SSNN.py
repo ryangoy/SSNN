@@ -114,19 +114,24 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
-      input_layer_cls = tf.layers.conv3d(input_layer, filters=32, kernel_size=3, padding='SAME',
+      input_layer_cls = tf.layers.conv3d(input_layer, filters=64, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
+
+
       input_layer_cls = tf.nn.dropout(input_layer_cls, self.dropout)
+
+      #input_layer_cls = tf.contrib.layers.batch_norm(input_layer_cls)
       # Predicts the confidence of whether or not an objects exists per feature.
       conf = tf.layers.conv3d(input_layer_cls, filters=num_classes, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 
-      input_layer_loc = tf.layers.conv3d(input_layer, filters=32, kernel_size=3, padding='SAME',
+      input_layer_loc = tf.layers.conv3d(input_layer, filters=64, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       input_layer_loc = tf.nn.dropout(input_layer_loc, self.dropout)
+      # input_layer_loc = tf.contrib.layers.batch_norm(input_layer_loc)
 
       # Predicts the center coordinate and relative scale of the box
       loc = tf.layers.conv3d(input_layer_loc, filters=6, kernel_size=1, padding='SAME',
@@ -160,6 +165,7 @@ class SSNN:
     self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, 6))
 
     # Shape: (batches, x, y, z, features)
+
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
 
     self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
@@ -200,11 +206,11 @@ class SSNN:
     self.pool2 = tf.nn.max_pool3d(self.conv2_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
-    self.conv3_1 = tf.layers.conv3d(self.pool2, filters=64, kernel_size=3,
+    self.conv3_1 = tf.layers.conv3d(self.pool2, filters=128, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=64, kernel_size=3,
+    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=128, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -214,11 +220,11 @@ class SSNN:
     self.pool3 = tf.nn.max_pool3d(self.conv3_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
-    self.conv4_1 = tf.layers.conv3d(self.pool3, filters=64, kernel_size=3,
+    self.conv4_1 = tf.layers.conv3d(self.pool3, filters=256, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.conv4_2 = tf.layers.conv3d(self.conv4_1 , filters=64, kernel_size=3,
+    self.conv4_2 = tf.layers.conv3d(self.conv4_1 , filters=256, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -252,7 +258,7 @@ class SSNN:
     # Define cls loss.
     cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=self.cls_hooks_flat)
 
-    cls_loss = tf.multiply(pos_mask, cls_loss) / N_pos + 300* tf.multiply(neg_mask, cls_loss) / N_neg
+    cls_loss = tf.multiply(pos_mask, cls_loss) / N_pos + 500* tf.multiply(neg_mask, cls_loss) / N_neg
     cls_loss = tf.reduce_sum(cls_loss)
     
     # Define loc loss.
@@ -293,12 +299,12 @@ class SSNN:
       # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
       #if counter not in [75, 325, 395, 407, 408, 641]: # matterport
       #if counter not in [124]: # stanford
-      if counter not in [140]: # matterport bed
+      #if counter not in [140]: # matterport bed
       #if counter not in [117, 218]: # matterport toilet
       #if counter not in [80, 397]: # matterport table
       #if counter not in [225, 444, 445]:  # matterport chair
       #if counter not in [29, 77]: # matterport bathtub
-      # if counter is 1 or counter > 445:
+      if counter not in []:
         pc_disc, probe_coords = self.sess.run([self.probe_op, self.probe_coords], feed_dict={self.points_ph: pc})
       else:
         problem_pcs.append(counter-1)

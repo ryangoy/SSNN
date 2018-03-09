@@ -45,16 +45,16 @@ flags.DEFINE_integer('num_epochs', 300, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.05, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
-flags.DEFINE_float('dropout', 1, 'Keep probability for layers with dropout.')
+flags.DEFINE_float('loc_loss_lambda', 0.5, 'Relative weight of localization params.')
+flags.DEFINE_float('dropout', 0.8, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
-flags.DEFINE_integer('k_size_factor', 1, 'Size of the probing kernel with respect to the step size.')
-flags.DEFINE_integer('batch_size', 8, 'Batch size for training.')
+flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
+flags.DEFINE_integer('batch_size', 16, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 1, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
-flags.DEFINE_integer('num_dot_layers', 32, 'Number of dot product layers per kernel')
+flags.DEFINE_integer('probes_per_kernel', 128, 'Number of sample points each kernel has.')
+flags.DEFINE_integer('num_dot_layers', 64, 'Number of dot product layers per kernel')
 
 # DO NOT CHANGE
 NUM_SCALES = 3
@@ -66,13 +66,14 @@ TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5']
 TEST_AREAS = ['Area_6']
 
 # Define categories.
-# CATEGORIES = ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
-#                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
-#                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
+# CATEGORIES = ['box', 'picture', 'pillow', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
+#               'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'radiator', 'bookcase',
+#               'toilet paper', 'toilet', 'chair', 'bookshelf', 'dresser', 'table']
+CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
 
-CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
+#CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
 #CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
-CATEGORIES = ['bed']
+#CATEGORIES = []
 #CATEGORIES = ['table']
 #CATEGORIES = ['nightstand']
 

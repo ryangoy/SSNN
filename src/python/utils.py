@@ -498,7 +498,7 @@ def load_directory_matterport(path, train_test_split, is_train, objects):
       flabel = []
       matches = 0
       for ibbox, ilabel in zip(bbox, categories):
-        if objects is None or ilabel in objects:
+        if len(objects) == 0 or ilabel in objects:
           fbbox.append(ibbox)
           flabel.append(ilabel)
           matches += 1
