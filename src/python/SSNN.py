@@ -319,7 +319,7 @@ class SSNN:
     probe_memmap.flush()
 
     # DEBUG
-    np.save('probe_coords.npy', probe_coords)
+    # np.save('probe_coords.npy', probe_coords)
 
     return probe_memmap, problem_pcs
 
@@ -328,6 +328,9 @@ class SSNN:
 
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
 
+    train_losses = []
+    val_losses = []
+    mAPs = []
     for epoch in range(epochs):
       indices = list(range(X_trn.shape[0]))
 
@@ -352,6 +355,7 @@ class SSNN:
           print("Epoch: {}/{}, Iter: {}, Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, epochs, 
                                             step - (step % display_step), 
                                              curr_cl_sum / counter, curr_ll_sum / counter))
+          train_losses.append((curr_cl_sum + curr_ll_sum)/counter)
           curr_cl_sum = 0
           curr_ll_sum = 0
           counter = 0
@@ -386,9 +390,15 @@ class SSNN:
         mAP = compute_accuracy(val_bbox_preds, val_bboxes, hide_print=True)
 
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f}.".format(epoch, epochs,
-                                                       val_loss / counter, val_cls_loss / counter, mAP))
+                                                       val_cls_loss / counter, val_loc_loss / counter, mAP))
+        val_losses.append((val_cls_loss + val_loc_loss)/counter)
+        mAPs.append(mAP)
+
       if epoch != 0 and (epoch % save_interval == 0 or epoch == epochs-1) and self.ckpt_save is not None:
         self.save_checkpoint(self.ckpt_save, epoch)
+    np.save('mAPs.npy', np.array(mAPs))
+    np.save('val_losses.npy', np.array(val_losses))
+    np.save('train_losses.npy', np.array(train_losses))
 
   def test(self, X_test, save_dir=None, batch_size=1):
     cls_preds = []
@@ -400,7 +410,7 @@ class SSNN:
       loc_preds.append(hooks[3:])
 
       # DEBUG
-      np.save('dp_weights.npy', dp_weights)
+      # np.save('dp_weights.npy', dp_weights)
 
     return cls_preds, loc_preds
 
