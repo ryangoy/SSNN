@@ -18,24 +18,29 @@ def compute_map(preds, cls_vals, labels, categories):
         sorted_indices = sorted(conf_indices, key=lambda x: conf_class[x[0]][x[1]])
         for j in range(len(sorted_indices))
             room_idx = sorted_indices[j][0]
+            box_matched = False
             for k in range(len(labels_class[room_idx])):
                 # TODO compute overlap
                 
                 if overlap > 0.5:
                     correct += 1
+                    box_matched = True
                     if (room_idx, k) not in matched_labels: 
                         num_labels_matched += 1
                         match_labels.add((room_idx, k))
-                else:
-                    incorrect += 1
-                curr_recall = num_labels_matched / num_labels
-                curr_precision = correct / (correct + incorrect)
+                    break
+            
+            if not box_matched:
+                incorrect += 1
+            curr_recall = num_labels_matched / num_labels
+            curr_precision = correct / (correct + incorrect)
                 
-                for rr in range(len(recall_range)):
-                    if curr_recall < recall_range[rr]:
-                        break
-                    if curr_precision > best_precisions[rr]:
-                        best_precisions[rr] = curr_precision 
+            for rr in range(len(recall_range)):
+                if curr_recall < recall_range[rr]:
+                    break
+                if curr_precision > best_precisions[rr]:
+                    best_precisions[rr] = curr_precision 
+    
         ap = np.mean(best_precisions)
         print('category', categories[i], 'ap', ap)
         aps[i] = ap
