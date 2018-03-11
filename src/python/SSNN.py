@@ -114,19 +114,24 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
-      input_layer_cls = tf.layers.conv3d(input_layer, filters=32, kernel_size=3, padding='SAME',
+      input_layer_cls = tf.layers.conv3d(input_layer, filters=64, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
+
+
       input_layer_cls = tf.nn.dropout(input_layer_cls, self.dropout)
+
+      #input_layer_cls = tf.contrib.layers.batch_norm(input_layer_cls)
       # Predicts the confidence of whether or not an objects exists per feature.
       conf = tf.layers.conv3d(input_layer_cls, filters=num_classes, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 
-      input_layer_loc = tf.layers.conv3d(input_layer, filters=32, kernel_size=3, padding='SAME',
+      input_layer_loc = tf.layers.conv3d(input_layer, filters=64, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       input_layer_loc = tf.nn.dropout(input_layer_loc, self.dropout)
+      # input_layer_loc = tf.contrib.layers.batch_norm(input_layer_loc)
 
       # Predicts the center coordinate and relative scale of the box
       loc = tf.layers.conv3d(input_layer_loc, filters=6, kernel_size=1, padding='SAME',
@@ -160,6 +165,7 @@ class SSNN:
     self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, 6))
 
     # Shape: (batches, x, y, z, features)
+
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
 
     self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
@@ -200,11 +206,11 @@ class SSNN:
     self.pool2 = tf.nn.max_pool3d(self.conv2_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
-    self.conv3_1 = tf.layers.conv3d(self.pool2, filters=64, kernel_size=3,
+    self.conv3_1 = tf.layers.conv3d(self.pool2, filters=128, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=64, kernel_size=3,
+    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=128, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -214,11 +220,11 @@ class SSNN:
     self.pool3 = tf.nn.max_pool3d(self.conv3_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
-    self.conv4_1 = tf.layers.conv3d(self.pool3, filters=64, kernel_size=3,
+    self.conv4_1 = tf.layers.conv3d(self.pool3, filters=256, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.conv4_2 = tf.layers.conv3d(self.conv4_1 , filters=64, kernel_size=3,
+    self.conv4_2 = tf.layers.conv3d(self.conv4_1 , filters=256, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -254,7 +260,7 @@ class SSNN:
 
     # Define cls loss.
     cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=logits)
-    neg_loss = 300* tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
+    neg_loss = 500* tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
     pos_loss = tf.multiply(pos_mask, cls_loss) / (N_pos + 1)
 
     cls_loss = neg_loss + pos_loss 
@@ -299,12 +305,12 @@ class SSNN:
       # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
       #if counter not in [75, 325, 395, 407, 408, 641]: # matterport
       #if counter not in [124]: # stanford
-      if counter not in [140]: # matterport bed
+      #if counter not in [140]: # matterport bed
       #if counter not in [117, 218]: # matterport toilet
       #if counter not in [80, 397]: # matterport table
       #if counter not in [225, 444, 445]:  # matterport chair
       #if counter not in [29, 77]: # matterport bathtub
-      # if counter is 1 or counter > 445:
+      if counter not in []:
         pc_disc, probe_coords = self.sess.run([self.probe_op, self.probe_coords], feed_dict={self.points_ph: pc})
       else:
         problem_pcs.append(counter-1)
@@ -319,7 +325,7 @@ class SSNN:
     probe_memmap.flush()
 
     # DEBUG
-    np.save('probe_coords.npy', probe_coords)
+    # np.save('probe_coords.npy', probe_coords)
 
     return probe_memmap, problem_pcs
     
@@ -332,6 +338,9 @@ class SSNN:
 
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
 
+    train_losses = []
+    val_losses = []
+    mAPs = []
     for epoch in range(epochs):
       indices = list(range(X_trn.shape[0]))
 
@@ -362,6 +371,7 @@ class SSNN:
           print("Epoch: {}/{}, Iter: {}, Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, epochs, 
                                             step - (step % display_step), 
                                              curr_cl_sum / counter, curr_ll_sum / counter))
+          train_losses.append((curr_cl_sum + curr_ll_sum)/counter)
           curr_cl_sum = 0
           curr_ll_sum = 0
           counter = 0
@@ -397,9 +407,15 @@ class SSNN:
         mAP = compute_accuracy(val_bbox_preds, val_bboxes, hide_print=True)
 
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f}.".format(epoch, epochs,
-                                                       val_loss / counter, val_cls_loss / counter, mAP))
+                                                       val_cls_loss / counter, val_loc_loss / counter, mAP))
+        val_losses.append((val_cls_loss + val_loc_loss)/counter)
+        mAPs.append(mAP)
+
       if epoch != 0 and (epoch % save_interval == 0 or epoch == epochs-1) and self.ckpt_save is not None:
         self.save_checkpoint(self.ckpt_save, epoch)
+    np.save('mAPs.npy', np.array(mAPs))
+    np.save('val_losses.npy', np.array(val_losses))
+    np.save('train_losses.npy', np.array(train_losses))
 
   def test(self, X_test, save_dir=None, batch_size=1):
     cls_preds = []
@@ -411,7 +427,7 @@ class SSNN:
       loc_preds.append(hooks[3:])
 
       # DEBUG
-      np.save('dp_weights.npy', dp_weights)
+      # np.save('dp_weights.npy', dp_weights)
 
     return cls_preds, loc_preds
 
