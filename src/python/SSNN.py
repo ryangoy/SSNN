@@ -249,15 +249,21 @@ class SSNN:
     N_pos = tf.reduce_sum(pos_mask)
     N_neg = tf.reduce_sum(neg_mask)
 
-    # Define cls loss.
-    cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=self.cls_hooks_flat)
+    epsilon = tf.ones_like(self.cls_hooks_flat) * .00001
+    logits = tf.add(self.cls_hooks_flat, epsilon)
 
-    cls_loss = tf.multiply(pos_mask, cls_loss) / N_pos + 300* tf.multiply(neg_mask, cls_loss) / N_neg
+    # Define cls loss.
+    cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=logits)
+    neg_loss = 300* tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
+    pos_loss = tf.multiply(pos_mask, cls_loss) / (N_pos + 1)
+
+    cls_loss = neg_loss + pos_loss 
     cls_loss = tf.reduce_sum(cls_loss)
     
     # Define loc loss.
     loc_loss = tf.square(self.y_ph_loc - self.loc_hooks_flat)
-    loc_loss = tf.reduce_sum(tf.multiply(loc_loss, pos_mask_loc)) / N_pos
+    loc_loss = tf.multiply(loc_loss, pos_mask_loc) / (N_pos + 1)
+    loc_loss = tf.reduce_sum(tf.where(tf.is_nan(loc_loss), tf.zeros_like(loc_loss), loc_loss))
 
     self.cls_loss = cls_loss
     self.loc_loss = loc_loss
@@ -281,7 +287,7 @@ class SSNN:
     for pc in X:
 
       process = psutil.Process(os.getpid())
-      if process.memory_info().rss // 1e9 > 63.0:
+      if process.memory_info().rss // 1e9 > 110.0:
         print("[WARRNING] Memory cap surpassed. Flushing to hard disk.")
         probe_memmap.flush()
 
@@ -316,6 +322,10 @@ class SSNN:
     np.save('probe_coords.npy', probe_coords)
 
     return probe_memmap, problem_pcs
+    
+  def gaussian_noise_jitter(self, input_layer, std):
+    noise = tf.random_normal(shape=tf.shape(input_layer), mean=0.0, stddev=std, dtype=tf.float32)
+    return tf.add(input_layer, noise)
 
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, 
                 y_val_loc=None, val_bboxes=None, epochs=10, batch_size=4, display_step=100, save_interval=100):
@@ -332,6 +342,12 @@ class SSNN:
         shuffle(indices)
         randomized_indices = indices[step:step+batch_size]
         batch_x = X_trn[randomized_indices]
+        assert not np.any(np.isnan(batch_x)) # prevent NaNs
+        
+        # inp = tf.placeholder(tf.float32, shape=batch_x.shape, name='input')
+        # noise = self.gaussian_noise_jitter(inp, .003)
+        # batch_x = noise.eval(session=self.sess, feed_dict={inp: batch_x})
+
         batch_y_cls = y_trn_cls[randomized_indices]
         batch_y_loc = y_trn_loc[randomized_indices]
         _, loss, cl, ll = self.sess.run([self.optimizer, self.loss, self.cls_loss, self.loc_loss], 
@@ -377,6 +393,7 @@ class SSNN:
         val_cls_preds = np.apply_along_axis(softmax, 2, val_cls_preds)
         val_bbox_preds, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
                      self.dims/self.probe_hook_steps, None, None, conf_threshold=0.5)
+        print(val_bbox_preds.shape)
         mAP = compute_accuracy(val_bbox_preds, val_bboxes, hide_print=True)
 
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f}.".format(epoch, epochs,
