@@ -45,22 +45,13 @@ flags.DEFINE_integer('num_epochs', 300, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.05, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
-<<<<<<< HEAD
 flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 0.9, 'Keep probability for layers with dropout.')
-=======
-flags.DEFINE_float('loc_loss_lambda', 0.5, 'Relative weight of localization params.')
-flags.DEFINE_float('dropout', 0.8, 'Keep probability for layers with dropout.')
->>>>>>> 6b4317f82c6a6e0ec6af990d536eedceb67f6fb9
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
-<<<<<<< HEAD
 flags.DEFINE_integer('batch_size', 8, 'Batch size for training.')
-=======
-flags.DEFINE_integer('batch_size', 16, 'Batch size for training.')
->>>>>>> 6b4317f82c6a6e0ec6af990d536eedceb67f6fb9
 flags.DEFINE_integer('num_kernels', 1, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 128, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 64, 'Number of dot product layers per kernel')
