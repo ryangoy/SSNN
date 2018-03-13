@@ -14,6 +14,7 @@ import os
 from utils import output_to_bboxes, flatten_output
 from compute_bbox_accuracy import compute_accuracy
 from utils import softmax
+from compute_mAP import compute_map
 
 class SSNN:
   
@@ -334,7 +335,7 @@ class SSNN:
     return tf.add(input_layer, noise)
 
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, 
-                y_val_loc=None, val_bboxes=None, epochs=10, batch_size=4, display_step=100, save_interval=100):
+                y_val_loc=None, val_bboxes=None, y_val_one_hot=None, epochs=10, batch_size=4, display_step=100, save_interval=100):
 
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
 
@@ -401,13 +402,14 @@ class SSNN:
         val_cls_preds = np.concatenate(val_cls_preds, axis=0)
         val_loc_preds = np.concatenate(val_loc_preds, axis=0)
         val_cls_preds = np.apply_along_axis(softmax, 2, val_cls_preds)
-        val_bbox_preds, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
+        val_bbox_preds, val_cls= output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
+                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0)
+        val_bbox_preds_old, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3,
                      self.dims/self.probe_hook_steps, None, None, conf_threshold=0.5)
-        print(val_bbox_preds.shape)
-        mAP = compute_accuracy(val_bbox_preds, val_bboxes, hide_print=True)
-
-        print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f}.".format(epoch, epochs,
-                                                       val_cls_loss / counter, val_loc_loss / counter, mAP))
+        mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
+        mAP = compute_map(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot)
+        print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f} or mAP (old) {:.6f}.".format(epoch, epochs,
+                                                       val_cls_loss / counter, val_loc_loss / counter, mAP, mAP_orig))
         val_losses.append((val_cls_loss + val_loc_loss)/counter)
         mAPs.append(mAP)
 

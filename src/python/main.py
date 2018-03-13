@@ -32,7 +32,7 @@ FLAGS = flags.FLAGS
 # Data information: loading and saving options.
 flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded dataset')
-flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
+flags.DEFINE_bool('load_probe_output', True, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('rotated_copies', 6, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
@@ -44,9 +44,9 @@ flags.DEFINE_float('checkpoint_save_interval', 10, 'If checkpoint_save_interval 
 flags.DEFINE_integer('num_epochs', 300, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.05, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
-flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
+flags.DEFINE_float('learning_rate', 0.0001, 'Learning rate for training.')
 flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
-flags.DEFINE_float('dropout', 0.9, 'Keep probability for layers with dropout.')
+flags.DEFINE_float('dropout', 0.8, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
@@ -99,10 +99,12 @@ PROBE_TEST       = join(intermediate_dir, 'test_probe_out.npy') # memmap
 CLS_TRN_LABELS   = join(output_dir, 'cls_trn_labels.npy')
 LOC_TRN_LABELS   = join(output_dir, 'loc_trn_labels.npy')
 BBOX_TRN_LABELS  = join(output_dir, 'bbox_trn_labels.npy')
+CLS_TRN_BBOX     = join(output_dir, 'bbox_trn_cls_labels.npy')
 
 CLS_TEST_LABELS  = join(output_dir, 'cls_test_labels.npy')
 LOC_TEST_LABELS  = join(output_dir, 'loc_test_labels.npy')
 BBOX_TEST_LABELS = join(output_dir, 'bbox_test_labels.npy')
+CLS_TEST_BBOX    = join(output_dir, 'bbox_test_cls_labels.npy')
 
 CLS_PREDS        = join(output_dir, 'cls_predictions.npy')
 LOC_PREDS        = join(output_dir, 'loc_predictions.npy')
@@ -111,7 +113,7 @@ BBOX_CLS_PREDS   = join(output_dir, 'bbox_cls_predictions.npy')
 
 
 def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_path, 
-                      cls_labels, loc_labels, bbox_labels, load_from_npy, load_probe_output, num_copies=0, is_train=True, oh_mapping=None):
+                      cls_labels, loc_labels, bbox_labels, cls_by_box, load_from_npy, load_probe_output, num_copies=0, is_train=True, oh_mapping=None):
   """
   Converts raw data into form that can be fed into the ML pipeline. Operations include normalization, augmentation, 
   label ggeneration, and probing.
@@ -162,6 +164,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
 
   print("\tProcessing labels...")
   y_cat_one_hot, mapping = one_hot_vectorize_categories(yl, mapping=oh_mapping)
+  np.save(cls_by_box, y_cat_one_hot)
   y_cls, y_loc = create_jaccard_labels(bboxes, y_cat_one_hot, len(mapping)+1, NUM_HOOK_STEPS, kernel_size)
 
   np.save(cls_labels, y_cls)
@@ -190,7 +193,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
       y_loc[problem_pc] = y_loc[problem_pc-1]
 
   print("\tFinished pre-processing of {} set.".format(input_type))
-  return X, y_cls, y_loc, bboxes, mapping
+  return X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping
 
 def main(_):
   kernel_size = DIMS / FLAGS.num_steps
@@ -214,13 +217,13 @@ def main(_):
   load_probe = FLAGS.load_probe_output and FLAGS.load_from_npy
 
   # Pre-process train data. Train/test data pre-processing is split for easier data streaming.
-  X, y_cls, y_loc, bboxes, mapping = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
-                      CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, True,
+  X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
+                      CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, CLS_TRN_BBOX, FLAGS.load_from_npy,
                       load_probe, num_copies=FLAGS.rotated_copies)
 
   # Pre-process test data.
-  X_test, _, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
-                      CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, FLAGS.load_from_npy,
+  X_test, _, _, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
+                      CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, CLS_TEST_BBOX, FLAGS.load_from_npy,
                       load_probe, is_train=False, oh_mapping=mapping)
 
   # Train model.
@@ -228,14 +231,16 @@ def main(_):
   X_trn = X[train_split:]
   y_trn_cls = y_cls[train_split:]
   y_trn_loc = y_loc[train_split:]
+  y_trn_one_hot = y_cat_one_hot[train_split:]
   trn_bboxes = bboxes[train_split:]
   np.save('y_cls.npy', y_trn_cls)
   X_val = X[:train_split]
   y_val_cls = y_cls[:train_split]
   y_val_loc = y_loc[:train_split]
+  y_val_one_hot = y_cat_one_hot[:train_split]
   val_bboxes = bboxes[:train_split]
   print("Beginning training...")
-  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, val_bboxes, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=FLAGS.checkpoint_save_interval)
+  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, val_bboxes, y_val_one_hot, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=FLAGS.checkpoint_save_interval)
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
@@ -254,7 +259,7 @@ def main(_):
   loc_f = np.load(LOC_PREDS)
 
   bboxes = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS)
+                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0)
 
   # Compute recall and precision.
   compute_accuracy(np.load(BBOX_PREDS), np.load(BBOX_TEST_LABELS))
