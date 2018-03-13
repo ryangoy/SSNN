@@ -52,7 +52,7 @@ flags.DEFINE_float('dropout', 0.8, 'Keep probability for layers with dropout.')
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 16, 'Batch size for training.')
-flags.DEFINE_integer('num_kernels', 1, 'Number of kernels to probe with.')
+flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 128, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 64, 'Number of dot product layers per kernel')
 
