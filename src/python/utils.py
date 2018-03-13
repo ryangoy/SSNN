@@ -27,6 +27,33 @@ def augment_pointclouds(pointclouds, ys, copies=0):
 
   return pointclouds, ys
 
+# From PointNet
+# Our default is to do 3 equally spaced rotations around the unit circle
+def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
+  rotation_angles = np.linspace(0, 2*np.pi, num_rotations+1)[1:-1]
+  num_pclouds = len(pointclouds)
+  for k in range(num_pclouds):
+    shape_pc = np.array(pointclouds[k]) 
+    for rotation_angle in rotation_angles:
+      cosval = np.cos(rotation_angle)
+      sinval = np.sin(rotation_angle)
+      rotation_matrix = np.array([[cosval, 0, sinval],
+                                  [0, 1, 0],
+                                  [-sinval, 0, cosval]])
+      rotated_pc = np.dot(shape_pc.reshape((-1, 3)), rotation_matrix)
+      pointclouds.append(rotated_pc)
+      new_y = []
+      for obj in ys[k]:
+        rotated_obj = np.dot(obj.reshape((-1, 3)), rotation_matrix)
+        new_y.append(rotated_obj) 
+
+      ys.append(new_y)
+      yl.append(yl[k])
+
+  # re-center pointclouds after rotating
+  pointclouds, _, ys = normalize_pointclouds_stanford(pointclouds, ys)
+  return pointclouds, ys, yl
+
 def flatten_output(cls_preds, loc_preds, steps, res_factor, num_classes):
   cls_output = []
   loc_output = []
@@ -301,7 +328,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
               min_LL = np.minimum(fb_LL, bbox_LL)
               ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
 
-              if ji > 0.1:
+              if ji > 0.5:
                 #cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
                 cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = categories[scene_id][bbox_id]
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord

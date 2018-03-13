@@ -31,9 +31,9 @@ FLAGS = flags.FLAGS
 
 # Data information: loading and saving options.
 flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 'Path to base directory.')
-flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
+flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('jittered_copies', 0, 'Number of times the dataset is copied and jittered for data augmentation.')
+flags.DEFINE_integer('rotated_copies', 6, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_string('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
@@ -45,8 +45,8 @@ flags.DEFINE_integer('num_epochs', 300, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.05, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 0.5, 'Relative weight of localization params.')
-flags.DEFINE_float('dropout', 0.8, 'Keep probability for layers with dropout.')
+flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
+flags.DEFINE_float('dropout', 0.9, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
@@ -66,12 +66,15 @@ TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5']
 TEST_AREAS = ['Area_6']
 
 # Define categories.
-# CATEGORIES = ['box', 'picture', 'pillow', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
-#               'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'radiator', 'bookcase',
-#               'toilet paper', 'toilet', 'chair', 'bookshelf', 'dresser', 'table']
-CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
+# CATEGORIES = ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
+#                   'heater', 'pot', 'bottles', 'washbasin', 'light', 'clothes', 'bin', 'cabinet', 'radiator', 'bookcase',
+#                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
 
-#CATEGORIES = ['column', 'sofa', 'window', 'clutter', 'bookcase', 'table', 'chair', 'stairs', 'board']
+#CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
+CATEGORIES = ['sofa', 'table', 'chair', 'board']
+#CATEGORIES = ['bed']
+#CATEGORIES = ['table']
+#CATEGORIES = ['nightstand']
 
 # Define constant paths (TODO: make this more organized between datasets)
 intermediate_dir = join(FLAGS.data_dir, 'intermediates')
@@ -143,9 +146,11 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   print("\tNormalizing pointclouds...")
   X_cont, dims, ys = normalize_pointclouds_fn(X_raw, yb_raw)
 
-  # print("Augmenting dataset...")
-  # X_cont, ys, yl = augment_pointclouds(X_cont, ys, copies=num_copies)
+  #print("Rotating dataset...")
+  #X_cont, ys, yl = rotate_pointclouds(X_cont, ys, list(yl), num_rotations=num_copies)
 
+
+  yl = np.array(yl)
   kernel_size = DIMS / NUM_HOOK_STEPS
 
   if FLAGS.dataset_name == 'stanford':
@@ -210,8 +215,8 @@ def main(_):
 
   # Pre-process train data. Train/test data pre-processing is split for easier data streaming.
   X, y_cls, y_loc, bboxes, mapping = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
-                      CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, FLAGS.load_from_npy,
-                      load_probe, num_copies=FLAGS.jittered_copies)
+                      CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, True,
+                      load_probe, num_copies=FLAGS.rotated_copies)
 
   # Pre-process test data.
   X_test, _, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
