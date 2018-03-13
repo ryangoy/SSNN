@@ -2,6 +2,7 @@ import sys
 import math
 import numpy as np
 
+# counts number of labels in a nested array
 def count_labels(labels):
     s = 0
     for i in range(len(labels)):
@@ -9,6 +10,7 @@ def count_labels(labels):
             s += 1
     return s
 
+# flattens confidences and makes an array of valid indices in original array
 def flatten_confs(conf_class):
     flattened_list = []
     indices = []
@@ -18,6 +20,7 @@ def flatten_confs(conf_class):
             indices.append((i, j))
     return flattened_list, indices
 
+# filters predictions (or labels) such that they are only of a given category, as denoted by cls_vals
 def bboxes_by_class(preds, cls_vals, category):
     resulting_preds = []
     resulting_conf = []
@@ -34,6 +37,7 @@ def bboxes_by_class(preds, cls_vals, category):
         resulting_conf.append(cls_room)
     return resulting_preds, resulting_conf
 
+# computes mAP given parallel arrays of bbox predictions and class predictions, bbox labels and class labels respectively
 def compute_map(preds, cls_vals, loc_labels, cls_labels):
 #    print(cls_vals)
     num_categories = len(cls_vals[1][0])
@@ -93,10 +97,10 @@ def compute_map(preds, cls_vals, loc_labels, cls_labels):
     return np.mean(aps)
 
 if __name__=='__main__':
-    preds = np.load(sys.argv[1])
-    cls_vals = np.load(sys.argv[2])
-    loc_labels = np.load(sys.argv[3])
-    cls_labels = np.load(sys.argv[4])
+    preds = np.load(sys.argv[1]) # bbox predictions (all of them, not just those with confidence > 0.5)
+    cls_vals = np.load(sys.argv[2]) # bbox cls values (all  of them, should have same shape as preds)
+    loc_labels = np.load(sys.argv[3]) # bbox labels
+    cls_labels = np.load(sys.argv[4]) # class labels for all bboxes, should have same shape as loc_labels
     compute_map(preds, cls_vals, loc_labels, cls_labels)
 
 
