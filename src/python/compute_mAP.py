@@ -27,6 +27,7 @@ def bboxes_by_class(preds, cls_vals, category):
         preds_room = []
         cls_room = []
         for j in range(len(cls_vals[i])):
+
             if cls_vals[i][j].argmax() == category:
                 preds_room.append(preds[i][j])
                 cls_room.append(cls_vals[i][j][category])

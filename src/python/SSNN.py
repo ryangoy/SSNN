@@ -168,6 +168,7 @@ class SSNN:
     # Shape: (batches, x, y, z, features)
 
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
+    self.dot_product = tf.nn.relu(self.dot_product)
 
     self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
 
