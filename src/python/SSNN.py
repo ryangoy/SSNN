@@ -406,7 +406,7 @@ class SSNN:
         val_bbox_preds, val_cls= output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
                      self.dims/self.probe_hook_steps, None, None, conf_threshold=0)
         val_bbox_preds_old, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3,
-                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0.5)
+                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0.0)
         mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
         mAP = compute_map(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot)
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f} or mAP (old) {:.6f}.".format(epoch, epochs,

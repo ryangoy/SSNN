@@ -41,11 +41,11 @@ flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported da
 flags.DEFINE_float('checkpoint_save_interval', 10, 'If checkpoint_save_interval is defined, then sets save interval.')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 300, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.05, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.001, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 0.5, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 0.8, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
@@ -71,8 +71,8 @@ TEST_AREAS = ['Area_6']
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
 
 #CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
-CATEGORIES = ['sofa', 'table', 'chair', 'board']
-#CATEGORIES = ['bed']
+#CATEGORIES = ['sofa', 'table', 'chair', 'board']
+CATEGORIES = ['bed']
 #CATEGORIES = ['table']
 #CATEGORIES = ['nightstand']
 
@@ -259,7 +259,7 @@ def main(_):
   loc_f = np.load(LOC_PREDS)
 
   bboxes = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0)
+                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.0)
 
   # Compute recall and precision.
   compute_accuracy(np.load(BBOX_PREDS), np.load(BBOX_TEST_LABELS))

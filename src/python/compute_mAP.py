@@ -20,31 +20,31 @@ def flatten_confs(conf_class):
             indices.append((i, j))
     return flattened_list, indices
 
-# filters predictions (or labels) such that they are only of a given category, as denoted by cls_vals
-def bboxes_by_class(preds, cls_vals, category):
+# filters predictions (or labels) such that they are only of a given category, as denoted by cls_preds
+def bboxes_by_class(loc_preds, cls_preds, category):
     resulting_preds = []
     resulting_conf = []
 
     # for each room
-    for i in range(len(cls_vals)):
+    for i in range(len(cls_preds)):
         preds_room = []
         cls_room = []
-        for j in range(len(cls_vals[i])):
+        for j in range(len(cls_preds[i])):
 
-            if cls_vals[i][j].argmax() == category:
-                preds_room.append(preds[i][j])
-                cls_room.append(cls_vals[i][j][category])
+            if cls_preds[i][j].argmax() == category:
+                preds_room.append(loc_preds[i][j])
+                cls_room.append(cls_preds[i][j][category])
         resulting_preds.append(preds_room)
         resulting_conf.append(cls_room)
     return resulting_preds, resulting_conf
 
 # computes mAP given parallel arrays of bbox predictions and class predictions, bbox labels and class labels respectively
-def compute_map(preds, cls_vals, loc_labels, cls_labels):
-#    print(cls_vals)
-    num_categories = len(cls_vals[1][0])
+def compute_map(loc_preds, cls_preds, loc_labels, cls_labels):
+
+    num_categories = len(cls_preds[1][0])
     recall_range = np.linspace(0, 1, 11)
     aps = np.zeros(num_categories)
-    flattened_conf, conf_indices = flatten_confs(cls_vals)    
+    flattened_conf, conf_indices = flatten_confs(cls_preds)    
     # ignore negative class
     for i in range(1, num_categories+1):
         num_labels_matched = 0
@@ -56,12 +56,12 @@ def compute_map(preds, cls_vals, loc_labels, cls_labels):
         matched_labels = set()
 
         #rank predictions by their confidence in the current class
-        sorted_indices = sorted(conf_indices, key=lambda x: cls_vals[x[0]][x[1]][i-1], reverse=True)
+        sorted_indices = sorted(conf_indices, key=lambda x: cls_preds[x[0]][x[1]][i-1], reverse=True)
         for j in range(len(sorted_indices)):
             room_idx = sorted_indices[j][0]
             pred_bbox_idx = sorted_indices[j][1]
             box_matched = False
-            pred = preds[room_idx][pred_bbox_idx]
+            pred = loc_preds[room_idx][pred_bbox_idx]
             for k in range(len(labels_class[room_idx])):
                 label = labels_class[room_idx][k]
                 max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)
@@ -98,11 +98,11 @@ def compute_map(preds, cls_vals, loc_labels, cls_labels):
     return np.mean(aps)
 
 if __name__=='__main__':
-    preds = np.load(sys.argv[1]) # bbox predictions (all of them, not just those with confidence > 0.5)
-    cls_vals = np.load(sys.argv[2]) # bbox cls values (all  of them, should have same shape as preds)
+    loc_preds = np.load(sys.argv[1]) # bbox predictions (all of them, not just those with confidence > 0.5)
+    cls_preds = np.load(sys.argv[2]) # bbox cls values (all  of them, should have same shape as preds)
     loc_labels = np.load(sys.argv[3]) # bbox labels
     cls_labels = np.load(sys.argv[4]) # class labels for all bboxes, should have same shape as loc_labels
-    compute_map(preds, cls_vals, loc_labels, cls_labels)
+    compute_map(loc_preds, cls_preds, loc_labels, cls_labels)
 
 
 
