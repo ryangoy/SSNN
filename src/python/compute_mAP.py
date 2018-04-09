@@ -89,12 +89,12 @@ def compute_map(loc_preds, cls_preds, loc_labels, cls_labels):
                 if curr_precision > best_precisions[rr]:
                     best_precisions[rr] = curr_precision 
 
-        print(best_precisions)    
+        # print(best_precisions)    
         ap = np.mean(best_precisions)
-        print('category', i, 'ap', ap)
+        # print('category', i, 'ap', ap)
         aps[i-1] = ap
 
-    print('mAP', np.mean(aps))        
+    #print('mAP', np.mean(aps))        
     return np.mean(aps)
 
 if __name__=='__main__':
