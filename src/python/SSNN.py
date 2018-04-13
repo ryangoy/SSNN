@@ -405,9 +405,7 @@ class SSNN:
         val_cls_preds = np.apply_along_axis(softmax, 2, val_cls_preds)
         val_bbox_preds, val_cls= output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
                      self.dims/self.probe_hook_steps, None, None, conf_threshold=0)
-        val_bbox_preds_old, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3,
-                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0.0)
-        mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
+        mAP_orig = compute_map(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, use_nms=False)
         mAP = compute_map(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot)
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f} or mAP (old) {:.6f}.".format(epoch, epochs,
                                                        val_cls_loss / counter, val_loc_loss / counter, mAP, mAP_orig))

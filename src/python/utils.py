@@ -98,12 +98,12 @@ def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor, num
   return cls_output, loc_output
 
 # adapted from https://github.com/rbgirshick/voc-dpm/blob/master/test/nms.m
-def nms(cls_preds, loc_preds, overlap_thresh, steps, res_factor, needs_flattening=False):
-    # coordinates of the bounding boxes
-    if needs_flattening:
-        cls_preds, loc_preds = flatten_output(cls_preds, loc_preds, steps, res_factor)
+def nms(cls_preds, loc_preds, overlap_thresh, class_num):
 
+    # coordinates of the bounding boxes
     all_loc_preds = []
+    all_cls_preds = []
+    num_classes = len(cls_preds[0][0])
 
     # iterate over rooms    
     for i in range(len(cls_preds)):
@@ -115,41 +115,42 @@ def nms(cls_preds, loc_preds, overlap_thresh, steps, res_factor, needs_flattenin
         z2 = loc_preds[i,:,5]
  
         # scores are the probability of a given bbox being an ROI
-        score = cls_preds[i,:,1] 
-        volume = (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1)
-        idxs = np.argsort(score)
+        scores = cls_preds[i,:,class_num] 
+        volumes = (x2 - x1) * (y2 - y1) * (z2 - z1)
+        idxs = np.argsort(scores)[::-1]
         pick = []
         count = 1 
 
         while len(idxs) > 0:
 
             # index of the bbox with the highest remaining score
-            last = len(idxs) - 1
-            j = idxs[last]
+            j = idxs[0]
             pick.append(j)
  
-            xx1 = np.maximum(x1[j], x1[idxs[:last]])
-            yy1 = np.maximum(y1[j], y1[idxs[:last]])
-            zz1 = np.maximum(z1[j], z1[idxs[:last]])
-            xx2 = np.minimum(x2[j], x2[idxs[:last]])
-            yy2 = np.minimum(y2[j], y2[idxs[:last]])
-            zz2 = np.minimum(z2[j], z2[idxs[:last]])
+            xx1 = np.maximum(x1[j], x1[idxs[1:]])
+            yy1 = np.maximum(y1[j], y1[idxs[1:]])
+            zz1 = np.maximum(z1[j], z1[idxs[1:]])
+            xx2 = np.minimum(x2[j], x2[idxs[1:]])
+            yy2 = np.minimum(y2[j], y2[idxs[1:]])
+            zz2 = np.minimum(z2[j], z2[idxs[1:]])
 
-            w = np.maximum(0, xx2 - xx1 + 1)
-            h = np.maximum(0, yy2 - yy1 + 1)
-            t = np.maximum(0, zz2 - zz1 + 1)
- 
-            # compute the ratio of overlap
-            o = (w * h * t) / volume[idxs[:last]]
- 
+            w = np.maximum(0, xx2 - xx1)
+            h = np.maximum(0, yy2 - yy1)
+            t = np.maximum(0, zz2 - zz1)
+            intersection = w * h * t
+            unions = volumes[j] + volumes[idxs[1:]] - intersection
+    
+            # compute the iou
+            ious = intersection / unions
+            remaining_proposals = np.where(ious <= overlap_thresh)[0]
             # delete indices of bboxes that overlap by more than threshold
-            idxs = np.delete(idxs, np.concatenate(([last],
-                np.where(o > overlap_thresh)[0])))
+            idxs = idxs[remaining_proposals]     
  
         # keep only the bounding boxes that were picked
         all_loc_preds.append(np.array(loc_preds[i, pick]))
+        all_cls_preds.append(np.array(cls_preds[i, pick]))
 
-    return np.array(all_loc_preds)
+    return np.array(all_loc_preds), np.array(all_cls_preds)
 
 def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples, 
                      kernel_size, bbox_path, cls_path, conf_threshold=0.5):
@@ -328,7 +329,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
               min_LL = np.minimum(fb_LL, bbox_LL)
               ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
 
-              if ji > 0.25:
+              if ji > 0.35:
                 #cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
                 cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = categories[scene_id][bbox_id]
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord
