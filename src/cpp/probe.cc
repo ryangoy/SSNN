@@ -33,7 +33,7 @@ public:
     const Tensor& input_tensor = context->input(0);
     const Tensor& weights = context->input(1);
     OP_REQUIRES(context, input_tensor.dims()==3, 
-      errors::InvalidArgument("Probe expects (batches, points, 3) input shape"));
+      errors::InvalidArgument("Probe expects (batches, points, 6) input shape"));
 
     // Weight dims are similar to convolutional weights:
     //   Convolutional weights are (kernel_width, kernel_height, num_input_kernels, num_output_kernels)
@@ -56,7 +56,7 @@ public:
     int nkernels = weights.shape().dim_size(0);
     int nsamples = weights.shape().dim_size(1);
 
-    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{nbatches,steps,steps,steps,nkernels,nsamples},
+    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{nbatches,steps,steps,steps,nkernels,nsamples,4},
                                                      &output_tensor));
 
     // Flatten inputs into 1D arrays to feed into CUDA code

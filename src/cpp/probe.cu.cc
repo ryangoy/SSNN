@@ -19,7 +19,7 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
 
         // Get the query index of the gridlist. Offsets are computed for cases where points of kernels are outside the
         // current grid.
-        int sample_index = filter_id*probes_per_filter*3 + probe_id*3;
+        int sample_index = filter_id*probes_per_filter*6 + probe_id*6;
 
         int x_offset = max(-x_step, min(steps-1-x_step, int(floor(weights[sample_index]/ksize))));
         int y_offset = max(-y_step, min(steps-1-y_step, int(floor(weights[sample_index+1]/ksize))));
@@ -51,9 +51,13 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
                                 weights[sample_index+1] + yc,
                                 weights[sample_index+2] + zc};
         float closest_dist = 1.1;
+        float closest_r = 0.0;
+        float closest_g = 0.0;
+        float closest_b = 0.0;
+
 
         // Loop through each point to find the nearest distance
-        for (int point_index = 0; point_index < num_vox_points; point_index+=3) {
+        for (int point_index = 0; point_index < num_vox_points; point_index+=6) {
             float curr_point [] = {vox_gl_points[point_index], vox_gl_points[point_index+1],
                                    vox_gl_points[point_index+2]};
             float dist = (sample_coord[0]-curr_point[0])*(sample_coord[0]-curr_point[0]) 
@@ -61,9 +65,9 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
                         +(sample_coord[2]-curr_point[2])*(sample_coord[2]-curr_point[2]);
             if (dist < closest_dist) {
                 closest_dist = dist;
-                 // closest_x = curr_probe[0] - curr_point[0];
-                 // closest_y = curr_probe[1] - curr_point[1];
-                 // closest_z = curr_probe[2] - curr_point[1];
+                closest_r = vox_gl_points[point_index+3];
+                closest_g = vox_gl_points[point_index+4];
+                closest_b = vox_gl_points[point_index+5];
             } 
         }
 
@@ -72,12 +76,17 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
         closest_dist = 0.1-closest_dist;
 
         // Add closest_dist to output
-        output[batch*steps*steps*steps*filters*probes_per_filter
-              +x_step*steps*steps*filters*probes_per_filter
-              +y_step*steps*filters*probes_per_filter
-              +z_step*filters*probes_per_filter
-              +filter_id*probes_per_filter
-              +probe_id] = closest_dist;
+        int curr_output_index = batch*steps*steps*steps*filters*probes_per_filter*4
+              +x_step*steps*steps*filters*probes_per_filter*4
+              +y_step*steps*filters*probes_per_filter*4
+              +z_step*filters*probes_per_filter*4
+              +filter_id*probes_per_filter*4
+              +probe_id*4;
+        output[curr_output_index] = closest_dist;
+        output[curr_output_index+1] = closest_r;
+        output[curr_output_index+2] = closest_g;
+        output[curr_output_index+3] = closest_b;
+
     }
 
 }
@@ -107,9 +116,9 @@ __global__ void GenerateGridListIndices(int batches, int points, int steps, floa
         // For each point, add it to the voxel if it's within range.
         for (int p = 0; p < points; p++) {
 
-            float x_val = pointcloud[b*points*3+p*3];
-            float y_val = pointcloud[b*points*3+p*3+1];
-            float z_val = pointcloud[b*points*3+p*3+2];
+            float x_val = pointcloud[b*points*6+p*6];
+            float y_val = pointcloud[b*points*6+p*6+1];
+            float z_val = pointcloud[b*points*6+p*6+2];
 
             if (x_val >= x_min and x_val < x_max and 
                 y_val >= y_min and y_val < y_max and 
@@ -120,7 +129,7 @@ __global__ void GenerateGridListIndices(int batches, int points, int steps, floa
         }
 
         // Set the number of voxels values needed for a specific grid list.
-        output_indices[b*steps*steps*steps+i*steps*steps+j*steps+k] = grid_index*3;
+        output_indices[b*steps*steps*steps+i*steps*steps+j*steps+k] = grid_index*6;
     }
 }
 
@@ -163,9 +172,12 @@ __global__ void GenerateGridList(int batches, int points, int steps, float x_ste
         // For each point, add it to the voxel if it's within range
         for (int p = 0; p < points; p++) {
 
-            float x_val = pointcloud[b*points*3+p*3];
-            float y_val = pointcloud[b*points*3+p*3+1];
-            float z_val = pointcloud[b*points*3+p*3+2];
+            float x_val = pointcloud[b*points*6+p*6];
+            float y_val = pointcloud[b*points*6+p*6+1];
+            float z_val = pointcloud[b*points*6+p*6+2];
+            float r_val = pointcloud[b*points*6+p*6+3];
+            float g_val = pointcloud[b*points*6+p*6+4];
+            float b_val = pointcloud[b*points*6+p*6+5];
 
             if (x_val >= x_min and x_val < x_max and 
                 y_val >= y_min and y_val < y_max and 
@@ -174,7 +186,11 @@ __global__ void GenerateGridList(int batches, int points, int steps, float x_ste
                 output_points[grid_index] = x_val;
                 output_points[grid_index+1] = y_val;
                 output_points[grid_index+2] = z_val;
-                grid_index += 3;
+                output_points[grid_index+3] = r_val;
+                output_points[grid_index+4] = g_val;
+                output_points[grid_index+5] = b_val;
+
+                grid_index += 6;
             }
         }
     }
@@ -196,7 +212,7 @@ void probeLauncher(int batches, int filters, int probes_per_filter, int points, 
 
     // Allocate arrays for gridlist
     cudaMallocManaged(&gl_indices, batches*steps*steps*steps*sizeof(int));
-    cudaMallocManaged(&gl_points, batches*points*3*sizeof(float));
+    cudaMallocManaged(&gl_points, batches*points*6*sizeof(float));
 
     /*** Generate list indices ***/
     cudaEvent_t start, stop;

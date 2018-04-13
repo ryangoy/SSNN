@@ -90,7 +90,7 @@ class SSNN:
           "Must have a step size for each xyz dimension, or input an int."
 
     # Shape: (batches, num_points, xyz)
-    self.points_ph = tf.placeholder(tf.float32, (None, None, 3))
+    self.points_ph = tf.placeholder(tf.float32, (None, None, 6))
 
     # Shape: (batches, x, y, z, probes, samples per probe)
     self.probe_op, self.probe_coords = probe3d(self.points_ph, dims, 
@@ -149,7 +149,7 @@ class SSNN:
     #         probes_per_kernel)
     self.X_ph = tf.placeholder(tf.float32, (None, probe_steps, probe_steps, 
                                             probe_steps, num_kernels, 
-                                            probes_per_kernel))
+                                            probes_per_kernel, 4))
 
     num_features = 0
     dim_size = probe_steps
@@ -291,7 +291,7 @@ class SSNN:
     problem_pcs = []
     counter = 0
     probe_memmap = np.memmap(probe_path, dtype='float32', mode='w+', shape=(len(X), self.probe_steps, 
-                             self.probe_steps, self.probe_steps, self.num_kernels, self.probes_per_kernel))
+                             self.probe_steps, self.probe_steps, self.num_kernels, self.probes_per_kernel, 4))
     for pc in X:
 
       process = psutil.Process(os.getpid())
@@ -407,8 +407,8 @@ class SSNN:
                      self.dims/self.probe_hook_steps, None, None, conf_threshold=0)
         mAP_orig = compute_map(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, use_nms=False)
         mAP = compute_map(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot)
-        print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f} or mAP (old) {:.6f}.".format(epoch, epochs,
-                                                       val_cls_loss / counter, val_loc_loss / counter, mAP, mAP_orig))
+        print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f}.".format(epoch, epochs,
+                                                       val_cls_loss / counter, val_loc_loss / counter, mAP))
         val_losses.append((val_cls_loss + val_loc_loss)/counter)
         mAPs.append(mAP)
 

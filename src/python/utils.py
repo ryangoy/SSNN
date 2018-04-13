@@ -387,11 +387,12 @@ def normalize_pointclouds_stanford(pointcloud_arr, seg_arr):
     for obj in seg:
       shifted_objs.append(np.array(obj[:,:3]-mins))
     shifted_segmentations.append(shifted_objs)
-
-    shifted_pointclouds.append(np.array(xyz-mins))
+    new_pc = np.array(xyz-mins)
+    new_pc = np.concatenate([new_pc, pointcloud[:, 3:]], axis=1)
+    shifted_pointclouds.append(new_pc)
   return shifted_pointclouds, gmax, shifted_segmentations
 
-def normalize_pointclouds_matterport(pointcloud_arr, seg_arr):
+def normalize_pointclouds_matterport(pointcloud_arr, seg_arr, use_rgb=True):
   """
   Shifts pointclouds so the smallest xyz values map to the origin. We want to 
   preserve relative scale, but this also leads to excess or missed computation
@@ -427,7 +428,10 @@ def normalize_pointclouds_matterport(pointcloud_arr, seg_arr):
       shifted_objs.append(obj-bmins)
     shifted_segmentations.append(shifted_objs)
 
-    shifted_pointclouds.append(np.array(xyz-mins))
+    new_pc = np.array(xyz-mins)
+    if use_rgb:
+      new_pc = np.concatenate([new_pc, pointcloud[:, 3:]], axis=1)
+    shifted_pointclouds.append(new_pc)
   return shifted_pointclouds, gmax, shifted_segmentations
 
 def load_points_stanford(path, X_npy_path, ys_npy_path, yl_npy_path,
@@ -451,7 +455,7 @@ def load_points_stanford(path, X_npy_path, ys_npy_path, yl_npy_path,
   return X, ys, yl, new_ds
 
 def load_points_matterport(path, X_npy_path, yb_npy_path, yl_npy_path,
-                           load_from_npy=True, train_test_split=0.9, is_train=True, categories=None):
+                           load_from_npy=True, train_test_split=0.9, is_train=True, categories=None, use_rgb=True):
   """
   Load data from preloaded npy files or from directory.
   """
@@ -463,14 +467,14 @@ def load_points_matterport(path, X_npy_path, yb_npy_path, yl_npy_path,
   else:
     assert path is not None, "No path given for pointcloud directory."
     print("\tLoading points from directory...")
-    X, yb, yl = load_directory_matterport(path, train_test_split, is_train, categories)
+    X, yb, yl = load_directory_matterport(path, train_test_split, is_train, categories, use_rgb)
     np.save(X_npy_path, X)
     np.save(yb_npy_path, yb)
     np.save(yl_npy_path, yl)
     new_ds = True
   return X, yb, yl, new_ds
 
-def load_directory_matterport(path, train_test_split, is_train, objects):
+def load_directory_matterport(path, train_test_split, is_train, objects, use_rgb=True):
   """
   Loads pointclouds from matterport dataset.
 
@@ -519,8 +523,7 @@ def load_directory_matterport(path, train_test_split, is_train, objects):
 
       input_pc = read_ply(room_path+".ply")
       bbox = np.load(room_path+"_bboxes.npy")
-      
-      input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z"])
+      input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
 
       fbbox = []
       flabel = []
