@@ -598,11 +598,13 @@ def load_directory_stanford(path, areas, categories):
         annotation_pc.append(np.genfromtxt(
                   join(room_path, 'Annotations', annotation), dtype=np.float32))
         annotation_label.append(annotation.split('.')[0])
-      annotation_pc = np.array(annotation_pc)
-      
-      input_data.append(input_pc)
-      segmentations.append(annotation_pc)
-      labels.append(annotation_label)
+      if len(annotation_pc) != 0:
+
+        annotation_pc = np.array(annotation_pc)
+        
+        input_data.append(input_pc)
+        segmentations.append(annotation_pc)
+        labels.append(annotation_label)
 
   input_data = np.array(input_data)
   segmentations = np.array(segmentations)

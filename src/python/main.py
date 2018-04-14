@@ -16,6 +16,7 @@ import time
 from object_boundaries import generate_bounding_boxes
 import os
 import psutil
+from compute_mAP2 import compute_mAP
 from compute_bbox_accuracy import compute_accuracy
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -33,7 +34,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 'Path to base directory.')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('rotated_copies', 6, 'Number of times the dataset is copied and rotated for data augmentation.')
+flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_string('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
@@ -42,17 +43,17 @@ flags.DEFINE_float('checkpoint_save_interval', 10, 'If checkpoint_save_interval 
 flags.DEFINE_boolean('use_rgb', True, 'If True, then loads colored pointclouds. Else, loads uncolored pointclouds.')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 300, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.0001, 'Learning rate for training.')
 flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
-flags.DEFINE_float('dropout', 0.8, 'Keep probability for layers with dropout.')
+flags.DEFINE_float('dropout', 0.7, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
-flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
+flags.DEFINE_integer('batch_size', 8, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 8, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
@@ -72,8 +73,8 @@ TEST_AREAS = ['Area_6']
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
 
 #CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
-#CATEGORIES = ['sofa', 'table', 'chair', 'board']
-CATEGORIES = ['table']
+CATEGORIES = ['sofa', 'table', 'chair', 'board']
+#CATEGORIES = ['bed']
 #CATEGORIES = ['table']
 #CATEGORIES = ['nightstand']
 
@@ -258,11 +259,15 @@ def main(_):
   cls_f = np.load(CLS_PREDS)
   loc_f = np.load(LOC_PREDS)
 
-  bboxes = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
+  bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
+                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.0)
+
+  bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
                             DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.5)
 
   # Compute recall and precision.
-  compute_accuracy(np.load(BBOX_PREDS), np.load(BBOX_TEST_LABELS))
+  compute_accuracy(bboxes, np.load(BBOX_TEST_LABELS))
+  compute_mAP(bboxes, bboxes_cls, np.load(BBOX_TEST_LABELS), np.load(CLS_TEST_BBOX))
   
 # Tensorflow boilerplate code.
 if __name__ == '__main__':

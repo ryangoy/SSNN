@@ -14,7 +14,7 @@ import os
 from utils import output_to_bboxes, flatten_output
 from compute_bbox_accuracy import compute_accuracy
 from utils import softmax
-from compute_mAP import compute_map
+from compute_mAP2 import compute_mAP
 
 class SSNN:
   
@@ -187,7 +187,7 @@ class SSNN:
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
-    self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=64, kernel_size=3, 
+    self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=64, kernel_size=1, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -198,7 +198,7 @@ class SSNN:
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # self.conv1_1 = tf.nn.dropout(self.conv1_1, dropout)
-    self.conv2_2 = tf.layers.conv3d(self.conv2_1, filters=64, kernel_size=3, 
+    self.conv2_2 = tf.layers.conv3d(self.conv2_1, filters=64, kernel_size=1, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -212,7 +212,7 @@ class SSNN:
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=128, kernel_size=3,
+    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=128, kernel_size=1,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -226,7 +226,7 @@ class SSNN:
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.conv4_2 = tf.layers.conv3d(self.conv4_1 , filters=256, kernel_size=3,
+    self.conv4_2 = tf.layers.conv3d(self.conv4_1 , filters=256, kernel_size=1,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -406,9 +406,9 @@ class SSNN:
         val_bbox_preds, val_cls= output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
                      self.dims/self.probe_hook_steps, None, None, conf_threshold=0)
         val_bbox_preds_old, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3,
-                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0.0)
+                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0.5)
         mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
-        mAP = compute_map(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot)
+        mAP = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True)
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f}.".format(epoch, epochs,
                                                        val_cls_loss / counter, val_loc_loss / counter, mAP))
         val_losses.append((val_cls_loss + val_loc_loss)/counter)

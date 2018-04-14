@@ -66,8 +66,6 @@ def compute_accuracy(preds, labels, hide_print=False):
         print("Average false positive ratio: {}".format(float(avg_false)/len(false_arr)))
         print("Overall true positive ratio: {}".format(float(total_found_positives)/total_label_positives))
         print("Overall false positive ratio: {}".format(float(total_found_negatives)/total_pred_positives))
-        print("mAP: {}".format(mAP))
-
     return mAP
 
 if __name__ == '__main__':
