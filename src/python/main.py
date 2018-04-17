@@ -16,7 +16,7 @@ import time
 from object_boundaries import generate_bounding_boxes
 import os
 import psutil
-from compute_mAP2 import compute_mAP
+from compute_mAP3 import compute_mAP
 from compute_bbox_accuracy import compute_accuracy
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -31,24 +31,24 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 'Path to base directory.')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings/', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_string('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
-flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_float('checkpoint_save_interval', 10, 'If checkpoint_save_interval is defined, then sets save interval.')
 flags.DEFINE_boolean('use_rgb', True, 'If True, then loads colored pointclouds. Else, loads uncolored pointclouds.')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 20, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.0001, 'Learning rate for training.')
 flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
-flags.DEFINE_float('dropout', 0.7, 'Keep probability for layers with dropout.')
+flags.DEFINE_float('dropout', 0.6, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
@@ -73,8 +73,8 @@ TEST_AREAS = ['Area_6']
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
 
 #CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
-CATEGORIES = ['sofa', 'table', 'chair', 'board']
-#CATEGORIES = ['bed']
+#CATEGORIES = ['sofa', 'table', 'chair', 'board']
+CATEGORIES = ['bed']
 #CATEGORIES = ['table']
 #CATEGORIES = ['nightstand']
 
@@ -148,7 +148,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   # width, height, and depth dims of all rooms.
 
   print("\tNormalizing pointclouds...")
-  X_cont, dims, ys = normalize_pointclouds_fn(X_raw, yb_raw)
+  X_cont, dims, ys = normalize_pointclouds_fn(X_raw, yb_raw, DIMS)
 
   #print("Rotating dataset...")
   #X_cont, ys, yl = rotate_pointclouds(X_cont, ys, list(yl), num_rotations=num_copies)
@@ -260,14 +260,16 @@ def main(_):
   loc_f = np.load(LOC_PREDS)
 
   bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.0)
+                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.1)
 
-  bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.5)
+
 
   # Compute recall and precision.
-  compute_accuracy(bboxes, np.load(BBOX_TEST_LABELS))
   compute_mAP(bboxes, bboxes_cls, np.load(BBOX_TEST_LABELS), np.load(CLS_TEST_BBOX))
+  # bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
+  #                           DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.5)
+  # compute_accuracy(bboxes, np.load(BBOX_TEST_LABELS))
+  
   
 # Tensorflow boilerplate code.
 if __name__ == '__main__':

@@ -352,7 +352,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
   loc_concat = np.concatenate(loc_labels_flat, axis=1)
   return cls_concat, loc_concat 
 
-def normalize_pointclouds_stanford(pointcloud_arr, seg_arr):
+def normalize_pointclouds_stanford(pointcloud_arr, seg_arr, probe_dims):
   """
   Shifts pointclouds so the smallest xyz values map to the origin. We want to 
   preserve relative scale, but this also leads to excess or missed computation
@@ -375,7 +375,13 @@ def normalize_pointclouds_stanford(pointcloud_arr, seg_arr):
     xyz = pointcloud[:, :3]
     mins = xyz.min(axis=0)
     maxes = xyz.max(axis=0)
+
     dims = maxes-mins
+
+    xyz = (xyz-mins) / dims * probe_dims
+
+
+
     if gmax is None:
       gmax = maxes
     else:
@@ -384,14 +390,14 @@ def normalize_pointclouds_stanford(pointcloud_arr, seg_arr):
     shifted_objs = []
     # Loop through each object label in this scene.
     for obj in seg:
-      shifted_objs.append(np.array(obj[:,:3]-mins))
+      shifted_objs.append(np.array(obj[:,:3]-mins) / dims * probe_dims)
     shifted_segmentations.append(shifted_objs)
-    new_pc = np.array(xyz-mins)
+    new_pc = np.array(xyz)
     new_pc = np.concatenate([new_pc, pointcloud[:, 3:]], axis=1)
     shifted_pointclouds.append(new_pc)
   return shifted_pointclouds, gmax, shifted_segmentations
 
-def normalize_pointclouds_matterport(pointcloud_arr, seg_arr, use_rgb=True):
+def normalize_pointclouds_matterport(pointcloud_arr, seg_arr, probe_dims, use_rgb=True):
   """
   Shifts pointclouds so the smallest xyz values map to the origin. We want to 
   preserve relative scale, but this also leads to excess or missed computation
@@ -422,12 +428,14 @@ def normalize_pointclouds_matterport(pointcloud_arr, seg_arr, use_rgb=True):
 
     shifted_objs = []
     # Loop through each object label in this scene.
+    mult_dims =  probe_dims / dims
     for obj in seg:
       bmins = [mins[0], mins[1], mins[2], mins[0], mins[1], mins[2]]
-      shifted_objs.append(obj-bmins)
+      shifted_objs.append((obj-bmins) *np.array([mult_dims[0], mult_dims[1], mult_dims[2], mult_dims[0], mult_dims[1], mult_dims[2]]))
     shifted_segmentations.append(shifted_objs)
-
-    new_pc = np.array(xyz-mins)
+    
+    xyz = (xyz-mins) * mult_dims
+    new_pc = np.array(xyz)
     if use_rgb:
       new_pc = np.concatenate([new_pc, pointcloud[:, 3:]], axis=1)
     shifted_pointclouds.append(new_pc)

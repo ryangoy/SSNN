@@ -14,7 +14,7 @@ import os
 from utils import output_to_bboxes, flatten_output
 from compute_bbox_accuracy import compute_accuracy
 from utils import softmax
-from compute_mAP2 import compute_mAP
+from compute_mAP3 import compute_mAP
 
 class SSNN:
   
@@ -262,7 +262,7 @@ class SSNN:
 
     # Define cls loss.
     cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=logits)
-    neg_loss = 500* tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
+    neg_loss = tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
     pos_loss = tf.multiply(pos_mask, cls_loss) / (N_pos + 1)
 
     cls_loss = neg_loss + pos_loss 
@@ -404,9 +404,9 @@ class SSNN:
         val_loc_preds = np.concatenate(val_loc_preds, axis=0)
         val_cls_preds = np.apply_along_axis(softmax, 2, val_cls_preds)
         val_bbox_preds, val_cls= output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
-                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0)
+                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0.1)
         val_bbox_preds_old, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3,
-                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0.5)
+                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0.7)
         mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
         mAP = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True)
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f}.".format(epoch, epochs,

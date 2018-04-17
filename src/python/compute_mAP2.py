@@ -4,27 +4,20 @@ import functools
 
 
 # Retruns precision and recall arrays of a given sccene and category
-def compute_PR_curve(sorted_preds, sorted_preds_confs, labels, labels_confs, threshold=0.5):
+def compute_PR_curve(sorted_preds, sorted_pred_scene_ids, labels, labels_confs, category, threshold=0.25):
     curr_preds = [] 
-    Ps = []
-    Rs = []
+    Ps = [1.0, 0.0]
+    Rs = [0.0, 1.0]
     matched_labels = []
-    if len(labels) == 0:
-        Ps.append(1.0)
-        Rs.append(1.0)
-        return Ps, Rs
 
-    # For no predictions
-    Ps.append(1.0)
-    Rs.append(0.0)
 
     # Loop through all the predictions for a scene in descending order of confidence values. Calculates AP.
-    for pred in sorted_preds:
+    for pred, scene_id in zip(sorted_preds, sorted_pred_scene_ids):
 
         # Find a label that the prediction corresponds to if it exists.
         pred_matched = False     
-        for i in range(len(labels)):
-            label = labels[i]
+        for i in range(len(labels[scene_id])):
+            label = labels[scene_id][i]
             if i in matched_labels:
                 continue
             max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)
@@ -33,7 +26,9 @@ def compute_PR_curve(sorted_preds, sorted_preds_confs, labels, labels_confs, thr
             union = np.prod(pred[3:]-pred[:3]) + np.prod(label[3:]-label[:3]) - intersection
             
             # If we found a label that matches our prediction, i.e. a true positive
-            if min(min_UR - max_LL) > 0 and intersection/union > threshold and labels_confs[i] == 1:
+
+            if min(min_UR - max_LL) > 0 and intersection/union > threshold and labels_confs[scene_id][i][category+1] == 1:
+                print("hi")
                 curr_preds.append(1)
                 pred_matched = True
                 matched_labels.append(i)
@@ -78,42 +73,29 @@ def compute_AP_from_PR(Ps, Rs):
 
 def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False):
 
-    scene_APs = []
+    APs = []
+    for c in range(len(preds_conf[0][0])):
+        pred_scene_ids = []
+        concat_preds = np.concatenate(preds)
+        concat_preds_conf = np.concatenate(preds_conf)
+        for scene in range(len(preds)):
+            pred_scene_ids += [scene] * len(preds[scene])
 
 
-    # Loop through each scene. The mAP is calculated from the mean AP of each scene.
-    for scene in range(len(preds)):
+        category_pred_confs = concat_preds_conf[:, c]
+        category_sorted_conf_indices = np.argsort(category_pred_confs)[::-1]
+        category_sorted_preds = concat_preds[category_sorted_conf_indices]
+        sorted_pred_scene_ids = np.array(pred_scene_ids)[category_sorted_conf_indices]
 
-        # If there are no predictions (this should not happen if there is no conf threshold).
-        if len(preds[scene]) == 0:
-            if len(labels[scene]) != 0:
-                scene_APs.append(0)
-            else:
-                scene_APs.append(1)
-            continue
+        Ps, Rs = compute_PR_curve(category_sorted_preds, sorted_pred_scene_ids, labels, labels_conf, c)
+        PR_vals = compute_AP_from_PR(Ps, Rs)
 
-        # Fix this: for each category?
-        category_APs = []
-        for c in range(len(preds_conf[scene][0])):
-
-            category_pred_confs = preds_conf[scene][:, c]
-            category_labels_confs = np.array(labels_conf[scene])[:, c+1]
-            category_labels = np.array(labels[scene])
-            category_sorted_conf_indices = np.argsort(category_pred_confs)[::-1]
-            category_sorted_preds = preds[scene][category_sorted_conf_indices]
-            category_sorted_pred_confs = category_pred_confs[category_sorted_conf_indices]
-
-            Ps, Rs = compute_PR_curve(category_sorted_preds, category_sorted_pred_confs, category_labels, category_labels_confs)
-            PR_vals = compute_AP_from_PR(Ps, Rs)
-            category_APs.append(sum(PR_vals)/11)
-
-        scene_APs.append(sum(category_APs) / len(category_APs))
+        APs.append(sum(PR_vals)/11)
         
-    mAP = sum(scene_APs) / len(scene_APs)
+    mAP = sum(APs) / len(APs)
 
     if not hide_print:
         print("mAP is {}".format(mAP))
-
 
     return mAP
 
