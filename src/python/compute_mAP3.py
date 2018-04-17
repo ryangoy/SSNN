@@ -1,10 +1,11 @@
 import numpy as np
 import sys
 import functools
+from utils import nms
 
 
 # Retruns precision and recall arrays of a given sccene and category
-def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold=0.25):
+def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold=0.5):
     curr_preds = [] 
     Ps = [1.0, 0.0]
     Rs = [0.0, 1.0]
@@ -83,20 +84,28 @@ def compute_AP_from_PR(Ps, Rs):
     assert len(PR_vals) == 11
     return PR_vals
 
-def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False):
+def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nms=True):
 
     APs = []
     for c in range(len(preds_conf[0][0])):
+
+
+        if use_nms:
+            new_preds, new_preds_conf = nms(preds_conf, preds, 0.5, c)
+        else:
+            new_preds, new_preds_conf = preds, preds_conf
 
         category_preds = []
         category_preds_conf = []
         category_labels = []
         category_labels_conf = []
-        for i in range(len(preds_conf)):
-            category_preds.append(preds[i])
-            category_preds_conf.append(preds_conf[i][:, c])
+        for i in range(len(new_preds_conf)):
+            category_preds.append(new_preds[i])
+            category_preds_conf.append(new_preds_conf[i][:, c])
             category_labels.append(np.array(labels[i]))
             category_labels_conf.append(np.array(labels_conf[i])[:, c+1])
+
+        
 
         Ps, Rs = compute_PR_curve(category_preds, category_preds_conf, category_labels, category_labels_conf)
         PR_vals = compute_AP_from_PR(Ps, Rs)

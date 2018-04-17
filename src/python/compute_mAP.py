@@ -43,14 +43,14 @@ def compute_map(loc_preds, cls_preds, loc_labels, cls_labels, use_nms=True, nms_
     num_categories = len(cls_preds[1][0])
     recall_range = np.linspace(0, 1, 11)
     aps = np.zeros(num_categories)
-<<<<<<< HEAD
-    flattened_conf, conf_indices = flatten_confs(cls_preds)
+# <<<<<<< HEAD
+#     flattened_conf, conf_indices = flatten_confs(cls_preds)
         
-=======
+# =======
     curr_loc_preds = loc_preds
     curr_cls_preds = cls_preds
     
->>>>>>> 39607bb9120f1eba5a1cb6a75bb8c56ea917739b
+# >>>>>>> 39607bb9120f1eba5a1cb6a75bb8c56ea917739b
     # ignore negative class
     for i in range(1, num_categories+1):
         num_labels_matched = 0

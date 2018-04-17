@@ -105,17 +105,17 @@ def nms(cls_preds, loc_preds, overlap_thresh, class_num):
     all_cls_preds = []
     num_classes = len(cls_preds[0][0])
 
-    # iterate over rooms    
+    # iterate over rooms  
     for i in range(len(cls_preds)):
-        x1 = loc_preds[i,:,0]
-        y1 = loc_preds[i,:,1]
-        z1 = loc_preds[i,:,2]
-        x2 = loc_preds[i,:,3]
-        y2 = loc_preds[i,:,4]
-        z2 = loc_preds[i,:,5]
+        x1 = loc_preds[i][:,0]
+        y1 = loc_preds[i][:,1]
+        z1 = loc_preds[i][:,2]
+        x2 = loc_preds[i][:,3]
+        y2 = loc_preds[i][:,4]
+        z2 = loc_preds[i][:,5]
  
         # scores are the probability of a given bbox being an ROI
-        scores = cls_preds[i,:,class_num] 
+        scores = cls_preds[i][:,class_num] 
         volumes = (x2 - x1) * (y2 - y1) * (z2 - z1)
         idxs = np.argsort(scores)[::-1]
         pick = []
@@ -147,8 +147,8 @@ def nms(cls_preds, loc_preds, overlap_thresh, class_num):
             idxs = idxs[remaining_proposals]     
  
         # keep only the bounding boxes that were picked
-        all_loc_preds.append(np.array(loc_preds[i, pick]))
-        all_cls_preds.append(np.array(cls_preds[i, pick]))
+        all_loc_preds.append(np.array(loc_preds[i][ pick]))
+        all_cls_preds.append(np.array(cls_preds[i][ pick]))
 
     return np.array(all_loc_preds), np.array(all_cls_preds)
 
