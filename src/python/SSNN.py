@@ -23,18 +23,18 @@ class SSNN:
                num_classes=2, dropout=0.9):
 
     self.hook_num = 1
-    self.dims = dims
-    self.probe_steps = probe_steps
-    self.probe_size = dims / probe_steps
-    self.probe_output = None
-    self.ckpt_save = ckpt_save
-    self.ckpt_load = ckpt_load
-    self.probe_hook_steps = probe_hook_steps
-    self.num_kernels = num_kernels
-    self.probes_per_kernel = probes_per_kernel
-    self.ckpt_load_iter = ckpt_load_iter
-    self.dropout=dropout
-    self.num_classes=num_classes
+    self.dims = dims # dimensions of the normalized room in meters
+    self.probe_steps = probe_steps # number of steps in each direction for probing
+    self.probe_size = dims / probe_steps # size of step in meters
+    self.probe_output = None 
+    self.ckpt_save = ckpt_save # checkpoint save location
+    self.ckpt_load = ckpt_load # checkpoint load location
+    self.ckpt_load_iter = ckpt_load_iter # iteration
+    self.probe_hook_steps = probe_hook_steps # number of hook layers, i.e. number of output resolutions
+    self.num_kernels = num_kernels # number of probing kernels
+    self.probes_per_kernel = probes_per_kernel # number of random probes per kernel
+    self.dropout = dropout # dropout keep ratio
+    self.num_classes = num_classes # number of categories of objects
 
     # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
@@ -43,31 +43,17 @@ class SSNN:
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
     self.init_model(num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda, learning_rate=learning_rate)
 
-    # Initialize variables
+    # Initialize tf objects
     self.saver = tf.train.Saver()
-    # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.75)
-    # self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
     self.sess = tf.Session()
     init_op = tf.global_variables_initializer()
     self.sess.run(init_op)
 
+    # Load checkpoint if the path exists
     if self.ckpt_load and self.load_checkpoint(self.ckpt_load, iteration=self.ckpt_load_iter):
       print('Loaded SSNN model from checkpoint successfully.')
     else:
       print('Initialized new SSNN model.')
-
-  def fc_layer(self, x, num_nodes, name='fc_layer', activation=tf.nn.elu):
-    """
-    Dense layer.
-    """
-    with tf.variable_scope(name, reuse=False):
-      W = tf.Variable(shape=[x.shape[-1], num_nodes], 
-                      initializer=tf.contrib.layers.xavier_initializer())
-      b = tf.Variable(tf.zeros(shape=[num_nodes]))
-      output = tf.nn.bias_add(tf.matmul(x, W), b)
-      if activation is not None:
-        output = activation(output)
-      return output
 
   def init_probe_op(self, dims, steps, num_kernels=1, probes_per_kernel=1, k_size_factor=3):
     """
@@ -146,27 +132,26 @@ class SSNN:
                  learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
-    #         probes_per_kernel)
+    #         probes_per_kernel, [1-nearest_distance, r, g, b])
     self.X_ph = tf.placeholder(tf.float32, (None, probe_steps, probe_steps, 
                                             probe_steps, num_kernels, 
                                             probes_per_kernel, 4))
 
-    num_features = 0
     dim_size = probe_steps
     p_dim_size= probe_hook_steps
     num_p_features = 0
+
+    # Calculate the number of outputs from all hook layers
     for i in range(3):
-        num_features += dim_size**3
         num_p_features += p_dim_size**3
         p_dim_size /= 2
         dim_size /= 2
 
-    # Shape: (batches, x_steps, y_steps, z_steps)
+    # Concatenated hook outputs
     self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, num_classes))
     self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, 6))
 
-    # Shape: (batches, x, y, z, features)
-
+    # Dot product layer
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
     self.dot_product = tf.nn.relu(self.dot_product)
 
@@ -183,10 +168,13 @@ class SSNN:
     # self.pool0 = tf.nn.max_pool3d(self.conv0_2, ksize=[1, 2, 2, 2, 1], 
     #                               strides=[1, 2, 2, 2, 1], padding='SAME')
     
+    # First conv block, 32x32x32
     self.conv1_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
+
     # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
+
     self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=64, kernel_size=1, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
@@ -194,6 +182,7 @@ class SSNN:
     self.pool1 = tf.nn.max_pool3d(self.conv1_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
+    # Second conv block, 16x16x16
     self.conv2_1 = tf.layers.conv3d(self.pool1, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
@@ -208,6 +197,7 @@ class SSNN:
     self.pool2 = tf.nn.max_pool3d(self.conv2_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
+    # Third conv block, 8x8x8
     self.conv3_1 = tf.layers.conv3d(self.pool2, filters=128, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
@@ -222,6 +212,7 @@ class SSNN:
     self.pool3 = tf.nn.max_pool3d(self.conv3_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
+    # Fourth conv block, 4x4x4
     self.conv4_1 = tf.layers.conv3d(self.pool3, filters=256, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
@@ -290,10 +281,12 @@ class SSNN:
     pcs = []
     problem_pcs = []
     counter = 0
+
+    # Initialize memmap: robust to data larger than memory size.
     probe_memmap = np.memmap(probe_path, dtype='float32', mode='w+', shape=(len(X), self.probe_steps, 
                              self.probe_steps, self.probe_steps, self.num_kernels, self.probes_per_kernel, 4))
+    
     for pc in X:
-
       process = psutil.Process(os.getpid())
       if process.memory_info().rss // 1e9 > 110.0:
         print("[WARRNING] Memory cap surpassed. Flushing to hard disk.")
@@ -302,21 +295,8 @@ class SSNN:
       # Batch size of 1.
       pc = np.array([pc])
       counter += 1
-      #if counter not in [211, 302, 328, 779, 785, 922, 940] and (counter >922 or counter ==1):
-
-      # hack-y way of avoiding problem pointclouds (haven't figured out why this happens)
-      #if counter not in [75, 325, 395, 407, 408, 641]: # matterport
-      #if counter not in [124]: # stanford
-      #if counter not in [140]: # matterport bed
-      #if counter not in [117, 218]: # matterport toilet
-      #if counter not in [80, 397]: # matterport table
-      #if counter not in [225, 444, 445]:  # matterport chair
-      #if counter not in [29, 77]: # matterport bathtub
-      if counter not in []:
-        pc_disc, probe_coords = self.sess.run([self.probe_op, self.probe_coords], feed_dict={self.points_ph: pc})
-      else:
-        problem_pcs.append(counter-1)
-      
+ 
+      pc_disc, probe_coords = self.sess.run([self.probe_op, self.probe_coords], feed_dict={self.points_ph: pc})
       probe_memmap[counter-1] = pc_disc[0]
 
       if counter % 1 == 0:
@@ -324,10 +304,8 @@ class SSNN:
       
     self.probe_output = probe_memmap
 
+    # Write memmap to disk
     probe_memmap.flush()
-
-    # DEBUG
-    # np.save('probe_coords.npy', probe_coords)
 
     return probe_memmap, problem_pcs
     
@@ -345,11 +323,12 @@ class SSNN:
     mAPs = []
     for epoch in range(epochs):
       indices = list(range(X_trn.shape[0]))
-
       curr_cl_sum = 0
       curr_ll_sum = 0
       counter = 0
       for step in range(0, X_trn.shape[0], batch_size): 
+
+      	# Pick random batch
         shuffle(indices)
         randomized_indices = indices[step:step+batch_size]
         batch_x = X_trn[randomized_indices]
@@ -359,6 +338,7 @@ class SSNN:
         # noise = self.gaussian_noise_jitter(inp, .003)
         # batch_x = noise.eval(session=self.sess, feed_dict={inp: batch_x})
 
+        # Run forward pass and back propogation for a batch
         batch_y_cls = y_trn_cls[randomized_indices]
         batch_y_loc = y_trn_loc[randomized_indices]
         _, loss, cl, ll = self.sess.run([self.optimizer, self.loss, self.cls_loss, self.loc_loss], 
@@ -368,7 +348,7 @@ class SSNN:
         curr_ll_sum += ll
         counter += 1
 
-
+        # Print train loss
         if step % display_step < batch_size and step != 0:
           print("Epoch: {}/{}, Iter: {}, Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, epochs, 
                                             step - (step % display_step), 
@@ -378,6 +358,7 @@ class SSNN:
           curr_ll_sum = 0
           counter = 0
 
+      # Compute validation loss and validation mAP
       if X_val is not None and y_val_cls is not None and y_val_loc is not None:
         val_loss = 0
         val_cls_loss = 0
@@ -400,6 +381,7 @@ class SSNN:
           val_loc_loss += vll
           counter += 1
 
+        # compute validation mAP
         val_cls_preds = np.concatenate(val_cls_preds, axis=0)
         val_loc_preds = np.concatenate(val_loc_preds, axis=0)
         val_cls_preds = np.apply_along_axis(softmax, 2, val_cls_preds)
@@ -409,6 +391,11 @@ class SSNN:
                      self.dims/self.probe_hook_steps, None, None, conf_threshold=0.7)
         mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
         mAP = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True)
+# =======
+#                      self.dims/self.probe_hook_steps, None, None, conf_threshold=0)
+#         mAP_orig = compute_map(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, use_nms=False)
+#         mAP = compute_map(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot)
+# >>>>>>> 39607bb9120f1eba5a1cb6a75bb8c56ea917739b
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f}.".format(epoch, epochs,
                                                        val_cls_loss / counter, val_loc_loss / counter, mAP))
         val_losses.append((val_cls_loss + val_loc_loss)/counter)
@@ -428,9 +415,6 @@ class SSNN:
       hooks, dp_weights = self.sess.run([self.cls_hooks + self.loc_hooks, self.dp_weights], feed_dict={self.X_ph: batch_x})
       cls_preds.append(hooks[:3])
       loc_preds.append(hooks[3:])
-
-      # DEBUG
-      # np.save('dp_weights.npy', dp_weights)
 
     return cls_preds, loc_preds
 

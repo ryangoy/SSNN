@@ -1,6 +1,7 @@
 import sys
 import math
 import numpy as np
+from utils import nms
 
 # counts number of labels in a nested array
 def count_labels(labels):
@@ -11,14 +12,12 @@ def count_labels(labels):
     return s
 
 # flattens confidences and makes an array of valid indices in original array
-def flatten_confs(conf_class):
-    flattened_list = []
+def conf_index(conf_class):
     indices = []
     for i in range(len(conf_class)):
         for j in range(len(conf_class[i])):
-            flattened_list.append(conf_class[i][j])
             indices.append((i, j))
-    return flattened_list, indices
+    return indices
 
 # filters predictions (or labels) such that they are only of a given category, as denoted by cls_preds
 def bboxes_by_class(loc_preds, cls_preds, category):
@@ -39,13 +38,19 @@ def bboxes_by_class(loc_preds, cls_preds, category):
     return resulting_preds, resulting_conf
 
 # computes mAP given parallel arrays of bbox predictions and class predictions, bbox labels and class labels respectively
-def compute_map(loc_preds, cls_preds, loc_labels, cls_labels):
+def compute_map(loc_preds, cls_preds, loc_labels, cls_labels, use_nms=True, nms_thresh=0.5):
 
     num_categories = len(cls_preds[1][0])
     recall_range = np.linspace(0, 1, 11)
     aps = np.zeros(num_categories)
+<<<<<<< HEAD
     flattened_conf, conf_indices = flatten_confs(cls_preds)
         
+=======
+    curr_loc_preds = loc_preds
+    curr_cls_preds = cls_preds
+    
+>>>>>>> 39607bb9120f1eba5a1cb6a75bb8c56ea917739b
     # ignore negative class
     for i in range(1, num_categories+1):
         num_labels_matched = 0
@@ -54,15 +59,21 @@ def compute_map(loc_preds, cls_preds, loc_labels, cls_labels):
         best_precisions = np.zeros(11)
         labels_class, _ = bboxes_by_class(loc_labels, cls_labels, i)
         num_labels = count_labels(labels_class)
+        if use_nms:
+            print('using nms')
+            curr_loc_preds, curr_cls_preds = nms(cls_preds, loc_preds, nms_thresh, i-1)
+            print('used nms')
+        conf_indices = conf_index(curr_cls_preds)
+        print(len(conf_indices), 'predicted values')
         matched_labels = set()
 
         #rank predictions by their confidence in the current class
-        sorted_indices = sorted(conf_indices, key=lambda x: cls_preds[x[0]][x[1]][i-1], reverse=True)
+        sorted_indices = sorted(conf_indices, key=lambda x: curr_cls_preds[x[0]][x[1]][i-1], reverse=True)
         for j in range(len(sorted_indices)):
             room_idx = sorted_indices[j][0]
             pred_bbox_idx = sorted_indices[j][1]
             box_matched = False
-            pred = loc_preds[room_idx][pred_bbox_idx]
+            pred = curr_loc_preds[room_idx][pred_bbox_idx]
             for k in range(len(labels_class[room_idx])):
                 label = labels_class[room_idx][k]
                 max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)

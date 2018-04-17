@@ -73,8 +73,13 @@ TEST_AREAS = ['Area_6']
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
 
 #CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
+
 #CATEGORIES = ['sofa', 'table', 'chair', 'board']
+
+
 CATEGORIES = ['bed']
+
+
 #CATEGORIES = ['table']
 #CATEGORIES = ['nightstand']
 
