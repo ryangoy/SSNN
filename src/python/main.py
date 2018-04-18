@@ -74,10 +74,10 @@ TEST_AREAS = ['Area_6']
 
 #CATEGORIES = ['pot', 'curtain', 'toilet', 'bed']
 
-#CATEGORIES = ['sofa', 'table', 'chair', 'board']
+CATEGORIES = ['sofa', 'table', 'chair', 'board']
 
 
-CATEGORIES = ['bed']
+#CATEGORIES = ['bed']
 
 
 #CATEGORIES = ['table']

@@ -256,7 +256,7 @@ class SSNN:
     neg_loss = tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
     pos_loss = tf.multiply(pos_mask, cls_loss) / (N_pos + 1)
 
-    cls_loss = neg_loss + pos_loss 
+    cls_loss = 100* neg_loss + pos_loss 
     cls_loss = tf.reduce_sum(cls_loss)
     
     # Define loc loss.
@@ -387,9 +387,9 @@ class SSNN:
         val_cls_preds = np.apply_along_axis(softmax, 2, val_cls_preds)
         val_bbox_preds, val_cls= output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
                      self.dims/self.probe_hook_steps, None, None, conf_threshold=0.1)
-        val_bbox_preds_old, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3,
-                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0.7)
-        mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
+        # val_bbox_preds_old, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3,
+        #              self.dims/self.probe_hook_steps, None, None, conf_threshold=0.7)
+        # mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
         mAP = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True)
 # =======
 #                      self.dims/self.probe_hook_steps, None, None, conf_threshold=0)
