@@ -16,11 +16,26 @@ from compute_bbox_accuracy import compute_accuracy
 from utils import softmax
 from compute_mAP3 import compute_mAP
 
+
+def conv_block(inp, filters, kernel_size=3, strides=1, dims=2, training=True, activation=True, padding='SAME'):
+  
+  assert dims == 2 or dims == 3
+  if dims == 2:
+    layer = tf.layers.conv2d(inp, filters=filters, kernel_size=kernel_size, strides=strides, kernel_initializer=tf.contrib.layers.xavier_initializer(), padding=padding)
+  elif dims == 3:
+    layer = tf.layers.conv3d(inp, filters=filters, kernel_size=kernel_size, strides=strides, kernel_initializer=tf.contrib.layers.xavier_initializer(), padding=padding)
+
+  layer = tf.layers.batch_normalization(layer, axis=-1, fused=True, training=training)
+  if activation:
+    return tf.nn.relu(layer)
+  else:
+    return layer
+
 class SSNN:
   
   def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, 
                num_scales=3, ckpt_load=None, ckpt_save=None, ckpt_load_iter=50, loc_loss_lambda=1, learning_rate=0.0001, k_size_factor=1,
-               num_classes=2, dropout=0.9):
+               num_classes=2, dropout=0.9, training=True, ckpt_train_load=False):
 
     self.hook_num = 1
     self.dims = dims # dimensions of the normalized room in meters
@@ -35,13 +50,15 @@ class SSNN:
     self.probes_per_kernel = probes_per_kernel # number of random probes per kernel
     self.dropout = dropout # dropout keep ratio
     self.num_classes = num_classes # number of categories of objects
+    self.training = training
 
     # Defines self.probe_op
     self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
                        probes_per_kernel=probes_per_kernel, k_size_factor=k_size_factor)
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
-    self.init_model(num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda, learning_rate=learning_rate)
+    self.init_model(num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes, 
+                    dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda, learning_rate=learning_rate, training=training)
 
     # Initialize tf objects
     self.saver = tf.train.Saver()
@@ -50,7 +67,7 @@ class SSNN:
     self.sess.run(init_op)
 
     # Load checkpoint if the path exists
-    if self.ckpt_load and self.load_checkpoint(self.ckpt_load, iteration=self.ckpt_load_iter):
+    if ((self.ckpt_train_load and self.training) or not training) and self.load_checkpoint(self.ckpt_load, iteration=self.ckpt_load_iter):
       print('Loaded SSNN model from checkpoint successfully.')
     else:
       print('Initialized new SSNN model.')
@@ -128,14 +145,19 @@ class SSNN:
 
       return conf, loc
 
+
+
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes,
-                 learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False):
+                 learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False, training=True):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel, [1-nearest_distance, r, g, b])
     self.X_ph = tf.placeholder(tf.float32, (None, probe_steps, probe_steps, 
                                             probe_steps, num_kernels, 
                                             probes_per_kernel, 4))
+
+
+    print self.X_ph.shape
 
     dim_size = probe_steps
     p_dim_size= probe_hook_steps
@@ -147,15 +169,29 @@ class SSNN:
         p_dim_size /= 2
         dim_size /= 2
 
+
     # Concatenated hook outputs
     self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, num_classes))
     self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, 6))
 
     # Dot product layer
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
+    print self.dot_product.shape
     self.dot_product = tf.nn.relu(self.dot_product)
 
     self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
+
+
+    layer = conv_block(self.dot_product, 10, kernel_size=3, strides=1, dims=3, training=training)
+    layer = tf.transpose(layer, perm=[0, 4, 1, 2, 3])
+    print layer.shape
+    layer = conv_block(layer, 64, kernel_size=3, strides=(2, 1, 1), dims=3, training=training)
+    layer = conv_block(layer, 64, kernel_size=3, strides=1, dims=3, training=training, padding='VALID')
+    layer = conv_block(layer, 64, kernel_size=3, strides=(2, 1, 1), dims=3, training=training)
+
+    print layer.shape
+    layer = tf.transpose(layer, perm=[0, 2, 3, 4, 1])
+    layer = tf.reshape(layer, [-1, 30, 30, 128])
 
     # self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
     #                   strides=1, padding='SAME', activation=tf.nn.relu, 

@@ -36,14 +36,16 @@ flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported data
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
-flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
-flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
+flags.DEFINE_string('checkpoint_save_dir', 'checkpoints', 'Path to saving checkpoint.')
+flags.DEFINE_boolean('load_checkpoint_for_training', False, 'If True, uses checkpoint_load_dir/_iter to start from.')
+flags.DEFINE_string('checkpoint_load_dir', 'checkpoints', 'Path to loading checkpoint.')
 flags.DEFINE_string('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
 flags.DEFINE_float('checkpoint_save_interval', 10, 'If checkpoint_save_interval is defined, then sets save interval.')
 flags.DEFINE_boolean('use_rgb', True, 'If True, then loads colored pointclouds. Else, loads uncolored pointclouds.')
+flags.DEFINE_boolean('training', True, 'Train if True, otherwise test.')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 20, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 51, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.0001, 'Learning rate for training.')
@@ -217,64 +219,71 @@ def main(_):
                     learning_rate=FLAGS.learning_rate,
                     dropout=FLAGS.dropout,
                     k_size_factor=FLAGS.k_size_factor,
-                    num_classes=len(CATEGORIES)+1)
+                    num_classes=len(CATEGORIES)+1,
+                    training=FLAGS.training,
+                    ckpt_train_load=FLAGS.load_checkpoint_for_training)
 
 
   load_probe = FLAGS.load_probe_output and FLAGS.load_from_npy
 
-  # Pre-process train data. Train/test data pre-processing is split for easier data streaming.
-  X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
-                      CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, CLS_TRN_BBOX, FLAGS.load_from_npy,
-                      load_probe, num_copies=FLAGS.rotated_copies)
 
-  # Pre-process test data.
-  X_test, _, _, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
-                      CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, CLS_TEST_BBOX, FLAGS.load_from_npy,
-                      load_probe, is_train=False, oh_mapping=mapping)
-
-  # Train model.
-  train_split = int((FLAGS.val_split) * X.shape[0])
-  X_trn = X[train_split:]
-  y_trn_cls = y_cls[train_split:]
-  y_trn_loc = y_loc[train_split:]
-  y_trn_one_hot = y_cat_one_hot[train_split:]
-  trn_bboxes = bboxes[train_split:]
-  np.save('y_cls.npy', y_trn_cls)
-  X_val = X[:train_split]
-  y_val_cls = y_cls[:train_split]
-  y_val_loc = y_loc[:train_split]
-  y_val_one_hot = y_cat_one_hot[:train_split]
-  val_bboxes = bboxes[:train_split]
-  print("Beginning training...")
-  ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, val_bboxes, y_val_one_hot, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=FLAGS.checkpoint_save_interval)
-
-  # Test model. Using validation since we won't be using real 
-  # "test" data yet. Preds will be an array of bounding boxes. 
-  start_test = time.time()
-  # cls_preds, loc_preds = ssnn.test(X_test)
-  cls_preds, loc_preds = ssnn.test(X_test)
-  end_test = time.time()
-
-  print("Time to run {} test samples took {} seconds.".format(X_test.shape[0], end_test-start_test))
-  
-  # Save output.
-  save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
-                             NUM_HOOK_STEPS, NUM_SCALES, len(CATEGORIES)+1)
-  
-  cls_f = np.load(CLS_PREDS)
-  loc_f = np.load(LOC_PREDS)
-
-  bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.1)
+  if FLAGS.training:
+    # Pre-process train data. Train/test data pre-processing is split for easier data streaming.
+    X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
+                        CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, CLS_TRN_BBOX, FLAGS.load_from_npy,
+                        load_probe, num_copies=FLAGS.rotated_copies)
 
 
 
-  # Compute recall and precision.
-  compute_mAP(bboxes, bboxes_cls, np.load(BBOX_TEST_LABELS), np.load(CLS_TEST_BBOX))
-  # bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-  #                           DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.5)
-  # compute_accuracy(bboxes, np.load(BBOX_TEST_LABELS))
-  
+    # Train model.
+    train_split = int((FLAGS.val_split) * X.shape[0])
+    X_trn = X[train_split:]
+    y_trn_cls = y_cls[train_split:]
+    y_trn_loc = y_loc[train_split:]
+    y_trn_one_hot = y_cat_one_hot[train_split:]
+    trn_bboxes = bboxes[train_split:]
+    np.save('y_cls.npy', y_trn_cls)
+    X_val = X[:train_split]
+    y_val_cls = y_cls[:train_split]
+    y_val_loc = y_loc[:train_split]
+    y_val_one_hot = y_cat_one_hot[:train_split]
+    val_bboxes = bboxes[:train_split]
+    print("Beginning training...")
+    ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, val_bboxes, y_val_one_hot, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=FLAGS.checkpoint_save_interval)
+
+  else:
+    # Pre-process test data.
+    X_test, _, _, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
+                        CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, CLS_TEST_BBOX, FLAGS.load_from_npy,
+                        load_probe, is_train=False, oh_mapping=mapping)
+
+    # Test model. Using validation since we won't be using real 
+    # "test" data yet. Preds will be an array of bounding boxes. 
+    start_test = time.time()
+    # cls_preds, loc_preds = ssnn.test(X_test)
+    cls_preds, loc_preds = ssnn.test(X_test)
+    end_test = time.time()
+
+    print("Time to run {} test samples took {} seconds.".format(X_test.shape[0], end_test-start_test))
+    
+    # Save output.
+    save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
+                               NUM_HOOK_STEPS, NUM_SCALES, len(CATEGORIES)+1)
+    
+    cls_f = np.load(CLS_PREDS)
+    loc_f = np.load(LOC_PREDS)
+
+    bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
+                              DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.1)
+
+
+
+    # Compute recall and precision.
+    compute_mAP(bboxes, bboxes_cls, np.load(BBOX_TEST_LABELS), np.load(CLS_TEST_BBOX))
+    # bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
+    #                           DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.5)
+    # compute_accuracy(bboxes, np.load(BBOX_TEST_LABELS))
+    
   
 # Tensorflow boilerplate code.
 if __name__ == '__main__':
