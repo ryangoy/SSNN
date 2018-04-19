@@ -116,7 +116,7 @@ def nms(cls_preds, loc_preds, overlap_thresh, class_num):
  
         # scores are the probability of a given bbox being an ROI
         scores = cls_preds[i][:,class_num] 
-        volumes = (x2 - x1) * (y2 - y1) * (z2 - z1)
+        volumes = np.abs((x2 - x1) * (y2 - y1) * (z2 - z1))
         idxs = np.argsort(scores)[::-1]
         pick = []
         count = 1 
@@ -126,26 +126,33 @@ def nms(cls_preds, loc_preds, overlap_thresh, class_num):
             # index of the bbox with the highest remaining score
             j = idxs[0]
             pick.append(j)
- 
-            xx1 = np.maximum(x1[j], x1[idxs[1:]])
-            yy1 = np.maximum(y1[j], y1[idxs[1:]])
-            zz1 = np.maximum(z1[j], z1[idxs[1:]])
-            xx2 = np.minimum(x2[j], x2[idxs[1:]])
-            yy2 = np.minimum(y2[j], y2[idxs[1:]])
-            zz2 = np.minimum(z2[j], z2[idxs[1:]])
+            print "{} {} {}    {} {} {}".format(x1[j], y1[j], z1[j], x2[j], y2[j], z2[j]) 
+            xx1 = np.maximum(x1[j], x1[idxs])
+
+            yy1 = np.maximum(y1[j], y1[idxs])
+            zz1 = np.maximum(z1[j], z1[idxs])
+            xx2 = np.minimum(x2[j], x2[idxs])
+            yy2 = np.minimum(y2[j], y2[idxs])
+            zz2 = np.minimum(z2[j], z2[idxs])
 
             w = np.maximum(0, xx2 - xx1)
             h = np.maximum(0, yy2 - yy1)
             t = np.maximum(0, zz2 - zz1)
             intersection = w * h * t
-            unions = volumes[j] + volumes[idxs[1:]] - intersection
+
+            unions = volumes[j] + volumes[idxs] - intersection
     
             # compute the iou
             ious = intersection / unions
+
             remaining_proposals = np.where(ious <= overlap_thresh)[0]
+
+            if len(remaining_proposals) > 0 and remaining_proposals[0] == 0:
+              remaining_proposals = remaining_proposals[1:]
+
             # delete indices of bboxes that overlap by more than threshold
-            idxs = idxs[remaining_proposals]     
- 
+            idxs = idxs[remaining_proposals] 
+
         # keep only the bounding boxes that were picked
         all_loc_preds.append(np.array(loc_preds[i][ pick]))
         all_cls_preds.append(np.array(cls_preds[i][ pick]))
