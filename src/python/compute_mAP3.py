@@ -5,7 +5,7 @@ from utils import nms
 
 
 # Retruns precision and recall arrays of a given sccene and category
-def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold=0.25):
+def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold=0.5):
     curr_preds = [] 
     # Ps = [1.0, 0.0]
     # Rs = [0.0, 1.0]
