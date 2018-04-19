@@ -5,7 +5,7 @@ from utils import nms
 
 
 # Retruns precision and recall arrays of a given sccene and category
-def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold=0.5):
+def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold=0.25):
     curr_preds = [] 
     # Ps = [1.0, 0.0]
     # Rs = [0.0, 1.0]
@@ -16,12 +16,12 @@ def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold=0.5):
 
     # Loop through all the predictions for a scene in descending order of confidence values. Calculates AP.
     for scene in range(len(preds)):
-        
+        matched_labels = []
         for p in range(len(preds[scene])):
             pred = preds[scene][p]
             # Find a label that the prediction corresponds to if it exists.
             pred_matched = False  
-            matched_labels = []
+            
             for l in range(len(labels[scene])):
 
                 label = labels[scene][l]
@@ -92,7 +92,7 @@ def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nm
 
 
         if use_nms:
-            new_preds, new_preds_conf = nms(preds_conf, preds, 0.3, c)
+            new_preds, new_preds_conf = nms(preds_conf, preds, 0.1, c)
         else:
             new_preds, new_preds_conf = preds, preds_conf
 

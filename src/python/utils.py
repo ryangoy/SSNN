@@ -126,7 +126,6 @@ def nms(cls_preds, loc_preds, overlap_thresh, class_num):
             # index of the bbox with the highest remaining score
             j = idxs[0]
             pick.append(j)
-            print "{} {} {}    {} {} {}".format(x1[j], y1[j], z1[j], x2[j], y2[j], z2[j]) 
             xx1 = np.maximum(x1[j], x1[idxs])
 
             yy1 = np.maximum(y1[j], y1[idxs])

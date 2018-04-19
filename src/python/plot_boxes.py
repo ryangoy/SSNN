@@ -54,8 +54,8 @@ def main():
         ax.set_zlabel('Z')
 
 
-        for pred in scene_preds:
-            plot_bounding_box(pred, ax, color='b')
+        #for pred in scene_preds:
+        plot_bounding_box(scene_preds[0], ax, color='b')
 
         for label in scene_labels:
 
