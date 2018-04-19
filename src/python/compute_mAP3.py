@@ -7,9 +7,10 @@ from utils import nms
 # Retruns precision and recall arrays of a given sccene and category
 def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold=0.5):
     curr_preds = [] 
-    Ps = [1.0, 0.0]
-    Rs = [0.0, 1.0]
-    
+    # Ps = [1.0, 0.0]
+    # Rs = [0.0, 1.0]
+    Ps = [0.0]
+    Rs = [1.0]
     confidences = []
 
 
@@ -91,7 +92,7 @@ def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nm
 
 
         if use_nms:
-            new_preds, new_preds_conf = nms(preds_conf, preds, 0.5, c)
+            new_preds, new_preds_conf = nms(preds_conf, preds, 0.3, c)
         else:
             new_preds, new_preds_conf = preds, preds_conf
 
@@ -99,13 +100,24 @@ def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nm
         category_preds_conf = []
         category_labels = []
         category_labels_conf = []
+        disp_labels = []
         for i in range(len(new_preds_conf)):
             category_preds.append(new_preds[i])
             category_preds_conf.append(new_preds_conf[i][:, c])
             category_labels.append(np.array(labels[i]))
             category_labels_conf.append(np.array(labels_conf[i])[:, c+1])
 
-        
+            scene_disp_labels = []
+            for j in range(len(labels_conf[i])):
+                if category_labels_conf[i][j] == 1.0:
+
+                    scene_disp_labels.append(category_labels[i][j])
+            disp_labels.append(scene_disp_labels)
+
+
+        if c == 0:
+            np.save('category_preds_nms.npy', np.array(category_preds))
+            np.save('category_labels.npy', np.array(disp_labels))
 
         Ps, Rs = compute_PR_curve(category_preds, category_preds_conf, category_labels, category_labels_conf)
         PR_vals = compute_AP_from_PR(Ps, Rs)
