@@ -107,6 +107,8 @@ def nms(cls_preds, loc_preds, overlap_thresh, class_num):
 
     # iterate over rooms  
     for i in range(len(cls_preds)):
+        if len(loc_preds[i]) == 0:
+            continue
         x1 = loc_preds[i][:,0]
         y1 = loc_preds[i][:,1]
         z1 = loc_preds[i][:,2]
@@ -597,8 +599,7 @@ def load_directory_stanford(path, areas, categories):
         continue
       print("\tLoading room {}...".format(room))
 
-      # Load point cloud
-      input_pc = np.genfromtxt(join(room_path, room+'.txt'), dtype=np.float32)
+      
       
       # Loop and load Annotations folder
       annotation_pc = []
@@ -614,7 +615,8 @@ def load_directory_stanford(path, areas, categories):
                   join(room_path, 'Annotations', annotation), dtype=np.float32))
         annotation_label.append(annotation.split('.')[0])
       if len(annotation_pc) != 0:
-
+        # Load point cloud
+        input_pc = np.genfromtxt(join(room_path, room+'.txt'), dtype=np.float32)
         annotation_pc = np.array(annotation_pc)
         
         input_data.append(input_pc)

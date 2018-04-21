@@ -19,7 +19,7 @@ def plot_bounding_box(bbox, ax, color):
 
     Z = np.zeros((8,3))
     for i in range(8): Z[i,:] = points[i,:]
-    Z = 10.0*Z
+    Z = Z
 
     ax.scatter3D(Z[:, 0], Z[:, 1], Z[:, 2])
 
@@ -40,7 +40,7 @@ def plot_bounding_box(bbox, ax, color):
 
 
 
-def main():
+def plot_3d_bboxes():
     preds = np.load('category_preds_nms.npy')
     labels = np.load('category_labels.npy')
 
@@ -53,9 +53,13 @@ def main():
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
 
+        ax.set_xlim(0, 8)
+        ax.set_ylim(0, 8)
+        ax.set_zlim(0, 8)
 
-        #for pred in scene_preds:
-        plot_bounding_box(scene_preds[0], ax, color='b')
+        # plot as many predictions as we have labels
+        for i in range(len(scene_labels)):
+            plot_bounding_box(scene_preds[i], ax, color='b')
 
         for label in scene_labels:
 
@@ -64,4 +68,4 @@ def main():
         plt.show()
 
 if __name__ == '__main__':
-    main()
+    plot_3d_bboxes()

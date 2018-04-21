@@ -1,15 +1,12 @@
 echo "running default.."
-python main.py > logs/default.txt
+python main.py --single_class='sofa' --num_epochs=50 > logs/sofa.txt
 
 echo "running 1"
-python main.py --load_from_npy=True --k_size_factor=1 > logs/k1.txt
+python main.py --single_class='table' > logs/table.txt
 
 echo "running 2"
-python main.py --load_from_npy=True --num_kernels=16 > logs/nk16.txt
-
-echo "running 3"
-python main.py --load_from_npy=True --learning_rate=0.001 > logs/lr001.txt
+python main.py --single_class='chair' > logs/chair.txt
 
 echo "running 4"
-python main.py --load_from_npy=True --num_dot_layers=32 > logs/ndl32.txt
+python main.py --single_class='board' > logs/board.txt
 
