@@ -187,11 +187,7 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
           for k in range(dim):
             if max(cls_hook[i, j, k]) > conf_threshold:
               center_pt = loc_hook[i, j, k, :3] + [i,j,k]
-<<<<<<< HEAD
               half_dims = (np.exp(loc_hook[i, j, k, 3:]))/2
-=======
-              half_dims = (2**loc_hook[i, j, k, 3:])/2
->>>>>>> ec71bcc3043d1855eacd8279fc1e89bc4c9b681a
               LL = (center_pt - half_dims) * curr_ksize
               UR = (center_pt + half_dims) * curr_ksize
               bbox = np.concatenate([LL, UR], axis=0)
