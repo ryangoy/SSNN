@@ -14,6 +14,7 @@ See the doc <a href="https://docs.google.com/document/d/1E5_oou9kKTJgE75LKNbSj97
  - numpy
  - pyntcloud
  - matplotlib
+ - psutil
 
 # Run instructions #
 ```
