@@ -187,7 +187,11 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
           for k in range(dim):
             if max(cls_hook[i, j, k]) > conf_threshold:
               center_pt = loc_hook[i, j, k, :3] + [i,j,k]
+<<<<<<< HEAD
               half_dims = (np.exp(loc_hook[i, j, k, 3:]))/2
+=======
+              half_dims = (2**loc_hook[i, j, k, 3:])/2
+>>>>>>> ec71bcc3043d1855eacd8279fc1e89bc4c9b681a
               LL = (center_pt - half_dims) * curr_ksize
               UR = (center_pt + half_dims) * curr_ksize
               bbox = np.concatenate([LL, UR], axis=0)
@@ -303,7 +307,11 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
 
       # cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = np.array([1, 0])
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
+<<<<<<< HEAD
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = np.log(bbox_dims)
+=======
+      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = np.log2(bbox_dims)
+>>>>>>> ec71bcc3043d1855eacd8279fc1e89bc4c9b681a
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.
       
@@ -337,12 +345,16 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
               min_LL = np.minimum(fb_LL, bbox_LL)
               ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
 
-              if ji > 0.35:
+              if ji > 0.25:
                 #cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
                 cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = categories[scene_id][bbox_id]
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord
 
+<<<<<<< HEAD
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = np.log(bbox_UR - bbox_LL)
+=======
+                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = np.log2(bbox_UR - bbox_LL)
+>>>>>>> ec71bcc3043d1855eacd8279fc1e89bc4c9b681a
         bbox_loc /= 2
 
   # Format into the correct sized array for passing in labels to model.

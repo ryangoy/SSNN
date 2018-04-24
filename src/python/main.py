@@ -44,12 +44,12 @@ flags.DEFINE_boolean('use_rgb', True, 'If True, then loads colored pointclouds. 
 flags.DEFINE_string('single_class', None, 'Class name for single object detector.')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 60, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
 flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
-flags.DEFINE_float('dropout', 0.7, 'Keep probability for layers with dropout.')
+flags.DEFINE_float('dropout', 0.5, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
