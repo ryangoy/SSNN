@@ -6,10 +6,15 @@ See the doc <a href="https://docs.google.com/document/d/1E5_oou9kKTJgE75LKNbSj97
 
 
 # Dependencies #
+ - python3
  - Tensorflow 1.3+
  - Pillow
+ - Pandas
  - scipy
  - numpy
+ - pyntcloud
+ - matplotlib
+ - psutil
 
 # Run instructions #
 ```

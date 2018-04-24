@@ -25,7 +25,7 @@ def compute_accuracy(preds, labels, hide_print=False):
                 union = np.prod(pred[3:]-pred[:3]) + np.prod(label[3:]-label[:3]) - intersection
                 
                 # we found a label that matches our prediction--a true positive
-                if min(min_UR - max_LL) > 0 and intersection/union > 0.25:
+                if min(min_UR - max_LL) > 0 and intersection/union > 0.5:
                     if not pred_matched:
                         true_positives += 1
                         pred_matched = True

@@ -114,7 +114,7 @@ if __name__=='__main__':
     cls_preds = np.load(sys.argv[2]) # bbox cls values (all  of them, should have same shape as preds)
     loc_labels = np.load(sys.argv[3]) # bbox labels
     cls_labels = np.load(sys.argv[4]) # class labels for all bboxes, should have same shape as loc_labels
-    compute_map(loc_preds, cls_preds, loc_labels, cls_labels)
+    print compute_map(loc_preds, cls_preds, loc_labels, cls_labels)
 
 
 

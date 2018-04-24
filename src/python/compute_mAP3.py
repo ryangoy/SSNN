@@ -2,17 +2,17 @@ import numpy as np
 import sys
 import functools
 from utils import nms
+from plot_boxes import plot_3d_bboxes
 
 
 # Retruns precision and recall arrays of a given sccene and category
-def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold=0.5):
+def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold):
     curr_preds = [] 
-    # Ps = [1.0, 0.0]
-    # Rs = [0.0, 1.0]
+
     Ps = [0.0]
     Rs = [1.0]
+    IoUs = []
     confidences = []
-
 
     # Loop through all the predictions for a scene in descending order of confidence values. Calculates AP.
     for scene in range(len(preds)):
@@ -25,14 +25,15 @@ def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold=0.5):
             for l in range(len(labels[scene])):
 
                 label = labels[scene][l]
-                if l in matched_labels:
-                    continue
+                # if l in matched_labels:
+                #     continue
 
                 max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)
                 min_UR = np.min(np.array([pred[3:], label[3:]]), axis=0)
-                intersection = np.prod(min_UR - max_LL)
+                intersection = max(0, np.prod(min_UR - max_LL))
+
                 union = np.prod(pred[3:]-pred[:3]) + np.prod(label[3:]-label[:3]) - intersection
-                
+
                 # If we found a label that matches our prediction, i.e. a true positive
                 if min(min_UR - max_LL) > 0 and intersection/union > threshold and labels_confs[scene][l] == 1:
                     curr_preds.append(1)
@@ -45,6 +46,7 @@ def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold=0.5):
                 curr_preds.append(0)
 
             confidences.append(preds_conf[scene][p])
+
 
     indices = np.argsort(confidences)[::-1]
     ordered_preds = np.array(curr_preds)[indices]
@@ -85,7 +87,7 @@ def compute_AP_from_PR(Ps, Rs):
     assert len(PR_vals) == 11
     return PR_vals
 
-def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nms=True):
+def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nms=True, plot_category=3, mapping=None, threshold=0.5):
 
     APs = []
     for c in range(len(preds_conf[0][0])):
@@ -102,6 +104,8 @@ def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nm
         category_labels_conf = []
         disp_labels = []
         for i in range(len(new_preds_conf)):
+            if len(new_preds_conf[i]) == 0:
+                continue
             category_preds.append(new_preds[i])
             category_preds_conf.append(new_preds_conf[i][:, c])
             category_labels.append(np.array(labels[i]))
@@ -115,21 +119,26 @@ def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nm
             disp_labels.append(scene_disp_labels)
 
 
-        if c == 0:
+        if c == plot_category:
             np.save('category_preds_nms.npy', np.array(category_preds))
             np.save('category_labels.npy', np.array(disp_labels))
 
-        Ps, Rs = compute_PR_curve(category_preds, category_preds_conf, category_labels, category_labels_conf)
+
+        Ps, Rs = compute_PR_curve(category_preds, category_preds_conf, category_labels, category_labels_conf, threshold)
         PR_vals = compute_AP_from_PR(Ps, Rs)
 
-        APs.append(sum(PR_vals)/11)
+        APs.append(sum(PR_vals)/.11)
         
 
     mAP = sum(APs) / len(APs)
 
     if not hide_print:
-        print("APs for each category are {}".format(APs))
-        print("mAP is {}".format(mAP))
+        if mapping is None:
+            print("APs for each category are {}".format(APs))
+        else:
+            inv_map = {v: k for k, v in mapping.items()}
+            print("APs for categories are {}: {}, {}: {}, {}: {}, {}: {}".format(inv_map[0], APs[0], inv_map[1], APs[1], inv_map[2], APs[2], inv_map[3], APs[3]))
+        print("mAP with {} IoU threshold is {}".format(threshold, mAP))
 
     return mAP
 
@@ -138,4 +147,8 @@ if __name__ == '__main__':
     preds_conf = np.load(sys.argv[2])
     labels = np.load(sys.argv[3])
     labels_conf = np.load(sys.argv[4]) # tells us the category, not really the confidence
-    mAP = compute_mAP(preds, preds_conf, labels, labels_conf)
+    if len(sys.argv) > 5:
+        mAP = compute_mAP(preds, preds_conf, labels, labels_conf, plot_category=int(sys.argv[5]))
+        plot_3d_bboxes()
+    else:
+        mAP = compute_mAP(preds, preds_conf, labels, labels_conf)

@@ -283,6 +283,7 @@ class SSNN:
     counter = 0
 
     # Initialize memmap: robust to data larger than memory size.
+
     probe_memmap = np.memmap(probe_path, dtype='float32', mode='w+', shape=(len(X), self.probe_steps, 
                              self.probe_steps, self.probe_steps, self.num_kernels, self.probes_per_kernel, 4))
     

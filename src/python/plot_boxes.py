@@ -22,7 +22,6 @@ def plot_bounding_box(bbox, ax, color):
 
     Z = np.zeros((8,3))
     for i in range(8): Z[i,:] = points[i,:]
-
     ax.scatter3D(Z[:, 0], Z[:, 1], Z[:, 2])
 
     # list of sides' polygons of figure
@@ -42,7 +41,7 @@ def plot_bounding_box(bbox, ax, color):
     return volume
 
 
-def main():
+def plot_3d_bboxes():
     preds = np.load('category_preds_nms.npy')
     labels = np.load('category_labels.npy')
 
@@ -67,6 +66,7 @@ def main():
             v = plot_bounding_box(scene_preds[i], ax, color='b')
             pred_vols.append(v)
 #            break
+
         for label in scene_labels:
 #            if len(scene_labels) > 1:
 #                break
@@ -84,4 +84,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    plot_3d_bboxes()
