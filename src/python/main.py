@@ -31,14 +31,14 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 'Path to base directory.')
-flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
-flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
-flags.DEFINE_string('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
+flags.DEFINE_integer('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
 flags.DEFINE_float('checkpoint_save_interval', 10, 'If checkpoint_save_interval is defined, then sets save interval.')
 flags.DEFINE_boolean('use_rgb', True, 'If True, then loads colored pointclouds. Else, loads uncolored pointclouds.')
 flags.DEFINE_string('single_class', None, 'Class name for single object detector.')
