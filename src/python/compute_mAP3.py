@@ -87,7 +87,7 @@ def compute_AP_from_PR(Ps, Rs):
     assert len(PR_vals) == 11
     return PR_vals
 
-def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nms=True, plot_category=3, mapping=None, threshold=0.5):
+def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nms=True, plot_category=3, mapping=None, threshold=0.25):
 
     APs = []
     for c in range(len(preds_conf[0][0])):

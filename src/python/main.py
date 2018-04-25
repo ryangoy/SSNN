@@ -224,11 +224,6 @@ def main(_):
                       CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, CLS_TRN_BBOX, FLAGS.load_from_npy,
                       load_probe, num_copies=FLAGS.rotated_copies)
 
-  # Pre-process test data.
-  X_test, _, _, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
-                      CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, CLS_TEST_BBOX, FLAGS.load_from_npy,
-                      load_probe, is_train=False, oh_mapping=mapping)
-
   # Train model.
   train_split = int((FLAGS.val_split) * X.shape[0])
   X_trn = X[train_split:]
@@ -244,6 +239,13 @@ def main(_):
   val_bboxes = bboxes[:train_split]
   print("Beginning training...")
   ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, val_bboxes, y_val_one_hot, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=FLAGS.checkpoint_save_interval)
+
+
+  # Pre-process test data.
+  X_test, _, _, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
+                      CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, CLS_TEST_BBOX, FLAGS.load_from_npy,
+                      load_probe, is_train=False, oh_mapping=mapping)
+
 
   # Test model. Using validation since we won't be using real 
   # "test" data yet. Preds will be an array of bounding boxes. 
@@ -262,7 +264,7 @@ def main(_):
   loc_f = np.load(LOC_PREDS)
 
   bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.1)
+                            DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.05)
 
 
 
