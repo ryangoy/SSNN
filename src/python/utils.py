@@ -588,6 +588,7 @@ def load_directory_stanford(path, areas, categories):
   for area in areas:
     print("Loading area {}...".format(area))
     area_path = join(path, area)
+    print area_path
     if not isdir(area_path):
       continue
       
