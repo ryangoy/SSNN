@@ -104,8 +104,6 @@ class SSNN:
       input_layer_cls = tf.layers.conv3d(input_layer, filters=64, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-
-
       input_layer_cls = tf.nn.dropout(input_layer_cls, self.dropout)
 
       #input_layer_cls = tf.contrib.layers.batch_norm(input_layer_cls)
@@ -128,6 +126,15 @@ class SSNN:
 
       return conf, loc
 
+  def conv_layer(self, input_layer, kernel_size, strides, filters, activation=tf.nn.relu, name='conv2d'):
+    with tf.variable_scope(name) as scope:
+      layer = tf.layers.conv2d(layer, filters=fiters, kernel_size=kernel_size,
+                        strides=strides, padding='SAME', kernel_initializer=tf.contrib.layers.xavier_initializer())
+      layer = tf.layers.batch_normalization(
+                layer, axis=-1, fused=True, training=self.is_train, reuse=tf.AUTO_REUSE, name=scope)
+      layer = activation(layer)
+      return layer
+
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes,
                  learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False):
 
@@ -136,6 +143,8 @@ class SSNN:
     self.X_ph = tf.placeholder(tf.float32, (None, probe_steps, probe_steps, 
                                             probe_steps, num_kernels, 
                                             probes_per_kernel, 4))
+
+    self.is_train = tf.placeholder(tf.bool)
 
     dim_size = probe_steps
     p_dim_size= probe_hook_steps
@@ -156,73 +165,44 @@ class SSNN:
     self.dot_product = tf.nn.relu(self.dot_product)
 
     self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
-
-    # self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
-    #                   strides=1, padding='SAME', activation=tf.nn.relu, 
-    #                   kernel_initializer=tf.contrib.layers.xavier_initializer())
-    # # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
-    # self.conv0_2 = tf.layers.conv3d(self.conv0_1, filters=64, kernel_size=3, 
-    #                   strides=1, padding='SAME', activation=tf.nn.relu, 
-    #                   kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-    # self.pool0 = tf.nn.max_pool3d(self.conv0_2, ksize=[1, 2, 2, 2, 1], 
-    #                               strides=[1, 2, 2, 2, 1], padding='SAME')
     
     # First conv block, 32x32x32
-    self.conv1_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
-                      strides=1, padding='SAME', activation=tf.nn.relu, 
+    layer = tf.layers.conv3d(self.dot_product, filters=128, kernel_size=3, 
+                      strides=(1,1,2), padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
-
-    self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=64, kernel_size=1, 
-                      strides=1, padding='SAME', activation=tf.nn.relu, 
+    layer = tf.layers.conv3d(layer, filters=64, kernel_size=3, 
+                      strides=(1,1,2), padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.pool1 = tf.nn.max_pool3d(self.conv1_2, ksize=[1, 2, 2, 2, 1], 
-                                  strides=[1, 2, 2, 2, 1], padding='SAME')
+    layer = tf.layers.conv3d(layer, filters=32, kernel_size=3, 
+                      strides=(1,1,2), padding='SAME', activation=tf.nn.relu, 
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    # Second conv block, 16x16x16
-    self.conv2_1 = tf.layers.conv3d(self.pool1, filters=64, kernel_size=3, 
-                      strides=1, padding='SAME', activation=tf.nn.relu, 
-                      kernel_initializer=tf.contrib.layers.xavier_initializer())
-    # self.conv1_1 = tf.nn.dropout(self.conv1_1, dropout)
-    self.conv2_2 = tf.layers.conv3d(self.conv2_1, filters=64, kernel_size=1, 
-                      strides=1, padding='SAME', activation=tf.nn.relu, 
-                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+    # input shape: (batches, 32, 32, 4, 16)
+    # output shape: (batches, 32, 32, 128)
+    layer = tf.reshape(layer, (-1, 32, 32, 128))
+
+    layer = self.conv_layer(input_layer, 3, 1, 128, name='conv1')
+    layer = self.conv_layer(input_layer, 3, 1, 128, name='conv2')
+
+    layer = self.conv_layer(input_layer, 3, 2, 128, name='conv3')
+    layer = self.conv_layer(input_layer, 3, 1, 128, name='conv4')
 
     # First hook layer.
-    cls_hook1, loc_hook1 = self.hook_layer(self.conv2_2, reuse=reuse_hook, num_classes=num_classes)
+    cls_hook1, loc_hook1 = self.hook_layer(layer, reuse=reuse_hook, num_classes=num_classes)
 
-    self.pool2 = tf.nn.max_pool3d(self.conv2_2, ksize=[1, 2, 2, 2, 1], 
-                                  strides=[1, 2, 2, 2, 1], padding='SAME')
-
-    # Third conv block, 8x8x8
-    self.conv3_1 = tf.layers.conv3d(self.pool2, filters=128, kernel_size=3,
-                      strides=1, padding='SAME', activation=tf.nn.relu,
-                      kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-    self.conv3_2 = tf.layers.conv3d(self.conv3_1 , filters=128, kernel_size=1,
-                      strides=1, padding='SAME', activation=tf.nn.relu,
-                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+    layer = self.conv_layer(input_layer, 3, 2, 128, name='conv5')
+    layer = self.conv_layer(input_layer, 3, 1, 128, name='conv6')
 
     # Second hook layer, resolution is 1/2 the first
-    cls_hook2, loc_hook2 = self.hook_layer(self.conv3_2, reuse=reuse_hook, num_classes=num_classes)
+    cls_hook2, loc_hook2 = self.hook_layer(layer, reuse=reuse_hook, num_classes=num_classes)
 
-    self.pool3 = tf.nn.max_pool3d(self.conv3_2, ksize=[1, 2, 2, 2, 1], 
-                                  strides=[1, 2, 2, 2, 1], padding='SAME')
-
-    # Fourth conv block, 4x4x4
-    self.conv4_1 = tf.layers.conv3d(self.pool3, filters=256, kernel_size=3,
-                      strides=1, padding='SAME', activation=tf.nn.relu,
-                      kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-    self.conv4_2 = tf.layers.conv3d(self.conv4_1 , filters=256, kernel_size=1,
-                      strides=1, padding='SAME', activation=tf.nn.relu,
-                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+    layer = self.conv_layer(input_layer, 3, 2, 256, name='conv7')
+    layer = self.conv_layer(input_layer, 3, 1, 256, name='conv8')
 
     # Third hook layer, resolution is 1/4th the first
-    cls_hook3, loc_hook3 = self.hook_layer(self.conv4_2, reuse=reuse_hook, num_classes=num_classes)
+    cls_hook3, loc_hook3 = self.hook_layer(layer, reuse=reuse_hook, num_classes=num_classes)
 
     self.cls_hooks = [cls_hook1, cls_hook2, cls_hook3]
     self.loc_hooks = [loc_hook1, loc_hook2, loc_hook3]
