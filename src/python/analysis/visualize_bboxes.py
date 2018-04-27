@@ -1,3 +1,5 @@
+# visualizes bboxes and associated classes for predictions or labels. plot_bboxes.py is a beter visualization per category
+
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
