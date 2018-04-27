@@ -40,31 +40,31 @@ def plot_bounding_box(bbox, ax, color):
 
 
 def plot_3d_bboxes():
-    preds = np.load('category_preds_nms.npy')
-    labels = np.load('category_labels.npy')
+#    preds = np.load('bbox_preds_table_nms.npy')
+#    labels = np.load('bbox_labels_table.npy')
+    rooms = np.load('test_rooms.npy')
+    skip_factor = 20 # only plot 1 in 20 points in a room (saves time)
 
+#    for scene, scene_preds, scene_labels in zip(rooms, preds, labels):
+#        fig = plt.figure()
+#        ax = fig.add_subplot(111, projection='3d')
 
-    for scene_preds, scene_labels in zip(preds, labels):
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
+#        ax.set_xlabel('X')
+#        ax.set_ylabel('Y')
+#        ax.set_zlabel('Z')
 
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
+#        ax.set_xlim(0, 8)
+#        ax.set_ylim(0, 8)
+#        ax.set_zlim(0, 8)
 
-        ax.set_xlim(0, 8)
-        ax.set_ylim(0, 8)
-        ax.set_zlim(0, 8)
+        # plot as many predictions as we have
+#        for i in range(len(scene_preds)):
+#            plot_bounding_box(scene_preds[i], ax, color='b')
+#        for label in scene_labels:
+#            plot_bounding_box(label, ax, color='r')
 
-        # plot as many predictions as we have labels
-        for i in range(len(scene_labels)):
-            plot_bounding_box(scene_preds[i], ax, color='b')
-
-        for label in scene_labels:
-
-            plot_bounding_box(label, ax, color='r')
-
-        plt.show()
+#        ax.scatter(scene[::skip_factor, 0], scene[::skip_factor, 1], scene[::skip_factor, 2], s=1, color='g')
+#        plt.show()
 
 if __name__ == '__main__':
     plot_3d_bboxes()
