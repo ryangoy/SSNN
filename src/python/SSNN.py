@@ -12,7 +12,7 @@ from os import makedirs
 import psutil
 import os
 from utils import output_to_bboxes, flatten_output
-from compute_bbox_accuracy import compute_accuracy
+#from compute_bbox_accuracy import compute_accuracy
 from utils import softmax
 from compute_mAP3 import compute_mAP
 

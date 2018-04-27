@@ -17,7 +17,6 @@ from object_boundaries import generate_bounding_boxes
 import os
 import psutil
 from compute_mAP3 import compute_mAP
-from compute_bbox_accuracy import compute_accuracy
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
@@ -274,9 +273,7 @@ def main(_):
     # Compute recall and precision.
     compute_mAP(bboxes, bboxes_cls, np.load(BBOX_TEST_LABELS), np.load(CLS_TEST_BBOX), mapping=mapping, threshold=0.25)
     compute_mAP(bboxes, bboxes_cls, np.load(BBOX_TEST_LABELS), np.load(CLS_TEST_BBOX), mapping=mapping, threshold=0.5, plot_category=0)
-    # bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-    #                           DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.5)
-    # compute_accuracy(bboxes, np.load(BBOX_TEST_LABELS))
+
   
   
 # Tensorflow boilerplate code.

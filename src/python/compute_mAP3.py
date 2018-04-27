@@ -2,7 +2,7 @@ import numpy as np
 import sys
 import functools
 from utils import nms
-from plot_boxes import plot_3d_bboxes
+from analysis.plot_boxes import plot_3d_bboxes
 
 
 # Retruns precision and recall arrays of a given sccene and category
