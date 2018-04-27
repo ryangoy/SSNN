@@ -187,7 +187,7 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
           for k in range(dim):
             if max(cls_hook[i, j, k]) > conf_threshold:
               center_pt = loc_hook[i, j, k, :3] + [i,j,k]
-              half_dims = (2**loc_hook[i, j, k, 3:])/2
+              half_dims = (np.exp(loc_hook[i, j, k, 3:]))/2
               LL = (center_pt - half_dims) * curr_ksize
               UR = (center_pt + half_dims) * curr_ksize
               bbox = np.concatenate([LL, UR], axis=0)
@@ -303,7 +303,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
 
       # cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = np.array([1, 0])
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
-      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = np.log2(bbox_dims)
+      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = np.log(bbox_dims)
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.
       
@@ -342,7 +342,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
                 cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = categories[scene_id][bbox_id]
                 loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord
 
-                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = np.log2(bbox_UR - bbox_LL)
+                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = np.log(bbox_UR - bbox_LL)
         bbox_loc /= 2
 
   # Format into the correct sized array for passing in labels to model.

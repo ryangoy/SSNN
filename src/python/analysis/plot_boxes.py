@@ -1,11 +1,9 @@
-
+# visualization of prediction boxes (blue) and label boxes (red) in normalized coordinate space
 
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection
 import matplotlib.pyplot as plt
-
-
 
 def plot_bounding_box(bbox, ax, color):
     volume = (bbox[3]-bbox[0])*(bbox[4]-bbox[1])*(bbox[5]-bbox[2])
@@ -21,7 +19,11 @@ def plot_bounding_box(bbox, ax, color):
                        [bbox[3], bbox[1], bbox[5]]])
 
     Z = np.zeros((8,3))
-    for i in range(8): Z[i,:] = points[i,:]
+
+    for i in range(8): 
+        Z[i,:] = points[i,:]
+
+
     ax.scatter3D(Z[:, 0], Z[:, 1], Z[:, 2])
 
     # list of sides' polygons of figure
@@ -39,7 +41,6 @@ def plot_bounding_box(bbox, ax, color):
     collection.set_facecolor(face_color)
     ax.add_collection3d(collection)
     return volume
-
 
 def plot_3d_bboxes():
     preds = np.load('category_preds_nms.npy')

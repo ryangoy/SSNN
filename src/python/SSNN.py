@@ -12,7 +12,7 @@ from os import makedirs
 import psutil
 import os
 from utils import output_to_bboxes, flatten_output
-from compute_bbox_accuracy import compute_accuracy
+#from compute_bbox_accuracy import compute_accuracy
 from utils import softmax
 from compute_mAP3 import compute_mAP
 
@@ -256,7 +256,7 @@ class SSNN:
     neg_loss = tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
     pos_loss = tf.multiply(pos_mask, cls_loss) / (N_pos + 1)
 
-    cls_loss = 100* neg_loss + pos_loss 
+    cls_loss = pos_loss + 50*neg_loss 
     cls_loss = tf.reduce_sum(cls_loss)
     
     # Define loc loss.
@@ -282,6 +282,7 @@ class SSNN:
     problem_pcs = []
     counter = 0
 
+
     # Initialize memmap: robust to data larger than memory size.
 
     probe_memmap = np.memmap(probe_path, dtype='float32', mode='w+', shape=(len(X), self.probe_steps, 
@@ -290,7 +291,7 @@ class SSNN:
     for pc in X:
       process = psutil.Process(os.getpid())
       if process.memory_info().rss // 1e9 > 110.0:
-        print("[WARRNING] Memory cap surpassed. Flushing to hard disk.")
+        print("[WARNING] Memory cap surpassed. Flushing to hard disk.")
         probe_memmap.flush()
 
       # Batch size of 1.
@@ -299,6 +300,9 @@ class SSNN:
  
       pc_disc, probe_coords = self.sess.run([self.probe_op, self.probe_coords], feed_dict={self.points_ph: pc})
       probe_memmap[counter-1] = pc_disc[0]
+
+      if counter ==1 :
+        np.save('probe_coords.npy', np.array(probe_coords))
 
       if counter % 1 == 0:
         print('\t\tFinished probing {} pointclouds'.format(counter))
@@ -372,7 +376,8 @@ class SSNN:
           val_batch_x = X_val[step:step+batch_size]
           val_batch_y_cls = y_val_cls[step:step+batch_size]
           val_batch_y_loc = y_val_loc[step:step+batch_size]
-          vl, vcl, vll, val_cls_pred, val_loc_pred = self.sess.run([self.loss, self.cls_loss, self.loc_loss, self.cls_hooks_flat, self.loc_hooks_flat],
+          vl, vcl, vll, val_cls_pred, val_loc_pred, val_dp_weights, pool1 = self.sess.run([self.loss, self.cls_loss, self.loc_loss, self.cls_hooks_flat, self.loc_hooks_flat, 
+                      self.dp_weights, self.pool1],
                       feed_dict={self.X_ph: val_batch_x, self.y_ph_cls: val_batch_y_cls, self.y_ph_loc: val_batch_y_loc})
 
           val_cls_preds.append(val_cls_pred)
@@ -381,6 +386,9 @@ class SSNN:
           val_cls_loss += vcl
           val_loc_loss += vll
           counter += 1
+        np.save("dp_weights.npy", np.array(val_dp_weights))
+        np.save("pool1.npy", np.array(pool1))
+        np.save("pc_batch.npy", np.array(val_batch_x))
 
         # compute validation mAP
         val_cls_preds = np.concatenate(val_cls_preds, axis=0)
@@ -392,11 +400,6 @@ class SSNN:
         #              self.dims/self.probe_hook_steps, None, None, conf_threshold=0.7)
         # mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
         mAP = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True)
-# =======
-#                      self.dims/self.probe_hook_steps, None, None, conf_threshold=0)
-#         mAP_orig = compute_map(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, use_nms=False)
-#         mAP = compute_map(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot)
-# >>>>>>> 39607bb9120f1eba5a1cb6a75bb8c56ea917739b
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f}.".format(epoch, epochs,
                                                        val_cls_loss / counter, val_loc_loss / counter, mAP))
         val_losses.append((val_cls_loss + val_loc_loss)/counter)
@@ -416,6 +419,7 @@ class SSNN:
       hooks, dp_weights = self.sess.run([self.cls_hooks + self.loc_hooks, self.dp_weights], feed_dict={self.X_ph: batch_x})
       cls_preds.append(hooks[:3])
       loc_preds.append(hooks[3:])
+
 
     return cls_preds, loc_preds
 

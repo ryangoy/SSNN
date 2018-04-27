@@ -1,3 +1,5 @@
+# plots the coordinates of the probes as well as their associated dot product layer
+
 import numpy as np
 import sys
 from mpl_toolkits.mplot3d import Axes3D
@@ -29,6 +31,8 @@ def visualize_dot_product(probe_coords, dot_product_weights, kernel_id=0):
 if __name__ == '__main__':
 	# This should be shape (num_kernels, num_probes, 3)
 	probe_coords = np.load(sys.argv[1])
+	print probe_coords.shape
 	# This should be (num_kernels, num_probes, num_dot_layers)
-	dot_product_weights = np.load(sys.argv[2])
+	dot_product_weights = np.load(sys.argv[2])[...,0]
+	print dot_product_weights.shape
 	visualize_dot_product(probe_coords, dot_product_weights)

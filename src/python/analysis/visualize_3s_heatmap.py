@@ -1,3 +1,5 @@
+# visualizes the cls (classification) voxelgrid of labels or predictions at all scales
+
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
