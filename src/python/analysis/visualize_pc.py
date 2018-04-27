@@ -7,7 +7,11 @@ import sys
 
 pcs = np.load(sys.argv[1])
 
+pc = pcs[10]
 
+np.savetxt('val10.txt', pc)
+
+"""
 for i in range(pcs.shape[0]):
 	ss_factor = 1000
 
@@ -22,3 +26,4 @@ for i in range(pcs.shape[0]):
 	ax.scatter(x, y, z, cmap="Blues", alpha=0.2)
 
 	plt.show()
+"""
