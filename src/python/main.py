@@ -30,9 +30,9 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 'Path to base directory.')
-flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
-flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
@@ -55,8 +55,8 @@ flags.DEFINE_float('dropout', 0.5, 'Keep probability for layers with dropout.')
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
-flags.DEFINE_integer('batch_size', 8, 'Batch size for training.')
-flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
+flags.DEFINE_integer('batch_size', 2, 'Batch size for training.')
+flags.DEFINE_integer('num_kernels', 8, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
 
@@ -75,8 +75,10 @@ TEST_AREAS = ['Area_6']
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
 
 if FLAGS.single_class is None:
-  #CATEGORIES = ['sofa', 'table', 'chair', 'board']
-  CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
+  if FLAGS.dataset_name is 'stanford':
+    CATEGORIES = ['sofa', 'table', 'chair', 'board']
+  else:
+    CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
 else:
   CATEGORIES = [FLAGS.single_class]
 
