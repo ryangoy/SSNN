@@ -48,6 +48,7 @@ def plot_3d_bboxes():
 
     pred_vols = []
     label_vols = []
+    scene_id = 0
     for scene_preds, scene_labels in zip(preds, labels):
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -60,7 +61,8 @@ def plot_3d_bboxes():
         ax.set_zlim(0, 8)
 
         #for pred in scene_preds:
-        
+        print('Scene {}'.format(scene_id))
+        find_IoU(scene_preds, scene_labels)
         for i in range(len(scene_labels)):
 #            if len(scene_labels) > 1:
 #                break
@@ -75,13 +77,50 @@ def plot_3d_bboxes():
             label_vols.append(v)
             
         plt.show()
-
+        scene_id+=1 
     plt.hist(pred_vols, bins=25, color='b', alpha=0.5, range=(0, 100))
     plt.hist(label_vols, bins=25, color='r', alpha=0.5, range=(0,100))
     plt.show()
     
     plt.hist(np.array(pred_vols)/np.array(label_vols), range=(0, 5), bins=20, color='b')
     plt.show()
+
+
+def find_IoU(preds, labels):
+    print(len(preds))
+    print(len(labels))
+    matched_labels=[]
+    for p in range(len(labels)):
+        pred = preds[p]
+        # Find a label that the prediction corresponds to if it exists.
+        pred_matched = False  
+        
+        for l in range(len(labels)):
+
+            label = labels[l]
+            if l in matched_labels:
+                continue
+
+            max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)
+            
+            min_UR = np.min(np.array([pred[3:], label[3:]]), axis=0)
+            print('pred_coords: {}'.format(pred))
+            print('label_coords: {}'.format(label))
+            print('MaxLL: {}'.format(max_LL))
+            print('MinUr: {}'.format(min_UR))
+            intersection = max(0, np.prod(min_UR - max_LL))
+            print('intersection: {}'.format(intersection))
+
+            union = np.prod(pred[3:]-pred[:3]) + np.prod(label[3:]-label[:3]) - intersection
+
+            print('union: {}'.format(union))
+
+            # If we found a label that matches our prediction, i.e. a true positive
+            if min(min_UR - max_LL) > 0:
+                print(intersection/union)
+                pred_matched = True
+                matched_labels.append(l)
+                break
 
 
 if __name__ == '__main__':
