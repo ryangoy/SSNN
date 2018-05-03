@@ -399,9 +399,10 @@ class SSNN:
         # val_bbox_preds_old, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3,
         #              self.dims/self.probe_hook_steps, None, None, conf_threshold=0.7)
         # mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
-        mAP = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True)
-        print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP: {:.6f}.".format(epoch, epochs,
-                                                       val_cls_loss / counter, val_loc_loss / counter, mAP))
+        mAP25 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.25)
+        mAP5 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.5)
+        print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP 0.25: {:.6f}, mAP 0.5:{:.6f}.".format(epoch, epochs,
+                                                       val_cls_loss / counter, val_loc_loss / counter, mAP25, map5))
         val_losses.append((val_cls_loss + val_loc_loss)/counter)
         mAPs.append(mAP)
 

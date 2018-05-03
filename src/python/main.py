@@ -17,6 +17,7 @@ from object_boundaries import generate_bounding_boxes
 import os
 import psutil
 from compute_mAP3 import compute_mAP
+import pickle as pkl
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
@@ -30,8 +31,8 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 'Path to base directory.')
-flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
@@ -45,7 +46,7 @@ flags.DEFINE_boolean('train', True, 'If True, the model trains and validates.')
 flags.DEFINE_boolean('test', True, 'If True, the model tests as long as it load from a valid checkpoint or follow after training.')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 200, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
@@ -55,8 +56,8 @@ flags.DEFINE_float('dropout', 0.5, 'Keep probability for layers with dropout.')
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
-flags.DEFINE_integer('batch_size', 2, 'Batch size for training.')
-flags.DEFINE_integer('num_kernels', 8, 'Number of kernels to probe with.')
+flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
+flags.DEFINE_integer('num_kernels', 2, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
 
@@ -66,8 +67,8 @@ NUM_HOOK_STEPS = int(FLAGS.num_steps / 2)
 DIMS = np.array([7.5, 7.5, 7.5])
 
 # Define sets for training and testing (Stanford dataset)
-TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5'] 
-TEST_AREAS = ['Area_6']
+TRAIN_AREAS = ['Area_6', 'Area_2', 'Area_3', 'Area_4', 'Area_5'] 
+TEST_AREAS = ['Area_1']
 
 # Define categories.
 # CATEGORIES = ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
@@ -79,9 +80,9 @@ if FLAGS.single_class is None:
     CATEGORIES = ['sofa', 'table', 'chair', 'board']
   else:
     CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
+    CATEGORIES = ['sofa', 'table', 'chair', 'board']
 else:
   CATEGORIES = [FLAGS.single_class]
-
 
 # Define constant paths (TODO: make this more organized between datasets)
 intermediate_dir = join(FLAGS.data_dir, 'intermediates')
@@ -117,6 +118,8 @@ CLS_PREDS        = join(output_dir, 'cls_predictions.npy')
 LOC_PREDS        = join(output_dir, 'loc_predictions.npy')
 BBOX_PREDS       = join(output_dir, 'bbox_predictions.npy')
 BBOX_CLS_PREDS   = join(output_dir, 'bbox_cls_predictions.npy')
+
+MAPPING          = join(output_dir, 'mapping.pkl')
 
 
 def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_path, 
@@ -243,8 +246,11 @@ def main(_):
     val_bboxes = bboxes[:train_split]
     print("Beginning training...")
     ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, val_bboxes, y_val_one_hot, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=FLAGS.checkpoint_save_interval)
+    pkl.dump(mapping, open(MAPPING, 'wb'))
 
   if FLAGS.test:
+    mapping=None
+    #mapping = pkl.load(open(MAPPING, 'rb'))
     # Pre-process test data.
     X_test, _, _, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
                         CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, CLS_TEST_BBOX, FLAGS.load_from_npy,
@@ -268,7 +274,7 @@ def main(_):
     loc_f = np.load(LOC_PREDS)
 
     bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-                              DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.05)
+                              DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.10)
 
 
 

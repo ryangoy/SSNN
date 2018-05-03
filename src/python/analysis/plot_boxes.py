@@ -43,8 +43,8 @@ def plot_bounding_box(bbox, ax, color):
     return volume
 
 def plot_3d_bboxes():
-    preds = np.load('category_preds_nms.npy')
-    labels = np.load('category_labels.npy')
+    preds = np.load('../category_preds_nms.npy')
+    labels = np.load('../category_labels.npy')
 
     pred_vols = []
     label_vols = []

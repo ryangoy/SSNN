@@ -25,8 +25,8 @@ def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold):
             for l in range(len(labels[scene])):
 
                 label = labels[scene][l]
-                # if l in matched_labels:
-                #     continue
+                if l in matched_labels:
+                    continue
 
                 max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)
                 min_UR = np.min(np.array([pred[3:], label[3:]]), axis=0)
@@ -137,8 +137,12 @@ def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nm
             print("APs for each category are {}".format(APs))
         else:
             inv_map = {v: k for k, v in mapping.items()}
-            print("APs for categories are {}: {}, {}: {}, {}: {}, {}: {}".format(inv_map[0], APs[0], inv_map[1], APs[1], inv_map[2], APs[2], inv_map[3], APs[3]))
-        print("mAP with {} IoU threshold is {}".format(threshold, mAP))
+            print("APs:")
+            counter = 0
+            for key in inv_map:
+                print("\t{}: {}".format(inv_map[key], APs[counter]))
+                counter += 1
+            print("mAP with {} IoU threshold is {}".format(threshold, mAP))
 
     return mAP
 
