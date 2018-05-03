@@ -402,9 +402,9 @@ class SSNN:
         mAP25 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.25)
         mAP5 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.5)
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP 0.25: {:.6f}, mAP 0.5:{:.6f}.".format(epoch, epochs,
-                                                       val_cls_loss / counter, val_loc_loss / counter, mAP25, map5))
+                                                       val_cls_loss / counter, val_loc_loss / counter, mAP25, mAP5))
         val_losses.append((val_cls_loss + val_loc_loss)/counter)
-        mAPs.append(mAP)
+        mAPs.append(mAP5)
 
       if epoch != 0 and (epoch % save_interval == 0 or epoch == epochs-1) and self.ckpt_save is not None:
         self.save_checkpoint(self.ckpt_save, epoch)
