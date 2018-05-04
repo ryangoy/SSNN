@@ -18,13 +18,14 @@ from compute_mAP3 import compute_mAP
 
 class SSNN:
   
-  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_steps=32, probe_hook_steps=16, 
+  def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_xy_steps=32, probe_z_steps=32, probe_hook_steps=16, 
                num_scales=3, ckpt_load=None, ckpt_save=None, ckpt_load_iter=50, loc_loss_lambda=1, learning_rate=0.0001, k_size_factor=1,
                num_classes=2, dropout=0.9):
 
     self.hook_num = 1
     self.dims = dims # dimensions of the normalized room in meters
-    self.probe_steps = probe_steps # number of steps in each direction for probing
+    self.probe_xy_steps = probe_xy_steps # number of steps in each direction for probing
+    self.probe_z_steps = probe_z_steps # number of steps in each direction for probing
     self.probe_size = dims / probe_steps # size of step in meters
     self.probe_output = None 
     self.ckpt_save = ckpt_save # checkpoint save location
@@ -37,7 +38,7 @@ class SSNN:
     self.num_classes = num_classes # number of categories of objects
 
     # Defines self.probe_op
-    self.init_probe_op(dims, probe_steps, num_kernels=num_kernels, 
+    self.init_probe_op(dims, probe_xy_steps, probe_z_steps, num_kernels=num_kernels, 
                        probes_per_kernel=probes_per_kernel, k_size_factor=k_size_factor)
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
@@ -55,7 +56,7 @@ class SSNN:
     else:
       print('Initialized new SSNN model.')
 
-  def init_probe_op(self, dims, steps, num_kernels=1, probes_per_kernel=1, k_size_factor=3):
+  def init_probe_op(self, dims, xy_steps, z_steps, num_kernels=1, probes_per_kernel=1, k_size_factor=3):
     """
     The idea behind having a separate probe op is that we are converting from
     continuous space to discrete space here. Running backprop on this layer and
@@ -69,11 +70,8 @@ class SSNN:
       input_dims: tuple [x_meters, y_meters, z_meters]
       step_size: int or tuple [x_stride, y_stride, z_stride]
     """
-    if type(steps) is int:
-      steps = [steps, steps, steps]
-    else:
-      assert len(steps) == 3, \
-          "Must have a step size for each xyz dimension, or input an int."
+
+    steps = [xy_steps, xy_steps, z_steps]
 
     # Shape: (batches, num_points, xyz)
     self.points_ph = tf.placeholder(tf.float32, (None, None, 6))
@@ -157,33 +155,44 @@ class SSNN:
 
     self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
 
-    # self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
-    #                   strides=1, padding='SAME', activation=tf.nn.relu, 
-    #                   kernel_initializer=tf.contrib.layers.xavier_initializer())
-    # # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
-    # self.conv0_2 = tf.layers.conv3d(self.conv0_1, filters=64, kernel_size=3, 
-    #                   strides=1, padding='SAME', activation=tf.nn.relu, 
-    #                   kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-    # self.pool0 = tf.nn.max_pool3d(self.conv0_2, ksize=[1, 2, 2, 2, 1], 
-    #                               strides=[1, 2, 2, 2, 1], padding='SAME')
-    
-    # First conv block, 32x32x32
-    self.conv1_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
-                      strides=1, padding='SAME', activation=tf.nn.relu, 
+    # 128 x 128 x 16
+    self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=5, 
+                      strides=(2, 2, 1), padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
-
     # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
 
-    self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=64, kernel_size=1, 
-                      strides=1, padding='SAME', activation=tf.nn.relu, 
+    # 64 x 64 x 16
+    self.conv0_2 = tf.layers.conv3d(self.conv0_1, filters=64, kernel_size=5, 
+                      strides=(2, 2, 1), padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    self.pool1 = tf.nn.max_pool3d(self.conv1_2, ksize=[1, 2, 2, 2, 1], 
-                                  strides=[1, 2, 2, 2, 1], padding='SAME')
+    # 32 x 32 x 16
+    self.conv0_3 = tf.layers.conv3d(self.conv0_2, filters=64, kernel_size=5, 
+                      strides=(2, 2, 1), padding='SAME', activation=tf.nn.relu, 
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
+    
+    # # First conv block, 32x32x32
+    # self.conv1_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
+    #                   strides=1, padding='SAME', activation=tf.nn.relu, 
+    #                   kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+    # # self.conv0_1 = tf.nn.dropout(self.conv0_1, dropout)
+
+    # self.conv1_2 = tf.layers.conv3d(self.conv1_1, filters=64, kernel_size=1, 
+    #                   strides=1, padding='SAME', activation=tf.nn.relu, 
+    #                   kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+    # self.pool1 = tf.nn.max_pool3d(self.conv1_2, ksize=[1, 2, 2, 2, 1], 
+    #                               strides=[1, 2, 2, 2, 1], padding='SAME')
+
+
+    # 16 x 16 x 16
+    self.conv0_4 = tf.layers.conv3d(self.conv0_3, filters=64, kernel_size=5, 
+                      strides=(2, 2, 1), padding='SAME', activation=tf.nn.relu, 
+                      kernel_initializer=tf.contrib.layers.xavier_initializer())
 
     # Second conv block, 16x16x16
-    self.conv2_1 = tf.layers.conv3d(self.pool1, filters=64, kernel_size=3, 
+    self.conv2_1 = tf.layers.conv3d(self.conv0_4, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
     # self.conv1_1 = tf.nn.dropout(self.conv1_1, dropout)

@@ -46,15 +46,16 @@ flags.DEFINE_boolean('train', True, 'If True, the model trains and validates.')
 flags.DEFINE_boolean('test', True, 'If True, the model tests as long as it load from a valid checkpoint or follow after training.')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 200, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
-flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
+flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
 flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 0.5, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
-flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
+flags.DEFINE_integer('num_xy_steps', 128, 'Number of intervals to sample from in each xyz direction.')
+flags.DEFINE_integer('num_z_steps', 16, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 2, 'Number of kernels to probe with.')
@@ -63,8 +64,9 @@ flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per ker
 
 # DO NOT CHANGE
 NUM_SCALES = 3
-NUM_HOOK_STEPS = int(FLAGS.num_steps / 2)
-DIMS = np.array([7.5, 7.5, 7.5])
+NUM_HOOK_STEPS = int(FLAGS.num_z_steps)
+# DIMS = np.array([8, 8, 8])
+DIMS = np.array([FLAGS.num_xy_steps, FLAGS.num_yy_steps, FLAGS.num_z_steps])
 
 # Define sets for training and testing (Stanford dataset)
 TRAIN_AREAS = ['Area_6', 'Area_2', 'Area_3', 'Area_4', 'Area_5'] 
@@ -80,7 +82,7 @@ if FLAGS.single_class is None:
     CATEGORIES = ['sofa', 'table', 'chair', 'board']
   else:
     CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
-    CATEGORIES = ['sofa', 'table', 'chair', 'board']
+    #CATEGORIES = ['sofa', 'table', 'chair', 'board']
 else:
   CATEGORIES = [FLAGS.single_class]
 
@@ -184,8 +186,8 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     # Used for developing so redudant calculations are omitted.
     print ("\tLoading previous probe output...")
     # X = np.load(probe_path)
-    X = np.memmap(probe_path, dtype='float32', mode='r', shape=(len(X_cont), FLAGS.num_steps, 
-                             FLAGS.num_steps, FLAGS.num_steps, FLAGS.num_kernels, FLAGS.probes_per_kernel, 4))
+    X = np.memmap(probe_path, dtype='float32', mode='r', shape=(len(X_cont), FLAGS.num_x_steps, 
+                             FLAGS.num_y_steps, FLAGS.num_z_steps, FLAGS.num_kernels, FLAGS.probes_per_kernel, 4))
   else:
     print("\tAmount of memory used before probing: {}GB".format(process.memory_info().rss // 1e9))
     print("\tRunning probe operation...")
@@ -205,12 +207,14 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   return X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping
 
 def main(_):
-  kernel_size = DIMS / FLAGS.num_steps
+
 
   # Initialize model. max_room_dims and step_size are in meters.
   ssnn = SSNN(DIMS, num_kernels=FLAGS.num_kernels, 
                     probes_per_kernel=FLAGS.probes_per_kernel, 
-                    probe_steps=FLAGS.num_steps, probe_hook_steps=NUM_HOOK_STEPS,
+                    probe_xy_steps=FLAGS.num_xy_steps, 
+                    probe_z_steps=FLAGS.num_z_steps,
+                    probe_hook_steps=NUM_HOOK_STEPS,
                     num_scales=NUM_SCALES,
                     dot_layers=FLAGS.num_dot_layers,
                     ckpt_save=FLAGS.checkpoint_save_dir,
