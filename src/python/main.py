@@ -50,7 +50,7 @@ flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 2, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 0.5, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
@@ -125,10 +125,10 @@ MAPPING          = join(output_dir, 'mapping.pkl')
 ANCHORS =  np.array([[1.0, 1.0, 1.0],
                      [2.0, 1.0, 1.0],
                      [1.0, 2.0, 1.0],
-                     [2.0, 2.0, 1.0],
-                     [0.5, 1.0, 1.0],
-                     [1.0, 0.5, 1.0],
-                     [0.5, 0.5, 1.0],
+                     # [2.0, 2.0, 1.0],
+                     # [0.5, 1.0, 1.0],
+                     # [1.0, 0.5, 1.0],
+                     # [0.5, 0.5, 1.0],
                      [1.0, 1.0, 2.0],
                      [1.0, 1.0, 0.5]])
 

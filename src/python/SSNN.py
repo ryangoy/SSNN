@@ -102,6 +102,8 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
+
+
       input_layer_cls = tf.layers.conv3d(input_layer, filters=64, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -153,6 +155,7 @@ class SSNN:
     self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, len(self.anchors), 6))
 
     # Dot product layer
+    self.X_ph = tf.nn.dropout(self.X_ph, self.dropout)
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
     self.dot_product = tf.nn.relu(self.dot_product)
 
@@ -365,7 +368,7 @@ class SSNN:
           counter = 0
 
       # Compute validation loss and validation mAP
-      if X_val is not None and y_val_cls is not None and y_val_loc is not None:
+      if X_val is not None and y_val_cls is not None and y_val_loc is not None and epoch > 2:
         val_loss = 0
         val_cls_loss = 0
         val_loc_loss = 0
@@ -394,21 +397,18 @@ class SSNN:
         # compute validation mAP
         val_cls_preds = np.concatenate(val_cls_preds, axis=0)
         val_loc_preds = np.concatenate(val_loc_preds, axis=0)
-        val_cls_preds = np.apply_along_axis(softmax, 2, val_cls_preds)
+        val_cls_preds = np.apply_along_axis(softmax, 3, val_cls_preds)
         val_bbox_preds, val_cls= output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
-                     self.dims/self.probe_hook_steps, None, None, self.anchors, conf_threshold=0.5)
+                     self.dims/self.probe_hook_steps, None, None, self.anchors, conf_threshold=0.2)
 
-        # val_bbox_preds_old, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3,
-        #              self.dims/self.probe_hook_steps, None, None, conf_threshold=0.7)
-        # mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
-        # mAP25 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.25)
-        # mAP5 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.5)
-        mAP25 = 0
-        mAP5= 0
+
+        mAP25 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.25)
+        mAP5 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.5)
+
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP 0.25: {:.6f}, mAP 0.5:{:.6f}.".format(epoch, epochs,
                                                        val_cls_loss / counter, val_loc_loss / counter, mAP25, mAP5))
         val_losses.append((val_cls_loss + val_loc_loss)/counter)
-        mAPs.append(mAP5)
+        mAPs.append(mAP25)
 
       if epoch != 0 and (epoch % save_interval == 0 or epoch == epochs-1) and self.ckpt_save is not None:
         self.save_checkpoint(self.ckpt_save, epoch)
