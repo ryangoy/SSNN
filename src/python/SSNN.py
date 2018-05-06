@@ -260,11 +260,11 @@ class SSNN:
     neg_loss = tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
     pos_loss = tf.multiply(pos_mask, cls_loss) / (N_pos + 1)
 
-    cls_loss = pos_loss + 200*neg_loss 
+    cls_loss = pos_loss + 100*neg_loss 
     cls_loss = tf.reduce_sum(cls_loss)
     
     # Define loc loss.
-    loc_loss = tf.square(self.y_ph_loc - self.loc_hooks_flat)
+    loc_loss = tf.abs(self.y_ph_loc - self.loc_hooks_flat)
     loc_loss = tf.multiply(loc_loss, pos_mask_loc) / (N_pos + 1)
     loc_loss = tf.reduce_sum(tf.where(tf.is_nan(loc_loss), tf.zeros_like(loc_loss), loc_loss))
 
@@ -359,7 +359,7 @@ class SSNN:
 
         # Print train loss
         if step % display_step < batch_size and step != 0:
-          print("Epoch: {}/{}, Iter: {}, Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, epochs, 
+          print("Epoch: {}/{}, Iter: {}, Classification Loss: {:.5f}, Localization Loss: {:.5f}.".format(epoch, epochs, 
                                             step - (step % display_step), 
                                              curr_cl_sum / counter, curr_ll_sum / counter))
           train_losses.append((curr_cl_sum + curr_ll_sum)/counter)
@@ -405,7 +405,7 @@ class SSNN:
         mAP25 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.25)
         mAP5 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.5)
 
-        print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP 0.25: {:.6f}, mAP 0.5:{:.6f}.".format(epoch, epochs,
+        print("Epoch: {}/{}, Validation Classification Loss: {:.5f}, Localization Loss: {:.5f}, mAP 0.25: {:.5f}, mAP 0.5: {:.5f}.".format(epoch, epochs,
                                                        val_cls_loss / counter, val_loc_loss / counter, mAP25, mAP5))
         val_losses.append((val_cls_loss + val_loc_loss)/counter)
         mAPs.append(mAP25)

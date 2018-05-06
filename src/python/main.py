@@ -50,14 +50,14 @@ flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 0.5, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
-flags.DEFINE_integer('num_kernels', 2, 'Number of kernels to probe with.')
+flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
 
@@ -125,12 +125,14 @@ MAPPING          = join(output_dir, 'mapping.pkl')
 ANCHORS =  np.array([[1.0, 1.0, 1.0],
                      [2.0, 1.0, 1.0],
                      [1.0, 2.0, 1.0],
-                     # [2.0, 2.0, 1.0],
+                     [2.0, 2.0, 1.0],])
                      # [0.5, 1.0, 1.0],
                      # [1.0, 0.5, 1.0],
                      # [0.5, 0.5, 1.0],
-                     [1.0, 1.0, 2.0],
-                     [1.0, 1.0, 0.5]])
+                     # [1.0, 1.0, 2.0],
+                     # [1.0, 1.0, 0.5]])
+
+# ANCHORS = np.array([[2.0, 2.0, 1.0]])
 
 def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_path, 
                       cls_labels, loc_labels, bbox_labels, cls_by_box, load_from_npy, load_probe_output, num_copies=0, is_train=True, oh_mapping=None):
@@ -279,7 +281,7 @@ def main(_):
     
     # Save output.
     save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
-                               NUM_HOOK_STEPS, NUM_SCALES, len(CATEGORIES)+1)
+                               NUM_HOOK_STEPS, NUM_SCALES, len(ANCHORS), len(CATEGORIES)+1)
     
     cls_f = np.load(CLS_PREDS)
     loc_f = np.load(LOC_PREDS)
