@@ -197,6 +197,7 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
       prev_ind += dim**3
       dim //= 2
       curr_ksize *= 2  
+    print(len(bboxes))
     all_bboxes.append(np.array(bboxes))
     all_cls_vals.append(np.array(cls_vals))
 

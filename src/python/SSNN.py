@@ -257,7 +257,7 @@ class SSNN:
     neg_loss = tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
     pos_loss = tf.multiply(pos_mask, cls_loss) / (N_pos + 1)
 
-    cls_loss = pos_loss + 50*neg_loss 
+    cls_loss = pos_loss + 200*neg_loss 
     cls_loss = tf.reduce_sum(cls_loss)
     
     # Define loc loss.
@@ -365,7 +365,7 @@ class SSNN:
           counter = 0
 
       # Compute validation loss and validation mAP
-      if X_val is not None and y_val_cls is not None and y_val_loc is not None and epoch>3:
+      if X_val is not None and y_val_cls is not None and y_val_loc is not None:
         val_loss = 0
         val_cls_loss = 0
         val_loc_loss = 0
@@ -387,9 +387,9 @@ class SSNN:
           val_cls_loss += vcl
           val_loc_loss += vll
           counter += 1
-        np.save("dp_weights.npy", np.array(val_dp_weights))
-        np.save("pool1.npy", np.array(pool1))
-        np.save("pc_batch.npy", np.array(val_batch_x))
+        # np.save("dp_weights.npy", np.array(val_dp_weights))
+        # np.save("pool1.npy", np.array(pool1))
+        # np.save("pc_batch.npy", np.array(val_batch_x))
 
         # compute validation mAP
         val_cls_preds = np.concatenate(val_cls_preds, axis=0)
@@ -397,11 +397,14 @@ class SSNN:
         val_cls_preds = np.apply_along_axis(softmax, 2, val_cls_preds)
         val_bbox_preds, val_cls= output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
                      self.dims/self.probe_hook_steps, None, None, self.anchors, conf_threshold=0.5)
+
         # val_bbox_preds_old, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3,
         #              self.dims/self.probe_hook_steps, None, None, conf_threshold=0.7)
         # mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
-        mAP25 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.25)
-        mAP5 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.5)
+        # mAP25 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.25)
+        # mAP5 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.5)
+        mAP25 = 0
+        mAP5= 0
         print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP 0.25: {:.6f}, mAP 0.5:{:.6f}.".format(epoch, epochs,
                                                        val_cls_loss / counter, val_loc_loss / counter, mAP25, mAP5))
         val_losses.append((val_cls_loss + val_loc_loss)/counter)
