@@ -31,7 +31,7 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 'Path to base directory.')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/scans', 'Path to base directory.')
 flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
@@ -46,11 +46,11 @@ flags.DEFINE_boolean('train', True, 'If True, the model trains and validates.')
 flags.DEFINE_boolean('test', True, 'If True, the model tests as long as it load from a valid checkpoint or follow after training.')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 200, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 2, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 0.5, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
@@ -80,7 +80,7 @@ if FLAGS.single_class is None:
     CATEGORIES = ['sofa', 'table', 'chair', 'board']
   else:
     CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
-    CATEGORIES = ['sofa', 'table', 'chair', 'board']
+    #CATEGORIES = ['sofa', 'table', 'chair', 'board']
 else:
   CATEGORIES = [FLAGS.single_class]
 
@@ -121,6 +121,16 @@ BBOX_CLS_PREDS   = join(output_dir, 'bbox_cls_predictions.npy')
 
 MAPPING          = join(output_dir, 'mapping.pkl')
 
+
+ANCHORS =  np.array([[1.0, 1.0, 1.0],
+                     [2.0, 1.0, 1.0],
+                     [1.0, 2.0, 1.0],
+                     [2.0, 2.0, 1.0],
+                     [0.5, 1.0, 1.0],
+                     [1.0, 0.5, 1.0],
+                     [0.5, 0.5, 1.0],
+                     [1.0, 1.0, 2.0],
+                     [1.0, 1.0, 0.5]])
 
 def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_path, 
                       cls_labels, loc_labels, bbox_labels, cls_by_box, load_from_npy, load_probe_output, num_copies=0, is_train=True, oh_mapping=None):
@@ -174,7 +184,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   print("\tProcessing labels...")
   y_cat_one_hot, mapping = one_hot_vectorize_categories(yl, mapping=oh_mapping)
   np.save(cls_by_box, y_cat_one_hot)
-  y_cls, y_loc = create_jaccard_labels(bboxes, y_cat_one_hot, len(mapping)+1, NUM_HOOK_STEPS, kernel_size)
+  y_cls, y_loc = create_jaccard_labels(bboxes, y_cat_one_hot, len(mapping)+1, NUM_HOOK_STEPS, kernel_size, ANCHORS)
 
   np.save(cls_labels, y_cls)
   np.save(loc_labels, y_loc)
@@ -220,7 +230,8 @@ def main(_):
                     learning_rate=FLAGS.learning_rate,
                     dropout=FLAGS.dropout,
                     k_size_factor=FLAGS.k_size_factor,
-                    num_classes=len(CATEGORIES)+1)
+                    num_classes=len(CATEGORIES)+1,
+                    anchors=ANCHORS)
 
 
   load_probe = FLAGS.load_probe_output and FLAGS.load_from_npy
