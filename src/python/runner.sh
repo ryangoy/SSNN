@@ -32,9 +32,3 @@ python3 main.py --single_class='table' > logs/table.txt
 
 echo "running 4"
 python3 main.py --single_class='toilet' > logs/toilet.txt
-
-
-
-
-
-
