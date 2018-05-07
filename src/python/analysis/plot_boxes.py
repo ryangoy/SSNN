@@ -112,12 +112,13 @@ def find_IoU(preds, labels):
             print('intersection: {}'.format(intersection))
 
             union = np.prod(pred[3:]-pred[:3]) + np.prod(label[3:]-label[:3]) - intersection
-
+            vol_pred = np.prod(pred[3:] - pred[:3])
+            vol_label = np.prod(label[3:] - label[:3])
+            print('vol_pred: {}, vol_label: {}, pred/label: {}, label/pred: {}'.format(vol_pred, vol_label, vol_pred/vol_label, vol_label/vol_pred))
             print('union: {}'.format(union))
-
+            print('IoU: {}'.format(intersection/union))
             # If we found a label that matches our prediction, i.e. a true positive
             if min(min_UR - max_LL) > 0:
-                print(intersection/union)
                 pred_matched = True
                 matched_labels.append(l)
                 break
