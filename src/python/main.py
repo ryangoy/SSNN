@@ -18,6 +18,7 @@ import os
 import psutil
 from compute_mAP3 import compute_mAP
 import pickle as pkl
+from matplotlib.colors import rgb_to_hsv
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
@@ -31,8 +32,8 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/scans', 'Path to base directory.')
-flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
@@ -76,7 +77,7 @@ TEST_AREAS = ['Area_1']
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
 
 if FLAGS.single_class is None:
-  if FLAGS.dataset_name is 'stanford':
+  if FLAGS.dataset_name == 'stanford':
     CATEGORIES = ['sofa', 'table', 'chair', 'board']
   else:
     CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
@@ -161,6 +162,10 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
                                   ys_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, areas=areas, categories=CATEGORIES)
 
+  print("\tConverting rgb to hsv...")
+  for X_rgb in X_raw:
+    X_rgb[:, 3:] = rgb_to_hsv(X_rgb[:,3:])
+
   print("\tLoaded {} pointclouds for {}.".format(len(X_raw), input_type))
   process = psutil.Process(os.getpid())
  
@@ -195,7 +200,6 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   if exists(probe_path) and load_probe_output and not new_ds:
     # Used for developing so redudant calculations are omitted.
     print ("\tLoading previous probe output...")
-    # X = np.load(probe_path)
     X = np.memmap(probe_path, dtype='float32', mode='r', shape=(len(X_cont), FLAGS.num_steps, 
                              FLAGS.num_steps, FLAGS.num_steps, FLAGS.num_kernels, FLAGS.probes_per_kernel, 4))
   else:
@@ -287,7 +291,7 @@ def main(_):
     loc_f = np.load(LOC_PREDS)
 
     bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-                              DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.10)
+                              DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, ANCHORS, conf_threshold=0.10)
 
 
 

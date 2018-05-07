@@ -399,7 +399,7 @@ class SSNN:
         val_loc_preds = np.concatenate(val_loc_preds, axis=0)
         val_cls_preds = np.apply_along_axis(softmax, 3, val_cls_preds)
         val_bbox_preds, val_cls= output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
-                     self.dims/self.probe_hook_steps, None, None, self.anchors, conf_threshold=0.2)
+                     self.dims/self.probe_hook_steps, None, None, self.anchors, conf_threshold=0.1)
 
 
         mAP25 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.25)
