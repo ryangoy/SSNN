@@ -61,6 +61,7 @@ flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
+flags.DEFINE_integer('num_anchors', 1, 'Number of anchors to use.')
 
 # DO NOT CHANGE
 NUM_SCALES = 3
@@ -123,15 +124,17 @@ BBOX_CLS_PREDS   = join(output_dir, 'bbox_cls_predictions.npy')
 MAPPING          = join(output_dir, 'mapping.pkl')
 
 
-ANCHORS =  np.array([[1.0, 1.0, 1.0],
-                     [2.0, 1.0, 1.0],
-                     [1.0, 2.0, 1.0],
-                     [2.0, 2.0, 1.0],])
-                     # [0.5, 1.0, 1.0],
-                     # [1.0, 0.5, 1.0],
-                     # [0.5, 0.5, 1.0],
-                     # [1.0, 1.0, 2.0],
-                     # [1.0, 1.0, 0.5]])
+POSSIBLE_ANCHORS =  np.array([[1.0, 1.0, 1.0],
+                              [2.0, 1.0, 1.0],
+                              [1.0, 2.0, 1.0],
+                              [2.0, 2.0, 1.0],
+                              [0.5, 1.0, 1.0],
+                              [1.0, 0.5, 1.0],
+                              [0.5, 0.5, 1.0],
+                              [1.0, 1.0, 2.0],
+                              [1.0, 1.0, 0.5]])
+
+ANCHORS = POSSIBLE_ANCHORS[:FLAGS.num_anchors]
 
 # ANCHORS = np.array([[2.0, 2.0, 1.0]])
 
