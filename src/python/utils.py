@@ -33,8 +33,12 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
   # rotation_angles = np.linspace(0, 2*np.pi, num_rotations+1)[1:-1]
   assert num_rotations < 4
   rotation_angles = [0.5*np.pi, np.pi, 1.5*np.pi][:num_rotations]
-  print(rotation_angles)
+
   num_pclouds = len(pointclouds)
+
+  pointclouds = list(pointclouds)
+  ys = list(ys)
+  yl = list(yl)
   for k in range(num_pclouds):
     shape_pc = pointclouds[k][:, :3]
     color_pc = pointclouds[k][:, 3:]
@@ -48,14 +52,22 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
       pointclouds.append(np.concatenate([rotated_pc, color_pc], axis=-1))
       new_y = []
       for obj in ys[k]:
+
         rotated_obj = np.dot(obj.reshape((-1, 3)), rotation_matrix)
-        new_y.append(rotated_obj) 
+        LL = np.min(rotated_obj, axis=0)
+
+        UR = np.max(rotated_obj, axis=0)
+
+        new_box = np.concatenate([LL, UR])
+
+        new_y.append(new_box) 
+
 
       ys.append(new_y)
       yl.append(yl[k])
 
-  # re-center pointclouds after rotating
-  return pointclouds, ys, yl
+
+  return np.array(pointclouds), np.array(ys), np.array(yl)
 
 def flatten_output(cls_preds, loc_preds, steps, res_factor, num_anchors, num_classes):
   cls_output = []
@@ -346,6 +358,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
       cls_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index] = categories[scene_id][bbox_id]
 
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, :3] = bbox_loc - (coords + 0.5)
+
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 3:] = np.log(bbox_dims/best_anchor)
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.

@@ -61,7 +61,7 @@ flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
-flags.DEFINE_integer('num_anchors', 1, 'Number of anchors to use.')
+flags.DEFINE_integer('num_anchors', 4, 'Number of anchors to use.')
 
 # DO NOT CHANGE
 NUM_SCALES = 3
@@ -175,8 +175,11 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
 
-  print("Augmenting dataset...")
+
+
+  print("\tAugmenting dataset...")
   X_raw, yb_raw, yl = rotate_pointclouds(X_raw, yb_raw, yl, num_rotations=num_copies)
+
 
   print("\tNormalizing pointclouds...")
   X_cont, dims, ys = normalize_pointclouds_fn(X_raw, yb_raw, DIMS)
