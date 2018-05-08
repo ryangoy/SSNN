@@ -36,7 +36,7 @@ flags.DEFINE_string('data_dir', '/home/ryan/buildings', 'Path to base directory.
 flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
+flags.DEFINE_integer('rotated_copies', 3, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_integer('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
@@ -175,11 +175,13 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
 
+  print("Augmenting dataset...")
+  X_raw, yb_raw, yl = rotate_pointclouds(X_raw, yb_raw, yl, num_rotations=num_copies)
+
   print("\tNormalizing pointclouds...")
   X_cont, dims, ys = normalize_pointclouds_fn(X_raw, yb_raw, DIMS)
 
-  #print("Rotating dataset...")
-  #X_cont, ys, yl = rotate_pointclouds(X_cont, ys, list(yl), num_rotations=num_copies)
+
 
   yl = np.array(yl)
   kernel_size = DIMS / NUM_HOOK_STEPS

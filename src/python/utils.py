@@ -30,18 +30,22 @@ def augment_pointclouds(pointclouds, ys, copies=0):
 # From PointNet
 # Our default is to do 3 equally spaced rotations around the unit circle
 def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
-  rotation_angles = np.linspace(0, 2*np.pi, num_rotations+1)[1:-1]
+  # rotation_angles = np.linspace(0, 2*np.pi, num_rotations+1)[1:-1]
+  assert num_rotations < 4
+  rotation_angles = [0.5*np.pi, np.pi, 1.5*np.pi][:num_rotations]
+  print(rotation_angles)
   num_pclouds = len(pointclouds)
   for k in range(num_pclouds):
-    shape_pc = np.array(pointclouds[k]) 
+    shape_pc = pointclouds[k][:, :3]
+    color_pc = pointclouds[k][:, 3:]
     for rotation_angle in rotation_angles:
       cosval = np.cos(rotation_angle)
       sinval = np.sin(rotation_angle)
-      rotation_matrix = np.array([[cosval, 0, sinval],
-                                  [0, 1, 0],
-                                  [-sinval, 0, cosval]])
-      rotated_pc = np.dot(shape_pc.reshape((-1, 3)), rotation_matrix)
-      pointclouds.append(rotated_pc)
+      rotation_matrix = np.array([[cosval, -sinval, 0],
+                                  [sinval, cosval, 0],
+                                  [0, 0, 1]])
+      rotated_pc = np.dot(shape_pc, rotation_matrix)
+      pointclouds.append(np.concatenate([rotated_pc, color_pc], axis=-1))
       new_y = []
       for obj in ys[k]:
         rotated_obj = np.dot(obj.reshape((-1, 3)), rotation_matrix)
@@ -51,7 +55,6 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
       yl.append(yl[k])
 
   # re-center pointclouds after rotating
-  pointclouds, _, ys = normalize_pointclouds_stanford(pointclouds, ys)
   return pointclouds, ys, yl
 
 def flatten_output(cls_preds, loc_preds, steps, res_factor, num_anchors, num_classes):
