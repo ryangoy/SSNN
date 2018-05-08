@@ -27,20 +27,20 @@ python3 main.py --single_class='bookshelf' > logs/bookshelf.txt
 echo "running 4"
 python3 main.py --single_class='chair' > logs/chair.txt
 
-echo "running 4"
+echo "running desk"
 python3 main.py --single_class='desk' > logs/desk.txt
 
-echo "running 4"
+echo "running dresser"
 python3 main.py --single_class='dresser' > logs/dresser.txt
 
-echo "running 4"
+echo "running nightstand"
 python3 main.py --single_class='nightstand' > logs/nightstand.txt
 
-echo "running 4"
+echo "running sofa"
 python3 main.py --single_class='sofa' > logs/spfa.txt
 
-echo "running 4"
+echo "running table"
 python3 main.py --single_class='table' > logs/table.txt
 
-echo "running 4"
+echo "running toilet"
 python3 main.py --single_class='toilet' > logs/toilet.txt
