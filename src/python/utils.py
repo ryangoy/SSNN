@@ -52,14 +52,10 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
       pointclouds.append(np.concatenate([rotated_pc, color_pc], axis=-1))
       new_y = []
       for obj in ys[k]:
-
         rotated_obj = np.dot(obj.reshape((-1, 3)), rotation_matrix)
         LL = np.min(rotated_obj, axis=0)
-
         UR = np.max(rotated_obj, axis=0)
-
         new_box = np.concatenate([LL, UR])
-
         new_y.append(new_box) 
 
 
@@ -469,6 +465,7 @@ def normalize_pointclouds_stanford(pointcloud_arr, seg_arr, probe_dims):
       shifted_objs.append(np.array(obj[:,:3]-mins) / dims * probe_dims)
     shifted_segmentations.append(shifted_objs)
     new_pc = np.array(xyz)
+
     new_pc = np.concatenate([new_pc, pointcloud[:, 3:]], axis=1)
     shifted_pointclouds.append(new_pc)
   return shifted_pointclouds, gmax, shifted_segmentations

@@ -32,11 +32,11 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/buildings', 'Path to base directory.')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 'Path to base directory.')
 flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('rotated_copies', 3, 'Number of times the dataset is copied and rotated for data augmentation.')
+flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_integer('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
@@ -149,10 +149,10 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   assert FLAGS.dataset_name in ['stanford', 'matterport'], 'Supported datasets are stanford and matterport.'
 
   print("Running pre-processing for {} set.".format(input_type))
-  if FLAGS.dataset_name == 'stanford':
+  if False and FLAGS.dataset_name == 'stanford':
     normalize_pointclouds_fn = normalize_pointclouds_stanford
 
-  elif FLAGS.dataset_name == 'matterport':
+  elif True or FLAGS.dataset_name == 'matterport':
     normalize_pointclouds_fn = normalize_pointclouds_matterport
 
   if FLAGS.dataset_name == 'matterport':
@@ -165,7 +165,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
                                   ys_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, areas=areas, categories=CATEGORIES)
 
-  print("\tConverting rgb to hsv...")
+  print("\tConverting RGB to HSV...")
   for X_rgb in X_raw:
     X_rgb[:, 3:] = rgb_to_hsv(X_rgb[:,3:])
 
@@ -176,25 +176,27 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   # width, height, and depth dims of all rooms.
 
 
+  if FLAGS.dataset_name == 'stanford':
+    print("\tGenerating bboxes...")
+    bboxes = generate_bounding_boxes(yb_raw, bbox_labels)
+  elif FLAGS.dataset_name == 'matterport':
+    bboxes = yb_raw
+  
+
 
   print("\tAugmenting dataset...")
-  X_raw, yb_raw, yl = rotate_pointclouds(X_raw, yb_raw, yl, num_rotations=num_copies)
+  X_raw, bboxes, yl = rotate_pointclouds(X_raw, bboxes, yl, num_rotations=num_copies)
 
 
   print("\tNormalizing pointclouds...")
-  X_cont, dims, ys = normalize_pointclouds_fn(X_raw, yb_raw, DIMS)
+  X_cont, dims, bboxes = normalize_pointclouds_fn(X_raw, bboxes, DIMS)
 
-
+  np.save(bbox_labels, bboxes)
 
   yl = np.array(yl)
   kernel_size = DIMS / NUM_HOOK_STEPS
 
-  if FLAGS.dataset_name == 'stanford':
-    print("\tGenerating bboxes...")
-    bboxes = generate_bounding_boxes(ys, bbox_labels)
-  elif FLAGS.dataset_name == 'matterport':
-    bboxes = ys
-  np.save(bbox_labels, bboxes)
+
 
   print("\tProcessing labels...")
   y_cat_one_hot, mapping = one_hot_vectorize_categories(yl, mapping=oh_mapping)
