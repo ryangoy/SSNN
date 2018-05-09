@@ -18,6 +18,7 @@ import os
 import psutil
 from compute_mAP3 import compute_mAP
 import pickle as pkl
+from matplotlib.colors import rgb_to_hsv
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
@@ -31,11 +32,11 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/v1/scans', 'Path to base directory.')
-flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
-flags.DEFINE_bool('load_from_npy', True, 'Whether to load from preloaded dataset')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
+flags.DEFINE_integer('rotated_copies', 3, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_integer('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
@@ -49,8 +50,8 @@ flags.DEFINE_boolean('test', True, 'If True, the model tests as long as it load 
 flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
-flags.DEFINE_float('learning_rate', 0.00001, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
+flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
+flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 0.5, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
@@ -58,9 +59,10 @@ flags.DEFINE_integer('num_xy_steps', 128, 'Number of intervals to sample from in
 flags.DEFINE_integer('num_z_steps', 16, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
-flags.DEFINE_integer('num_kernels', 2, 'Number of kernels to probe with.')
+flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
+flags.DEFINE_integer('num_anchors', 4, 'Number of anchors to use.')
 
 # DO NOT CHANGE
 NUM_SCALES = 3
@@ -78,7 +80,7 @@ TEST_AREAS = ['Area_1']
 #                   'button', 'toilet paper', 'toilet', 'control panel', 'towel']
 
 if FLAGS.single_class is None:
-  if FLAGS.dataset_name is 'stanford':
+  if FLAGS.dataset_name == 'stanford':
     CATEGORIES = ['sofa', 'table', 'chair', 'board']
   else:
     CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
@@ -124,6 +126,20 @@ BBOX_CLS_PREDS   = join(output_dir, 'bbox_cls_predictions.npy')
 MAPPING          = join(output_dir, 'mapping.pkl')
 
 
+POSSIBLE_ANCHORS =  np.array([[1.0, 1.0, 1.0],
+                              [2.0, 1.0, 1.0],
+                              [1.0, 2.0, 1.0],
+                              [2.0, 2.0, 1.0],
+                              [0.5, 1.0, 1.0],
+                              [1.0, 0.5, 1.0],
+                              [0.5, 0.5, 1.0],
+                              [1.0, 1.0, 2.0],
+                              [1.0, 1.0, 0.5]])
+
+ANCHORS = POSSIBLE_ANCHORS[:FLAGS.num_anchors]
+
+# ANCHORS = np.array([[2.0, 2.0, 1.0]])
+
 def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_path, 
                       cls_labels, loc_labels, bbox_labels, cls_by_box, load_from_npy, load_probe_output, num_copies=0, is_train=True, oh_mapping=None):
   """
@@ -135,10 +151,10 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   assert FLAGS.dataset_name in ['stanford', 'matterport'], 'Supported datasets are stanford and matterport.'
 
   print("Running pre-processing for {} set.".format(input_type))
-  if FLAGS.dataset_name == 'stanford':
+  if False and FLAGS.dataset_name == 'stanford':
     normalize_pointclouds_fn = normalize_pointclouds_stanford
 
-  elif FLAGS.dataset_name == 'matterport':
+  elif True or FLAGS.dataset_name == 'matterport':
     normalize_pointclouds_fn = normalize_pointclouds_matterport
 
   if FLAGS.dataset_name == 'matterport':
@@ -151,32 +167,43 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
                                   ys_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, areas=areas, categories=CATEGORIES)
 
+  print("\tConverting RGB to HSV...")
+  for X_rgb in X_raw:
+    X_rgb[:, 3:] = rgb_to_hsv(X_rgb[:,3:])
+
   print("\tLoaded {} pointclouds for {}.".format(len(X_raw), input_type))
   process = psutil.Process(os.getpid())
  
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
 
-  print("\tNormalizing pointclouds...")
-  X_cont, dims, ys = normalize_pointclouds_fn(X_raw, yb_raw, DIMS)
 
-  #print("Rotating dataset...")
-  #X_cont, ys, yl = rotate_pointclouds(X_cont, ys, list(yl), num_rotations=num_copies)
+  if FLAGS.dataset_name == 'stanford':
+    print("\tGenerating bboxes...")
+    bboxes = generate_bounding_boxes(yb_raw, bbox_labels)
+  elif FLAGS.dataset_name == 'matterport':
+    bboxes = yb_raw
+  
+
+
+  print("\tAugmenting dataset...")
+  X_raw, bboxes, yl = rotate_pointclouds(X_raw, bboxes, yl, num_rotations=num_copies)
+
+
+  print("\tNormalizing pointclouds...")
+  X_cont, dims, bboxes = normalize_pointclouds_fn(X_raw, bboxes, DIMS)
+
+  np.save(bbox_labels, bboxes)
 
   yl = np.array(yl)
   kernel_size = DIMS / NUM_HOOK_STEPS
 
-  if FLAGS.dataset_name == 'stanford':
-    print("\tGenerating bboxes...")
-    bboxes = generate_bounding_boxes(ys, bbox_labels)
-  elif FLAGS.dataset_name == 'matterport':
-    bboxes = ys
-  np.save(bbox_labels, bboxes)
+
 
   print("\tProcessing labels...")
   y_cat_one_hot, mapping = one_hot_vectorize_categories(yl, mapping=oh_mapping)
   np.save(cls_by_box, y_cat_one_hot)
-  y_cls, y_loc = create_jaccard_labels(bboxes, y_cat_one_hot, len(mapping)+1, NUM_HOOK_STEPS, kernel_size)
+  y_cls, y_loc = create_jaccard_labels(bboxes, y_cat_one_hot, len(mapping)+1, NUM_HOOK_STEPS, kernel_size, ANCHORS)
 
   np.save(cls_labels, y_cls)
   np.save(loc_labels, y_loc)
@@ -185,7 +212,6 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   if exists(probe_path) and load_probe_output and not new_ds:
     # Used for developing so redudant calculations are omitted.
     print ("\tLoading previous probe output...")
-    # X = np.load(probe_path)
     X = np.memmap(probe_path, dtype='float32', mode='r', shape=(len(X_cont), FLAGS.num_x_steps, 
                              FLAGS.num_y_steps, FLAGS.num_z_steps, FLAGS.num_kernels, FLAGS.probes_per_kernel, 4))
   else:
@@ -224,7 +250,8 @@ def main(_):
                     learning_rate=FLAGS.learning_rate,
                     dropout=FLAGS.dropout,
                     k_size_factor=FLAGS.k_size_factor,
-                    num_classes=len(CATEGORIES)+1)
+                    num_classes=len(CATEGORIES)+1,
+                    anchors=ANCHORS)
 
 
   load_probe = FLAGS.load_probe_output and FLAGS.load_from_npy
@@ -272,13 +299,13 @@ def main(_):
     
     # Save output.
     save_output(CLS_PREDS, LOC_PREDS, cls_preds, loc_preds, 
-                               NUM_HOOK_STEPS, NUM_SCALES, len(CATEGORIES)+1)
+                               NUM_HOOK_STEPS, NUM_SCALES, len(ANCHORS), len(CATEGORIES)+1)
     
     cls_f = np.load(CLS_PREDS)
     loc_f = np.load(LOC_PREDS)
 
     bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
-                              DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, conf_threshold=0.10)
+                              DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, ANCHORS, conf_threshold=0.10)
 
 
 

@@ -94,7 +94,7 @@ def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nm
 
 
         if use_nms:
-            new_preds, new_preds_conf = nms(preds_conf, preds, 0.1, c)
+            new_preds, new_preds_conf = nms(preds_conf, preds, 0.25, c)
         else:
             new_preds, new_preds_conf = preds, preds_conf
 

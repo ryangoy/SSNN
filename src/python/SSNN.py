@@ -20,7 +20,7 @@ class SSNN:
   
   def __init__(self, dims, num_kernels=1, probes_per_kernel=1, dot_layers=8, probe_xy_steps=32, probe_z_steps=32, probe_hook_steps=16, 
                num_scales=3, ckpt_load=None, ckpt_save=None, ckpt_load_iter=50, loc_loss_lambda=1, learning_rate=0.0001, k_size_factor=1,
-               num_classes=2, dropout=0.9):
+               num_classes=2, dropout=0.9, anchors=None):
 
     self.hook_num = 1
     self.dims = dims # dimensions of the normalized room in meters
@@ -36,6 +36,7 @@ class SSNN:
     self.probes_per_kernel = probes_per_kernel # number of random probes per kernel
     self.dropout = dropout # dropout keep ratio
     self.num_classes = num_classes # number of categories of objects
+    self.anchors = anchors
 
     # Defines self.probe_op
     self.init_probe_op(dims, probe_xy_steps, probe_z_steps, num_kernels=num_kernels, 
@@ -99,6 +100,8 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
+
+
       input_layer_cls = tf.layers.conv3d(input_layer, filters=64, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
@@ -108,7 +111,7 @@ class SSNN:
 
       #input_layer_cls = tf.contrib.layers.batch_norm(input_layer_cls)
       # Predicts the confidence of whether or not an objects exists per feature.
-      conf = tf.layers.conv3d(input_layer_cls, filters=num_classes, kernel_size=1, padding='SAME',
+      conf = tf.layers.conv3d(input_layer_cls, filters=len(self.anchors)*num_classes, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 
@@ -119,7 +122,7 @@ class SSNN:
       # input_layer_loc = tf.contrib.layers.batch_norm(input_layer_loc)
 
       # Predicts the center coordinate and relative scale of the box
-      loc = tf.layers.conv3d(input_layer_loc, filters=6, kernel_size=1, padding='SAME',
+      loc = tf.layers.conv3d(input_layer_loc, filters=len(self.anchors)*6, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       self.hook_num += 1
@@ -146,10 +149,11 @@ class SSNN:
         dim_size /= 2
 
     # Concatenated hook outputs
-    self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, num_classes))
-    self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, 6))
+    self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, len(self.anchors), num_classes))
+    self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, len(self.anchors), 6))
 
     # Dot product layer
+    self.X_ph = tf.nn.dropout(self.X_ph, self.dropout)
     self.dot_product, self.dp_weights = dot_product(self.X_ph, filters=dot_layers)
     self.dot_product = tf.nn.relu(self.dot_product)
 
@@ -236,23 +240,23 @@ class SSNN:
     self.cls_hooks = [cls_hook1, cls_hook2, cls_hook3]
     self.loc_hooks = [loc_hook1, loc_hook2, loc_hook3]
 
-    self.cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], num_classes)),
-                               tf.reshape(cls_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], num_classes)),
-                               tf.reshape(cls_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], num_classes))],
+    self.cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], len(self.anchors), num_classes)),
+                               tf.reshape(cls_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], len(self.anchors), num_classes)),
+                               tf.reshape(cls_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], len(self.anchors), num_classes))],
                                axis=1)
-    self.loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], 6)),
-                               tf.reshape(loc_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], 6)),
-                               tf.reshape(loc_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], 6))],
+    self.loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], len(self.anchors), 6)),
+                               tf.reshape(loc_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3],len(self.anchors),  6)),
+                               tf.reshape(loc_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], len(self.anchors), 6))],
                                axis=1)
 
 
     # Mask out the voxels that don't have a bounding box associated with it. Note that y_ph_cls holds one-hot vectors.
     pos_mask = tf.cast(tf.reduce_sum(self.y_ph_cls[...,1:], axis=-1), tf.float32)
     pos_mask_exp = tf.expand_dims(pos_mask, -1)
-    pos_mask_loc = tf.tile(pos_mask_exp, [1,1,6])
+    pos_mask_loc = tf.tile(pos_mask_exp, [1,1,1,6])
     neg_mask = tf.cast(self.y_ph_cls[...,0], tf.float32)
     neg_mask_exp = tf.expand_dims(neg_mask, -1)
-    neg_mask_loc = tf.tile(neg_mask_exp, [1,1,6])
+    neg_mask_loc = tf.tile(neg_mask_exp, [1,1,1,6])
 
     N_pos = tf.reduce_sum(pos_mask)
     N_neg = tf.reduce_sum(neg_mask)
@@ -261,15 +265,15 @@ class SSNN:
     logits = tf.add(self.cls_hooks_flat, epsilon)
 
     # Define cls loss.
-    cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=logits)
+    cls_loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.y_ph_cls, logits=logits)
     neg_loss = tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
     pos_loss = tf.multiply(pos_mask, cls_loss) / (N_pos + 1)
 
-    cls_loss = pos_loss + 50*neg_loss 
+    cls_loss = pos_loss + 100*neg_loss 
     cls_loss = tf.reduce_sum(cls_loss)
     
     # Define loc loss.
-    loc_loss = tf.square(self.y_ph_loc - self.loc_hooks_flat)
+    loc_loss = tf.abs(self.y_ph_loc - self.loc_hooks_flat)
     loc_loss = tf.multiply(loc_loss, pos_mask_loc) / (N_pos + 1)
     loc_loss = tf.reduce_sum(tf.where(tf.is_nan(loc_loss), tf.zeros_like(loc_loss), loc_loss))
 
@@ -364,7 +368,7 @@ class SSNN:
 
         # Print train loss
         if step % display_step < batch_size and step != 0:
-          print("Epoch: {}/{}, Iter: {}, Classification Loss: {:.6f}, Localization Loss: {:.6f}.".format(epoch, epochs, 
+          print("Epoch: {}/{}, Iter: {}, Classification Loss: {:.5f}, Localization Loss: {:.5f}.".format(epoch, epochs, 
                                             step - (step % display_step), 
                                              curr_cl_sum / counter, curr_ll_sum / counter))
           train_losses.append((curr_cl_sum + curr_ll_sum)/counter)
@@ -373,7 +377,7 @@ class SSNN:
           counter = 0
 
       # Compute validation loss and validation mAP
-      if X_val is not None and y_val_cls is not None and y_val_loc is not None:
+      if X_val is not None and y_val_cls is not None and y_val_loc is not None and epoch > 2:
         val_loss = 0
         val_cls_loss = 0
         val_loc_loss = 0
@@ -395,25 +399,25 @@ class SSNN:
           val_cls_loss += vcl
           val_loc_loss += vll
           counter += 1
-        np.save("dp_weights.npy", np.array(val_dp_weights))
-        np.save("pool1.npy", np.array(pool1))
-        np.save("pc_batch.npy", np.array(val_batch_x))
+        # np.save("dp_weights.npy", np.array(val_dp_weights))
+        # np.save("pool1.npy", np.array(pool1))
+        # np.save("pc_batch.npy", np.array(val_batch_x))
 
         # compute validation mAP
         val_cls_preds = np.concatenate(val_cls_preds, axis=0)
         val_loc_preds = np.concatenate(val_loc_preds, axis=0)
-        val_cls_preds = np.apply_along_axis(softmax, 2, val_cls_preds)
+        val_cls_preds = np.apply_along_axis(softmax, 3, val_cls_preds)
         val_bbox_preds, val_cls= output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3, 
-                     self.dims/self.probe_hook_steps, None, None, conf_threshold=0.1)
-        # val_bbox_preds_old, _ = output_to_bboxes(val_cls_preds, val_loc_preds, 16, 3,
-        #              self.dims/self.probe_hook_steps, None, None, conf_threshold=0.7)
-        # mAP_orig = compute_accuracy(val_bbox_preds_old, val_bboxes, hide_print=True)
+                     self.dims/self.probe_hook_steps, None, None, self.anchors, conf_threshold=0.1)
+
+
         mAP25 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.25)
         mAP5 = compute_mAP(val_bbox_preds, val_cls, val_bboxes, y_val_one_hot, hide_print=True, threshold=0.5)
-        print("Epoch: {}/{}, Validation Classification Loss: {:.6f}, Localization Loss: {:.6f}, mAP 0.25: {:.6f}, mAP 0.5:{:.6f}.".format(epoch, epochs,
+
+        print("Epoch: {}/{}, Validation Classification Loss: {:.5f}, Localization Loss: {:.5f}, mAP 0.25: {:.5f}, mAP 0.5: {:.5f}.".format(epoch, epochs,
                                                        val_cls_loss / counter, val_loc_loss / counter, mAP25, mAP5))
         val_losses.append((val_cls_loss + val_loc_loss)/counter)
-        mAPs.append(mAP5)
+        mAPs.append(mAP25)
 
       if epoch != 0 and (epoch % save_interval == 0 or epoch == epochs-1) and self.ckpt_save is not None:
         self.save_checkpoint(self.ckpt_save, epoch)

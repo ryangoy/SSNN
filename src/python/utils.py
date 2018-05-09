@@ -30,31 +30,41 @@ def augment_pointclouds(pointclouds, ys, copies=0):
 # From PointNet
 # Our default is to do 3 equally spaced rotations around the unit circle
 def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
-  rotation_angles = np.linspace(0, 2*np.pi, num_rotations+1)[1:-1]
+  delta_r = 2*np.pi / (num_rotations+1)
+  rotation_angles = np.linspace(delta_r, 2*np.pi, num_rotations, endpoint=False)
+
   num_pclouds = len(pointclouds)
+
+  pointclouds = list(pointclouds)
+  ys = list(ys)
+  yl = list(yl)
   for k in range(num_pclouds):
-    shape_pc = np.array(pointclouds[k]) 
+    shape_pc = pointclouds[k][:, :3]
+    color_pc = pointclouds[k][:, 3:]
     for rotation_angle in rotation_angles:
       cosval = np.cos(rotation_angle)
       sinval = np.sin(rotation_angle)
-      rotation_matrix = np.array([[cosval, 0, sinval],
-                                  [0, 1, 0],
-                                  [-sinval, 0, cosval]])
-      rotated_pc = np.dot(shape_pc.reshape((-1, 3)), rotation_matrix)
-      pointclouds.append(rotated_pc)
+      rotation_matrix = np.array([[cosval, -sinval, 0],
+                                  [sinval, cosval, 0],
+                                  [0, 0, 1]])
+      rotated_pc = np.dot(shape_pc, rotation_matrix)
+      pointclouds.append(np.concatenate([rotated_pc, color_pc], axis=-1))
       new_y = []
       for obj in ys[k]:
         rotated_obj = np.dot(obj.reshape((-1, 3)), rotation_matrix)
-        new_y.append(rotated_obj) 
+        LL = np.min(rotated_obj, axis=0)
+        UR = np.max(rotated_obj, axis=0)
+        new_box = np.concatenate([LL, UR])
+        new_y.append(new_box) 
+
 
       ys.append(new_y)
       yl.append(yl[k])
 
-  # re-center pointclouds after rotating
-  pointclouds, _, ys = normalize_pointclouds_stanford(pointclouds, ys)
-  return pointclouds, ys, yl
 
-def flatten_output(cls_preds, loc_preds, steps, res_factor, num_classes):
+  return np.array(pointclouds), np.array(ys), np.array(yl)
+
+def flatten_output(cls_preds, loc_preds, steps, res_factor, num_anchors, num_classes):
   cls_output = []
   loc_output = []
   
@@ -66,15 +76,15 @@ def flatten_output(cls_preds, loc_preds, steps, res_factor, num_classes):
     loc_preds_flat = []
 
     for cls_pred, loc_pred in zip(cls_preds[scene], loc_preds[scene]):
-      cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), num_classes)))
-      loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), 6)))
+      cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), num_anchors, num_classes)))
+      loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), num_anchors, 6)))
       res_factor += 1
     cls_output.append(np.concatenate(cls_preds_flat, axis=0))
     loc_output.append(np.concatenate(loc_preds_flat, axis=0))
 
   cls_output = np.array(cls_output)
   loc_output = np.array(loc_output)
-  cls_output = np.apply_along_axis(softmax, 2, cls_output)
+  cls_output = np.apply_along_axis(softmax, 3, cls_output)
  
   return cls_output, loc_output
 
@@ -82,9 +92,9 @@ def softmax(x):
   exp = np.exp(x)
   return exp / np.sum(exp)
 
-def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor, num_classes):
+def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor, num_anchors, num_classes):
 
-  cls_output, loc_output = flatten_output(cls_preds, loc_preds, steps, res_factor, num_classes)
+  cls_output, loc_output = flatten_output(cls_preds, loc_preds, steps, res_factor, num_anchors, num_classes)
 
   print('Saving cls predictions to {}'.format(cls_path))
   np.save(cls_path, cls_output)
@@ -161,7 +171,7 @@ def nms(cls_preds, loc_preds, overlap_thresh, class_num):
     return np.array(all_loc_preds), np.array(all_cls_preds)
 
 def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples, 
-                     kernel_size, bbox_path, cls_path, conf_threshold=0.5):
+                     kernel_size, bbox_path, cls_path, anchor_boxes, conf_threshold=0.5):
 
   if type(kernel_size) is np.ndarray:
     kernel_size = kernel_size[0]
@@ -177,22 +187,23 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
     curr_ksize = kernel_size
 
     for scale in range(num_downsamples):
-      num_categories = cls_preds.shape[2] - 1
-      cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, 1:]
-      cls_hook = np.reshape(cls_hook, (dim, dim, dim, num_categories))
+      num_categories = cls_preds.shape[3] - 1
+      cls_hook = cls_preds[scene, prev_ind:prev_ind+dim**3, :, 1:]
+      cls_hook = np.reshape(cls_hook, (dim, dim, dim, len(anchor_boxes), num_categories))
       loc_hook = loc_preds[scene, prev_ind:prev_ind+dim**3]
-      loc_hook = np.reshape(loc_hook, (dim, dim, dim, 6))
+      loc_hook = np.reshape(loc_hook, (dim, dim, dim, len(anchor_boxes), 6))
       for i in range(dim):
         for j in range(dim):
           for k in range(dim):
-            if max(cls_hook[i, j, k]) > conf_threshold:
-              center_pt = loc_hook[i, j, k, :3] + [i,j,k]
-              half_dims = (np.exp(loc_hook[i, j, k, 3:]))/2
-              LL = (center_pt - half_dims) * curr_ksize
-              UR = (center_pt + half_dims) * curr_ksize
-              bbox = np.concatenate([LL, UR], axis=0)
-              cls_vals.append(cls_hook[i, j, k])
-              bboxes.append(bbox)
+            for a, anchor in enumerate(anchor_boxes):
+              if max(cls_hook[i, j, k, a]) > conf_threshold:
+                center_pt = loc_hook[i, j, k, a, :3] + [i,j,k] + 0.5
+                half_dims = (np.exp(loc_hook[i, j, k, a, 3:]) * anchor)/2
+                LL = (center_pt - half_dims) * curr_ksize
+                UR = (center_pt + half_dims) * curr_ksize
+                bbox = np.concatenate([LL, UR], axis=0)
+                cls_vals.append(cls_hook[i, j, k, a])
+                bboxes.append(bbox)
       prev_ind += dim**3
       dim //= 2
       curr_ksize *= 2  
@@ -250,9 +261,21 @@ def voxelize_labels(labels, steps, kernel_size):
                     np.max([intersection, prev_val])
   return vox_label
 
+def compute_iou(pred, label):
+  max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)
+  min_UR = np.min(np.array([pred[3:], label[3:]]), axis=0)
+  intersection = max(0, np.prod(min_UR - max_LL))
 
+  union = np.prod(pred[3:]-pred[:3]) + np.prod(label[3:]-label[:3]) - intersection
 
-def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, num_downsamples=3, max_dim_thresh=3):
+  if min(min_UR - max_LL) > 0:
+    iou = intersection/union
+  else:
+    iou = 0.0
+
+  return iou
+
+def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, anchor_boxes, num_downsamples=3, max_dim_thresh=3):
   """
   Args:
     labels (np.array): labeled boxes with shape (batches, box, 6), where the format for
@@ -264,12 +287,14 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
   """
   cls_labels = []
   loc_labels = []
+
+
   for d in range(num_downsamples):
     k = int(steps/(2**d))
-    cls_null = np.zeros((len(labels), k, k, k, num_classes))
-    cls_null[:, :, :, :, 0] = np.ones((len(labels), k, k, k))
+    cls_null = np.zeros((len(labels), k, k, k, len(anchor_boxes), num_classes))
+    cls_null[:, :, :, :, :, 0] = np.ones((len(labels), k, k, k, len(anchor_boxes)))
     cls_labels.append(cls_null)
-    loc_labels.append(np.zeros((len(labels), k, k, k, 6)))
+    loc_labels.append(np.zeros((len(labels), k, k, k, len(anchor_boxes), 6)))
 
   for scene_id in range(len(labels)):
     for bbox_id in range(len(labels[scene_id])):
@@ -293,17 +318,43 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
       best_num_steps = steps / (2**scale)
       coords = np.floor(bbox_loc).astype(int)
 
-      if coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps:
-        continue
-      elif min(coords) < 0:
-        continue
-      #cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = 1
 
-      cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = categories[scene_id][bbox_id]
+      if coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps or min(coords) < 0:
+        print("[WARNING] A bbox label was located outside of the pointcloud.")
+        continue
 
-      # cls_labels[scale][scene_id, coords[0], coords[1], coords[2]] = np.array([1, 0])
-      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], :3] = bbox_loc - coords
-      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], 3:] = np.log(bbox_dims)
+      anchor_ious = []
+      best_anchor = None
+      best_index = 0
+      best_iou = 0
+
+      b1 = bbox_loc - bbox_dims/2
+      b2 = bbox_loc + bbox_dims/2
+      b = np.append(b1, b2)
+      for k, anchor in enumerate(anchor_boxes):
+        c1 = coords - anchor/2 + 0.5
+        c2 = coords + anchor/2 + 0.5
+        c = np.append(c1, c2)
+        iou = compute_iou(c,b)
+        if iou > best_iou:
+          best_anchor = anchor
+          best_iou = iou
+          best_index = k
+
+      # print(best_anchor)
+
+      # print(best_iou)
+      # print(best_index)
+      # print(bbox_loc)
+      # print(bbox_dims)
+      # print(bbox_dims/best_anchor)
+
+
+      cls_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index] = categories[scene_id][bbox_id]
+
+      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, :3] = bbox_loc - (coords + 0.5)
+
+      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 3:] = np.log(bbox_dims/best_anchor)
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.
       
@@ -316,33 +367,44 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
         for i in range(diff[0]):
           for j in range(diff[1]):
             for k in range(diff[2]):
+              for a, anchor in enumerate(anchor_boxes):
+                # print('start')
+                # Get the current coordinate to check.
+                curr_coord = np.floor(bbox_loc[:3]).astype(int) + [i,j,k] + 0.5
 
-              # Get the current coordinate to check.
-              curr_coord = np.floor(bbox_loc[:3]).astype(int) + [i,j,k]
+                # If the current coordinate is outside of the voxel grid, skip it.
+                if max(curr_coord -(steps / (2**s))) >= 0:
+                  continue
 
-              # If the current coordinate is outside of the voxel grid, skip it.
-              if max(curr_coord -(steps / (2**s))) >= 0:
-                continue
+                # Calculate the Jaccard coefficient.
+                bbox_LL = bbox_loc[:3]
+                bbox_UR = bbox_loc[3:]
+                fb_LL = np.array(curr_coord) - anchor/2
+                fb_UR = np.array(curr_coord) + anchor/2
+                # print('anchor {}'.format(anchor))
+                # print('default box: {} {}'.format(fb_LL, fb_UR))
+                # print('bbox: {}'.format(bbox_loc))
+                if min(fb_UR - bbox_LL) < 0 or min(bbox_UR - fb_LL) < 0:
+                  #print('bboxes dont overlap')
+                  continue
+                max_LL = np.maximum(fb_LL, bbox_LL)
+                min_UR = np.minimum(fb_UR, bbox_UR)
+                # print('max_LL {} min_UR {}'.format(max_LL, min_UR))
+                if min(min_UR - max_LL) < 0.0:
+                  intersection = 0
+                else:
+                  intersection = max(0, np.prod(min_UR - max_LL))
+                union = np.prod(fb_UR-fb_LL) + np.prod(bbox_UR-bbox_LL) - intersection
+                ji = intersection / union
+                
 
-              # Calculate the Jaccard coefficient.
-              bbox_LL = bbox_loc[:3]
-              bbox_UR = bbox_loc[3:]
-              fb_LL = np.array(curr_coord)
-              fb_UR = np.array(curr_coord+1)
-              if min(fb_UR - bbox_LL) < 0 or min(bbox_UR - fb_LL) < 0:
-                continue
-              max_UR = np.maximum(fb_UR, bbox_UR)
-              max_LL = np.maximum(fb_LL, bbox_LL)
-              min_UR = np.minimum(fb_UR, bbox_UR)
-              min_LL = np.minimum(fb_LL, bbox_LL)
-              ji = np.prod(min_UR - max_LL) / np.prod(max_UR - min_LL)
+                floored_coord = np.floor(curr_coord).astype(int)
+                if ji > 0.25:
+                  #cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
+                  cls_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a] = categories[scene_id][bbox_id]
+                  loc_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a, :3] = (bbox_UR + bbox_LL)/2 - curr_coord
+                  loc_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a, 3:] = np.log((bbox_UR - bbox_LL)/anchor)
 
-              if ji > 0.25:
-                #cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
-                cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = categories[scene_id][bbox_id]
-                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], :3] = (bbox_UR + bbox_LL)/2 - curr_coord
-
-                loc_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2], 3:] = np.log(bbox_UR - bbox_LL)
         bbox_loc /= 2
 
   # Format into the correct sized array for passing in labels to model.
@@ -351,8 +413,8 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, n
   res_factor = 0
 
   for cls_label, loc_label in zip(cls_labels, loc_labels):
-    cls_labels_flat.append(np.reshape(cls_label, (-1, int((steps/(2**res_factor))**3), num_classes)))
-    loc_labels_flat.append(np.reshape(loc_label, (-1, int((steps/(2**res_factor))**3), 6)))
+    cls_labels_flat.append(np.reshape(cls_label, (-1, int((steps/(2**res_factor))**3), len(anchor_boxes), num_classes)))
+    loc_labels_flat.append(np.reshape(loc_label, (-1, int((steps/(2**res_factor))**3), len(anchor_boxes), 6)))
     res_factor += 1
 
   cls_concat = np.concatenate(cls_labels_flat, axis=1).astype(np.int32)
@@ -402,6 +464,7 @@ def normalize_pointclouds_stanford(pointcloud_arr, seg_arr, probe_dims):
       shifted_objs.append(np.array(obj[:,:3]-mins) / dims * probe_dims)
     shifted_segmentations.append(shifted_objs)
     new_pc = np.array(xyz)
+
     new_pc = np.concatenate([new_pc, pointcloud[:, 3:]], axis=1)
     shifted_pointclouds.append(new_pc)
   return shifted_pointclouds, gmax, shifted_segmentations
