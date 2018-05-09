@@ -30,9 +30,8 @@ def augment_pointclouds(pointclouds, ys, copies=0):
 # From PointNet
 # Our default is to do 3 equally spaced rotations around the unit circle
 def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
-  # rotation_angles = np.linspace(0, 2*np.pi, num_rotations+1)[1:-1]
-  assert num_rotations < 4
-  rotation_angles = [0.5*np.pi, np.pi, 1.5*np.pi][:num_rotations]
+  delta_r = 2*np.pi / (num_rotations+1)
+  rotation_angles = np.linspace(delta_r, 2*np.pi, num_rotations, endpoint=False)
 
   num_pclouds = len(pointclouds)
 
