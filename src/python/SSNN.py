@@ -256,7 +256,7 @@ class SSNN:
     logits = tf.add(self.cls_hooks_flat, epsilon)
 
     # Define cls loss.
-    cls_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.y_ph_cls, logits=logits)
+    cls_loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.y_ph_cls, logits=logits)
     neg_loss = tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
     pos_loss = tf.multiply(pos_mask, cls_loss) / (N_pos + 1)
 
