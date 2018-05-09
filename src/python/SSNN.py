@@ -140,6 +140,8 @@ class SSNN:
                                             probe_steps, num_kernels, 
                                             probes_per_kernel, 4))
 
+    self.training = tf.placeholder(tf.bool)
+
     dim_size = probe_steps
     p_dim_size= probe_hook_steps
     num_p_features = 0
@@ -161,6 +163,7 @@ class SSNN:
 
     self.dot_product = tf.nn.dropout(self.dot_product, self.dropout)
 
+    self.dot_product = tf.layers.batch_normalization(self.dot_product, training=self.training)
     # self.conv0_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
     #                   strides=1, padding='SAME', activation=tf.nn.relu, 
     #                   kernel_initializer=tf.contrib.layers.xavier_initializer())
@@ -186,6 +189,8 @@ class SSNN:
     self.pool1 = tf.nn.max_pool3d(self.conv1_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
+    self.pool1 = tf.layers.batch_normalization(self.pool1, training=self.training)
+
     # Second conv block, 16x16x16
     self.conv2_1 = tf.layers.conv3d(self.pool1, filters=64, kernel_size=3, 
                       strides=1, padding='SAME', activation=tf.nn.relu, 
@@ -201,6 +206,8 @@ class SSNN:
     self.pool2 = tf.nn.max_pool3d(self.conv2_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
 
+    self.pool2 = tf.layers.batch_normalization(self.pool2, training=self.training)
+
     # Third conv block, 8x8x8
     self.conv3_1 = tf.layers.conv3d(self.pool2, filters=128, kernel_size=3,
                       strides=1, padding='SAME', activation=tf.nn.relu,
@@ -215,6 +222,8 @@ class SSNN:
 
     self.pool3 = tf.nn.max_pool3d(self.conv3_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
+
+    self.pool3 = tf.layers.batch_normalization(self.pool3, training=self.training)
 
     # Fourth conv block, 4x4x4
     self.conv4_1 = tf.layers.conv3d(self.pool3, filters=256, kernel_size=3,
@@ -351,7 +360,7 @@ class SSNN:
         batch_y_cls = y_trn_cls[randomized_indices]
         batch_y_loc = y_trn_loc[randomized_indices]
         _, loss, cl, ll = self.sess.run([self.optimizer, self.loss, self.cls_loss, self.loc_loss], 
-                                 feed_dict={self.X_ph: batch_x, self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc})
+                                 feed_dict={self.X_ph: batch_x, self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc, self.training: True})
 
         curr_cl_sum += cl
         curr_ll_sum += ll
@@ -382,7 +391,7 @@ class SSNN:
           val_batch_y_loc = y_val_loc[step:step+batch_size]
           vl, vcl, vll, val_cls_pred, val_loc_pred, val_dp_weights, pool1 = self.sess.run([self.loss, self.cls_loss, self.loc_loss, self.cls_hooks_flat, self.loc_hooks_flat, 
                       self.dp_weights, self.pool1],
-                      feed_dict={self.X_ph: val_batch_x, self.y_ph_cls: val_batch_y_cls, self.y_ph_loc: val_batch_y_loc})
+                      feed_dict={self.X_ph: val_batch_x, self.y_ph_cls: val_batch_y_cls, self.y_ph_loc: val_batch_y_loc, self.training: False})
 
           val_cls_preds.append(val_cls_pred)
           val_loc_preds.append(val_loc_pred)
@@ -421,7 +430,7 @@ class SSNN:
     loc_preds = []
     for i in range(0, X_test.shape[0], batch_size):
       batch_x = X_test[i:i+batch_size]
-      hooks, dp_weights = self.sess.run([self.cls_hooks + self.loc_hooks, self.dp_weights], feed_dict={self.X_ph: batch_x})
+      hooks, dp_weights = self.sess.run([self.cls_hooks + self.loc_hooks, self.dp_weights], feed_dict={self.X_ph: batch_x, self.training: False})
       cls_preds.append(hooks[:3])
       loc_preds.append(hooks[3:])
 
