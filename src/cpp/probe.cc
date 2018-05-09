@@ -6,7 +6,8 @@ using namespace tensorflow;
 
 // Define Probe interface.
 REGISTER_OP("Probe")
-  .Attr("steps: int = 10")
+  .Attr("xy_steps: int = 10")
+  .Attr("z_steps: int=10")
   .Attr("xdim: float = 10.0")
   .Attr("ydim: float = 10.0")
   .Attr("zdim: float = 10.0")
@@ -17,11 +18,12 @@ REGISTER_OP("Probe")
 
 // Boilerplate code for CUDA call
 void probeLauncher(int batches, int kernels, int samples_per_probe, int points, const float* input_tensor, const float* weights,
-      float xdim, float ydim, float zdim, int steps, float ksize, float* output_tensor);
+      float xdim, float ydim, float zdim, int xy_steps, int z_steps, float ksize, float* output_tensor);
 class ProbeOp : public OpKernel {
 public:
   explicit ProbeOp(OpKernelConstruction* context) : OpKernel(context) {
-    OP_REQUIRES_OK(context, context->GetAttr("steps", &steps_));
+    OP_REQUIRES_OK(context, context->GetAttr("xy_steps", &xy_steps_));
+    OP_REQUIRES_OK(context, context->GetAttr("z_steps", &z_steps_));
     OP_REQUIRES_OK(context, context->GetAttr("xdim", &xdim_));
     OP_REQUIRES_OK(context, context->GetAttr("ydim", &ydim_));
     OP_REQUIRES_OK(context, context->GetAttr("zdim", &zdim_));
@@ -42,7 +44,8 @@ public:
       errors::InvalidArgument("Probe expects (probes, kernels, output_features) weights shape"));
 
     // Fetch extra information (there's probably a better way to do this)
-    int steps = steps_;
+    int xy_steps = xy_steps_;
+    int z_steps = z_steps_;
     float ksize = ksize_;
     float xdim = xdim_;
     float ydim = ydim_;
@@ -56,17 +59,18 @@ public:
     int nkernels = weights.shape().dim_size(0);
     int nsamples = weights.shape().dim_size(1);
 
-    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{nbatches,steps,steps,steps,nkernels,nsamples,4},
+    OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{nbatches,xy_steps,xy_steps,z_steps,nkernels,nsamples,4},
                                                      &output_tensor));
 
     // Flatten inputs into 1D arrays to feed into CUDA code
     const float* inp = &(input_tensor.flat<float>()(0));
     float* out = &(output_tensor->flat<float>()(0));
     const float* cweights = &(weights.flat<float>()(0));
-    probeLauncher(nbatches, nkernels, nsamples, npoints, inp, cweights, xdim, ydim, zdim, steps, ksize, out);
+    probeLauncher(nbatches, nkernels, nsamples, npoints, inp, cweights, xdim, ydim, zdim, xy_steps, z_steps, ksize, out);
   }
 private:
-  int steps_;
+  int xy_steps_;
+  int z_steps_;
   float ksize_;
   float xdim_;
   float ydim_;

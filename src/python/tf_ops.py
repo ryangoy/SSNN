@@ -4,22 +4,15 @@ import numpy as np
 # Load probe operations.
 probe_module = tf.load_op_library('../cpp/probe.so')
 
-def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_size=None, strides=None, name='probe3D',
-            k_size_factor=3):
+def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, k_size_factor=3, name='probe3D'):
     """
     Initializes weights and runs the probing operation by calling the backend Tensorflow code.
     """
     print("Initializing probe op with {} kernels and {} probes per kernel.".format(num_kernels, probes_per_kernel))
     assert type(dims) is np.ndarray, "dims must be of type numpy.ndarray."
-    assert steps is not None or strides is not None, "steps or strides must be defined."
-    if strides is None:
-        strides = dims / steps
-    if steps is None:
-        steps = dims / strides
-    if len(set(steps)) != 1:
-        print("Warning: probe3D does not support different sized steps. Only the first dimension will be used.")
-    if kernel_size is None:
-        kernel_size = strides * k_size_factor
+
+    strides = dims / steps
+    kernel_size = strides * k_size_factor
 
     assert k_size_factor == 3 or k_size_factor == 1, "k_size_factor must be either 1 or 3."
 
@@ -33,7 +26,7 @@ def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, kernel_s
     # Initialize weights with given parameters.
     weights = tf.Variable(tf.random_uniform(shape=[num_kernels, probes_per_kernel, 3], minval=minval, maxval=maxval), name='probe3D')
     #weights = tf.Variable(tf.truncated_normal(shape=[num_kernels, probes_per_kernel, 3], mean = (minval+maxval)/2, stddev=(maxval-minval)/2), name='probe3D')
-    output = probe_module.probe(inp, weights, xdim=dims[0], ydim=dims[1], zdim=dims[2], steps=steps[0], ksize=kernel_size[0])
+    output = probe_module.probe(inp, weights, xdim=dims[0], ydim=dims[1], zdim=dims[2], xy_steps=steps[0], z_steps=steps[-1], ksize=kernel_size[0])
 
     return output, weights
 

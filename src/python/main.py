@@ -67,8 +67,7 @@ flags.DEFINE_integer('num_anchors', 4, 'Number of anchors to use.')
 # DO NOT CHANGE
 NUM_SCALES = 3
 NUM_HOOK_STEPS = int(FLAGS.num_z_steps)
-# DIMS = np.array([8, 8, 8])
-DIMS = np.array([FLAGS.num_xy_steps, FLAGS.num_yy_steps, FLAGS.num_z_steps])
+DIMS = np.array([FLAGS.num_xy_steps, FLAGS.num_xy_steps, FLAGS.num_z_steps])
 
 # Define sets for training and testing (Stanford dataset)
 TRAIN_AREAS = ['Area_6', 'Area_2', 'Area_3', 'Area_4', 'Area_5'] 

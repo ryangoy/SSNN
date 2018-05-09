@@ -26,7 +26,6 @@ class SSNN:
     self.dims = dims # dimensions of the normalized room in meters
     self.probe_xy_steps = probe_xy_steps # number of steps in each direction for probing
     self.probe_z_steps = probe_z_steps # number of steps in each direction for probing
-    self.probe_size = dims / probe_steps # size of step in meters
     self.probe_output = None 
     self.ckpt_save = ckpt_save # checkpoint save location
     self.ckpt_load = ckpt_load # checkpoint load location
@@ -43,7 +42,7 @@ class SSNN:
                        probes_per_kernel=probes_per_kernel, k_size_factor=k_size_factor)
 
     # Defines self.X_ph, self.y_ph, self.model, self.cost, self.optimizer
-    self.init_model(num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda, learning_rate=learning_rate)
+    self.init_model(num_kernels, probes_per_kernel, probe_xy_steps, probe_z_steps, probe_hook_steps, num_scales, num_classes, dot_layers=dot_layers, loc_loss_lambda=loc_loss_lambda, learning_rate=learning_rate)
 
     # Initialize tf objects
     self.saver = tf.train.Saver()
@@ -129,16 +128,15 @@ class SSNN:
 
       return conf, loc
 
-  def init_model(self, num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes,
+  def init_model(self, num_kernels, probes_per_kernel, probe_xy_steps, probe_z_steps, probe_hook_steps, num_scales, num_classes,
                  learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False):
 
     # Shape: (batches, x_steps, y_steps, z_steps, num_kernels, 
     #         probes_per_kernel, [1-nearest_distance, r, g, b])
-    self.X_ph = tf.placeholder(tf.float32, (None, probe_steps, probe_steps, 
-                                            probe_steps, num_kernels, 
+    self.X_ph = tf.placeholder(tf.float32, (None, probe_xy_steps, probe_xy_steps, 
+                                            probe_z_steps, num_kernels, 
                                             probes_per_kernel, 4))
 
-    dim_size = probe_steps
     p_dim_size= probe_hook_steps
     num_p_features = 0
 
@@ -146,7 +144,7 @@ class SSNN:
     for i in range(3):
         num_p_features += p_dim_size**3
         p_dim_size /= 2
-        dim_size /= 2
+
 
     # Concatenated hook outputs
     self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, len(self.anchors), num_classes))
@@ -174,6 +172,7 @@ class SSNN:
     self.conv0_3 = tf.layers.conv3d(self.conv0_2, filters=64, kernel_size=5, 
                       strides=(2, 2, 1), padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
+
     
     # # First conv block, 32x32x32
     # self.conv1_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
@@ -192,7 +191,7 @@ class SSNN:
 
     # 16 x 16 x 16
     self.conv0_4 = tf.layers.conv3d(self.conv0_3, filters=64, kernel_size=5, 
-                      strides=(2, 2, 1), padding='SAME', activation=tf.nn.relu, 
+                      strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
     # Second conv block, 16x16x16
@@ -240,6 +239,7 @@ class SSNN:
     self.cls_hooks = [cls_hook1, cls_hook2, cls_hook3]
     self.loc_hooks = [loc_hook1, loc_hook2, loc_hook3]
 
+
     self.cls_hooks_flat = tf.concat([tf.reshape(cls_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], len(self.anchors), num_classes)),
                                tf.reshape(cls_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], len(self.anchors), num_classes)),
                                tf.reshape(cls_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], len(self.anchors), num_classes))],
@@ -263,7 +263,7 @@ class SSNN:
 
     epsilon = tf.ones_like(self.cls_hooks_flat) * .00001
     logits = tf.add(self.cls_hooks_flat, epsilon)
-
+    
     # Define cls loss.
     cls_loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.y_ph_cls, logits=logits)
     neg_loss = tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
@@ -272,6 +272,7 @@ class SSNN:
     cls_loss = pos_loss + 100*neg_loss 
     cls_loss = tf.reduce_sum(cls_loss)
     
+
     # Define loc loss.
     loc_loss = tf.abs(self.y_ph_loc - self.loc_hooks_flat)
     loc_loss = tf.multiply(loc_loss, pos_mask_loc) / (N_pos + 1)
@@ -298,8 +299,8 @@ class SSNN:
 
     # Initialize memmap: robust to data larger than memory size.
 
-    probe_memmap = np.memmap(probe_path, dtype='float32', mode='w+', shape=(len(X), self.probe_steps, 
-                             self.probe_steps, self.probe_steps, self.num_kernels, self.probes_per_kernel, 4))
+    probe_memmap = np.memmap(probe_path, dtype='float32', mode='w+', shape=(len(X), self.probe_xy_steps, 
+                             self.probe_xy_steps, self.probe_z_steps, self.num_kernels, self.probes_per_kernel, 4))
     
     for pc in X:
       process = psutil.Process(os.getpid())
