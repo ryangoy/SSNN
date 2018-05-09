@@ -287,7 +287,7 @@ class SSNN:
     # Define optimizer.
     self.optimizer = tf.contrib.opt.NadamOptimizer(learning_rate).minimize(self.loss)
 
-  def probe(self, X, shape, probe_path):
+  def probe(self, X, probe_path):
     """
     Args:
       X (np.ndarray): array of pointclouds (batches, num_points, 3)
@@ -305,7 +305,7 @@ class SSNN:
     for pc in X:
       process = psutil.Process(os.getpid())
       if process.memory_info().rss // 1e9 > 110.0:
-        print("[WARNING] Memory cap surpassed. Flushing to hard disk.")
+        print("[WARNING] Memory cap surpassed. Flushing to hard drive.")
         probe_memmap.flush()
 
       # Batch size of 1.

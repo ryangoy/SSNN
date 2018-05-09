@@ -59,8 +59,8 @@ flags.DEFINE_integer('num_xy_steps', 128, 'Number of intervals to sample from in
 flags.DEFINE_integer('num_z_steps', 16, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
-flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
+flags.DEFINE_integer('num_kernels', 2, 'Number of kernels to probe with.')
+flags.DEFINE_integer('probes_per_kernel', 8, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
 flags.DEFINE_integer('num_anchors', 4, 'Number of anchors to use.')
 
@@ -83,7 +83,6 @@ if FLAGS.single_class is None:
     CATEGORIES = ['sofa', 'table', 'chair', 'board']
   else:
     CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
-    #CATEGORIES = ['sofa', 'table', 'chair', 'board']
 else:
   CATEGORIES = [FLAGS.single_class]
 
@@ -217,8 +216,8 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     print("\tAmount of memory used before probing: {}GB".format(process.memory_info().rss // 1e9))
     print("\tRunning probe operation...")
     probe_start = time.time()
-    probe_shape = (len(X_cont), NUM_HOOK_STEPS, NUM_HOOK_STEPS, NUM_HOOK_STEPS, FLAGS.num_kernels, FLAGS.probes_per_kernel)
-    X, problem_pcs = model.probe(X_cont, probe_shape, probe_path)
+    # probe_shape = (len(X_cont), NUM_HOOK_STEPS, NUM_HOOK_STEPS, NUM_HOOK_STEPS, FLAGS.num_kernels, FLAGS.probes_per_kernel)
+    X, problem_pcs = model.probe(X_cont, probe_path)
     probe_time = time.time() - probe_start
     print("\tProbe operation took {:.4f} seconds to run.".format(probe_time))
     print("\tAmount of memory used after probing: {}GB".format(process.memory_info().rss // 1e9))

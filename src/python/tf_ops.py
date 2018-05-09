@@ -26,6 +26,7 @@ def probe3d(inp, dims, steps=None, num_kernels=8, probes_per_kernel=16, k_size_f
     # Initialize weights with given parameters.
     weights = tf.Variable(tf.random_uniform(shape=[num_kernels, probes_per_kernel, 3], minval=minval, maxval=maxval), name='probe3D')
     #weights = tf.Variable(tf.truncated_normal(shape=[num_kernels, probes_per_kernel, 3], mean = (minval+maxval)/2, stddev=(maxval-minval)/2), name='probe3D')
+
     output = probe_module.probe(inp, weights, xdim=dims[0], ydim=dims[1], zdim=dims[2], xy_steps=steps[0], z_steps=steps[-1], ksize=kernel_size[0])
 
     return output, weights
