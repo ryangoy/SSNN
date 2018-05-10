@@ -294,9 +294,9 @@ class SSNN:
     
     for pc in X:
       process = psutil.Process(os.getpid())
-      if process.memory_info().rss // 1e9 > 110.0:
-        print("[WARNING] Memory cap surpassed. Flushing to hard disk.")
-        probe_memmap.flush()
+      # if process.memory_info().rss // 1e9 > 110.0:
+      #   print("[WARNING] Memory cap surpassed. Flushing to hard disk.")
+      #   probe_memmap.flush()
 
       # Batch size of 1.
       pc = np.array([pc])
