@@ -7,6 +7,12 @@ def rgbd2pc_single(rgb_img, d_img, K, RT, index_matrix, KiX=None):
 
 	KiX = np.linalg.inv(K).dot(index_matrix.T)
 
+	# norms = np.linalg.norm(KiX, ord=2, axis=0)
+	# print(KiX.shape)
+	# print(norms.shape)
+	# KiX /= norms
+
+
 	R = RT[:, :3]
 	T = RT[:, 3:]
 
@@ -16,20 +22,21 @@ def rgbd2pc_single(rgb_img, d_img, K, RT, index_matrix, KiX=None):
 	d_img = d_img.reshape((-1, 1))
 	rgb_img = rgb_img.reshape((-1, 3))
 
-	pc = Y*np.tile(d_img, (1, 3))
+	pc = KiX.T*np.tile(d_img, (1, 3))
 
 	colored_pc = np.concatenate([pc, rgb_img], axis=-1)
-	print(colored_pc.shape)
-	np.savetxt('cpc.txt', colored_pc[::3])
+	np.savetxt('cpc.txt', colored_pc)
 	print("saved")
 	exit()
 
 
-
 def rgbd2pc(data_path):
-	index_matrix = create_index_matrix(1280, 1920)
+	index_matrix = create_index_matrix(530, 730)
 
-	for img in listdir(data_path)[59:]:
+
+	imgs = listdir(data_path)
+	imgs = sorted(imgs)
+	for img in imgs:
 		folder_path = join(data_path, img)
 		if isdir(folder_path):
 			
@@ -40,19 +47,27 @@ def rgbd2pc(data_path):
 			extrinsics_file = join(extrinsics_folder, listdir(extrinsics_folder)[0])
 			extrinsics_npy = np.loadtxt(extrinsics_file)
 
-			fullres_folder = join(folder_path, 'fullres')
-			if not exists(fullres_folder):
-				continue
-			rgb_img = None
-			d_img = None
-			intrinsics_npy = None
-			for f in listdir(fullres_folder):
-				if f.endswith('.jpg'):
-					rgb_img = imread(join(fullres_folder, f))
-				elif f.endswith('.png'):
-					d_img = imread(join(fullres_folder, f))
-				elif f.endswith('.txt'):
-					intrinsics_npy = np.loadtxt(join(fullres_folder, f))
+			# fullres_folder = join(folder_path, 'fullres')
+			# if not exists(fullres_folder):
+			# 	continue
+			# rgb_img = None
+			# d_img = None
+			# intrinsics_npy = None
+			# for f in listdir(fullres_folder):
+			# 	if f.endswith('.jpg'):
+			# 		rgb_img = imread(join(fullres_folder, f))
+			# 	elif f.endswith('.png'):
+			# 		d_img = imread(join(fullres_folder, f))
+			# 	elif f.endswith('.txt'):
+			# 		intrinsics_npy = np.loadtxt(join(fullres_folder, f))
+
+			intrinsics_npy = np.loadtxt(join(folder_path, 'intrinsics.txt'))
+			for f in listdir(join(folder_path, 'image')):
+				rgb_img = imread(join(folder_path, 'image', f))
+
+			for f in listdir(join(folder_path, 'depth_bfx')):
+				d_img = imread(join(folder_path, 'depth_bfx', f))
+
 			if rgb_img is None or d_img is None or intrinsics_npy is None:
 				print('Image didn\'t load in {}.'.format(fullres_folder))
 
