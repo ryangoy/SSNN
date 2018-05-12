@@ -5,6 +5,7 @@ from os.path import join, isdir, exists
 import json
 import os
 import pandas as pd
+from shutil import rmtree
 from pyntcloud.io import read_ply, write_ply
 
 def rgbd2pc_single(rgb_img, d_img, K, RT, index_matrix, KiX=None):
@@ -40,15 +41,14 @@ def rgbd2pc_single(rgb_img, d_img, K, RT, index_matrix, KiX=None):
     # add color to points
     colored_pc = np.concatenate([Y, rgb_img], axis=-1)
 
-    # np.savetxt("pc.txt", colored_pc)
-
     return colored_pc
 
 
 def rgbd2pc(data_path, save_path, fullres=False):
 
-    if not exists(save_path):
-        os.makedirs(save_path)
+    if exists(save_path):
+        rmtree(save_path)
+    os.makedirs(save_path)
 
     index_matrix = create_index_matrix(530, 730)
 
@@ -107,8 +107,6 @@ def rgbd2pc(data_path, save_path, fullres=False):
             result["g"] = colored_pc[:,4]
             result["b"] = colored_pc[:,5]
 
-            write_ply(join(save_path, 'region'+str(scene_index)+'.ply'), points=result)
-
             # print(read_ply(join(save_path, 'region'+str(scene_index)+'.ply'))["points"].dtypes)
 
             bbox_pcs = []
@@ -128,17 +126,14 @@ def rgbd2pc(data_path, save_path, fullres=False):
             # bbox_color[:, 1] = 255
             # bbox_color[:, 2] = 102
             # all_bbox_pcs = np.concatenate([all_bbox_pcs, bbox_color], axis=-1)
-
-            np.save(join(save_path, 'region{}_bboxes.npy'.format(scene_index)), np.array(bbox_loc))
-            np.save(join(save_path, 'region{}_labels.npy'.format(scene_index)), np.array(bbox_cls))
-
-            scene_index += 1
+            if len(bbox_loc) > 0 and len(bbox_cls) > 0:
+                write_ply(join(save_path, 'region'+str(scene_index)+'.ply'), points=result)
+                np.save(join(save_path, 'region{}_bboxes.npy'.format(scene_index)), np.array(bbox_loc))
+                np.save(join(save_path, 'region{}_labels.npy'.format(scene_index)), np.array(bbox_cls))
+                scene_index += 1
+            
         if scene_index % 10 == 0:
             print('Processed {}/{} scenes.'.format(scene_index, len(imgs)))
-
-
-
-
 
 def annotation_to_bbox(annotation, R):
     Xs = annotation['X']

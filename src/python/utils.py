@@ -603,6 +603,94 @@ def load_directory_matterport(path, train_test_split, is_train, objects, use_rgb
 
   return input_data, bboxes, labels
 
+
+def load_points_sunrgbd(path, X_npy_path, yb_npy_path, yl_npy_path,
+                           load_from_npy=True, train_test_split=0.9, is_train=True, categories=None, use_rgb=True):
+  """
+  Load data from preloaded npy files or from directory.
+  """
+  if exists(X_npy_path) and load_from_npy:
+    assert X_npy_path is not None, "No path given for .npy file."
+    print("\tLoading points from npy file...")
+    X, yb, yl = load_npy(X_npy_path, yb_npy_path, yl_npy_path)
+    new_ds = False
+  else:
+    assert path is not None, "No path given for pointcloud directory."
+    print("\tLoading points from directory...")
+    X, yb, yl = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
+    np.save(X_npy_path, X)
+    np.save(yb_npy_path, yb)
+    np.save(yl_npy_path, yl)
+    new_ds = True
+  return X, yb, yl, new_ds
+
+def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=True):
+  """
+  Loads pointclouds from matterport dataset.
+
+  Assumes dataset structure is as follows:
+  base
+    building_name
+      processed_regions
+        region0.npy
+        region0_bboxes.npy
+        region0_labels.npy
+        ...
+    ...
+  """
+  all_areas = sorted(listdir(path))
+
+  if is_train:
+    areas = all_areas[:int(len(all_areas)*train_test_split)]
+    #areas = all_areas[int(len(all_areas)*(.65)):]
+  else:
+    areas = all_areas[int(len(all_areas)*train_test_split):]
+    #areas = all_areas[:int(len(all_areas)*.05)]
+
+  input_data = []
+  bboxes = []
+  labels = []
+  # Loop through buildings
+
+  area_path = path
+      
+  ri = 0
+  while exists(join(area_path, "region{}.ply".format(ri))):
+    room = "region{}".format(ri)
+    ri += 1
+    room_path = join(area_path, room)
+
+    # print("\tLoading room {}...".format(room))
+
+    # Load point cloud
+    categories = np.load(room_path+"_labels.npy")
+
+    input_pc = read_ply(room_path+".ply")
+    bbox = np.load(room_path+"_bboxes.npy")
+    input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
+
+    fbbox = []
+    flabel = []
+    matches = 0
+    for ibbox, ilabel in zip(bbox, categories):
+      if len(objects) == 0 or ilabel in objects:
+        fbbox.append(ibbox)
+        flabel.append(ilabel)
+        matches += 1
+    
+    if matches > 0:
+      bboxes.append(fbbox)
+      labels.append(flabel)
+      input_data.append(input_pc)
+
+  print("\t\tLoaded {} regions".format(ri))
+
+  input_data = np.array(input_data)
+  bboxes = np.array(bboxes)
+  labels = np.array(labels)
+
+  return input_data, bboxes, labels
+
 def load_directory_stanford(path, areas, categories):
   """
   Loads pointclouds from Stanford dataset.

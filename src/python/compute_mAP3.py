@@ -17,7 +17,7 @@ def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold):
     # Loop through all the predictions for a scene in descending order of confidence values. Calculates AP.
     for scene in range(len(preds)):
         matched_labels = []
-        for p in range(len(preds[scene])):
+        for p in range(min(100, len(preds[scene]))):
             pred = preds[scene][p]
             # Find a label that the prediction corresponds to if it exists.
             pred_matched = False  
@@ -25,8 +25,8 @@ def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold):
             for l in range(len(labels[scene])):
 
                 label = labels[scene][l]
-                if l in matched_labels:
-                    continue
+                # if l in matched_labels:
+                #     continue
 
                 max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)
                 min_UR = np.min(np.array([pred[3:], label[3:]]), axis=0)

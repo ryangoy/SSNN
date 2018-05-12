@@ -368,7 +368,7 @@ class SSNN:
           counter = 0
 
       # Compute validation loss and validation mAP
-      if X_val is not None and y_val_cls is not None and y_val_loc is not None and epoch > 2:
+      if X_val is not None and y_val_cls is not None and y_val_loc is not None:
         val_loss = 0
         val_cls_loss = 0
         val_loc_loss = 0

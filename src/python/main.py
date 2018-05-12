@@ -32,8 +32,8 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 'Path to base directory.')
-flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SUNRGBD/kv2/align_kv2_processed/', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'sunrgbd', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('rotated_copies', 3, 'Number of times the dataset is copied and rotated for data augmentation.')
@@ -81,7 +81,8 @@ if FLAGS.single_class is None:
   if FLAGS.dataset_name == 'stanford':
     CATEGORIES = ['sofa', 'table', 'chair', 'board']
   else:
-    CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
+    #CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
+    CATEGORIES = ['bookshelf', 'chair', 'desk', 'sofa', 'table', 'toilet']
     #CATEGORIES = ['sofa', 'table', 'chair', 'board']
 else:
   CATEGORIES = [FLAGS.single_class]
@@ -146,14 +147,14 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   """
 
   input_type = "train" if is_train else "test"
-  assert FLAGS.dataset_name in ['stanford', 'matterport'], 'Supported datasets are stanford and matterport.'
+  assert FLAGS.dataset_name in ['stanford', 'matterport', 'sunrgbd'], 'Supported datasets are stanford and matterport.'
 
   print("Running pre-processing for {} set.".format(input_type))
-  if False and FLAGS.dataset_name == 'stanford':
-    normalize_pointclouds_fn = normalize_pointclouds_stanford
+  # if False and FLAGS.dataset_name == 'stanford':
+  #   normalize_pointclouds_fn = normalize_pointclouds_stanford
 
-  elif True or FLAGS.dataset_name == 'matterport':
-    normalize_pointclouds_fn = normalize_pointclouds_matterport
+  # elif True or FLAGS.dataset_name == 'matterport':
+  normalize_pointclouds_fn = normalize_pointclouds_matterport
 
   if FLAGS.dataset_name == 'matterport':
     X_raw, yb_raw, yl, new_ds = load_points_matterport(path=data_dir, X_npy_path=x_path,
@@ -164,6 +165,12 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     X_raw, yb_raw, yl, new_ds = load_points_stanford(path=data_dir, X_npy_path=x_path,
                                   ys_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, areas=areas, categories=CATEGORIES)
+
+  elif FLAGS.dataset_name == 'sunrgbd':
+    X_raw, yb_raw, yl, new_ds = load_points_sunrgbd(path=data_dir, X_npy_path=x_path,
+                                    yb_npy_path = ys_path, yl_npy_path = yl_path, 
+                                    load_from_npy=load_from_npy, is_train=is_train,
+                                    categories=CATEGORIES, train_test_split=1.0 - FLAGS.test_split, use_rgb=FLAGS.use_rgb)
 
   print("\tConverting RGB to HSV...")
   for X_rgb in X_raw:
@@ -179,7 +186,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   if FLAGS.dataset_name == 'stanford':
     print("\tGenerating bboxes...")
     bboxes = generate_bounding_boxes(yb_raw, bbox_labels)
-  elif FLAGS.dataset_name == 'matterport':
+  else:
     bboxes = yb_raw
   
 
