@@ -12,7 +12,7 @@ def rgbd2pc_single(rgb_img, d_img, K, RT, index_matrix, KiX=None):
     # processing of depth map
     d_img = np.right_shift(d_img, 3)
     d_img = d_img.astype(float).flatten()/1000
-    d_img[d_img>8]=8
+    # d_img[d_img>8]=8
     rgb_img = rgb_img.reshape((-1, 3))
 
     # apply inverse K matrix
@@ -40,6 +40,8 @@ def rgbd2pc_single(rgb_img, d_img, K, RT, index_matrix, KiX=None):
     # add color to points
     colored_pc = np.concatenate([Y, rgb_img], axis=-1)
 
+    # np.savetxt("pc.txt", colored_pc)
+
     return colored_pc
 
 
@@ -54,10 +56,9 @@ def rgbd2pc(data_path, save_path, fullres=False):
 
     imgs = listdir(data_path)
     imgs = sorted(imgs)
-    for img in imgs[6:]:
+    for img in imgs:
         folder_path = join(data_path, img)
         if isdir(folder_path):
-            
             # extrinsics
             extrinsics_folder = join(folder_path, 'extrinsics')
             if len(listdir(extrinsics_folder)) > 1:
@@ -82,6 +83,7 @@ def rgbd2pc(data_path, save_path, fullres=False):
                         intrinsics_npy = np.loadtxt(join(fullres_folder, f))
 
             else:
+
                 intrinsics_npy = np.loadtxt(join(folder_path, 'intrinsics.txt'))
                 for f in listdir(join(folder_path, 'image')):
                     rgb_img = imread(join(folder_path, 'image', f))
@@ -95,9 +97,8 @@ def rgbd2pc(data_path, save_path, fullres=False):
 
             raw_annotations = json.load(open(join(folder_path, 'annotation3Dfinal', 'index.json')))['objects']
 
-            colored_pc = rgbd2pc_single(rgb_img, d_img, intrinsics_npy, extrinsics_npy, index_matrix)
-
-            result = pd.DataFrame()
+            colored_pc = rgbd2pc_single(rgb_img, d_img, intrinsics_npy, extrinsics_npy, index_matrix).astype('float32')
+            result = pd.DataFrame(dtype='float32')
             result["x"] = colored_pc[:,0]
             result["y"] = colored_pc[:,1]
             result["z"] = colored_pc[:,2]
@@ -106,7 +107,9 @@ def rgbd2pc(data_path, save_path, fullres=False):
             result["g"] = colored_pc[:,4]
             result["b"] = colored_pc[:,5]
 
-            write_ply(join(save_path, 'region'+str(scene_index)), points=result)
+            write_ply(join(save_path, 'region'+str(scene_index)+'.ply'), points=result)
+
+            # print(read_ply(join(save_path, 'region'+str(scene_index)+'.ply'))["points"].dtypes)
 
             bbox_pcs = []
             bbox_loc = []
@@ -117,17 +120,24 @@ def rgbd2pc(data_path, save_path, fullres=False):
                 for poly in raw_annot['polygon']:
                     bbox = annotation_to_bbox(poly, anno_extrinsics)
                     #bbox_pcs.append(bbox_to_pc(bbox))
-                    bbox_loc.append(bbox_loc)
+                    bbox_loc.append(bbox)
                     bbox_cls.append(raw_annot['name'])
-
             # all_bbox_pcs = np.concatenate(bbox_pcs, axis=0)
             # bbox_color = np.zeros((all_bbox_pcs.shape))
             # bbox_color[:, 0] = 102
             # bbox_color[:, 1] = 255
             # bbox_color[:, 2] = 102
             # all_bbox_pcs = np.concatenate([all_bbox_pcs, bbox_color], axis=-1)
-            np.save('region{}_bboxes.npy', np.array(bbox_loc))
-            np.save('region{}_labels.npy', np.array(bbox_cls))
+
+            np.save(join(save_path, 'region{}_bboxes.npy'.format(scene_index)), np.array(bbox_loc))
+            np.save(join(save_path, 'region{}_labels.npy'.format(scene_index)), np.array(bbox_cls))
+
+            scene_index += 1
+        if scene_index % 10 == 0:
+            print('Processed {}/{} scenes.'.format(scene_index, len(imgs)))
+
+
+
 
 
 def annotation_to_bbox(annotation, R):
