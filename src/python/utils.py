@@ -24,17 +24,14 @@ def augment_pointclouds(pointclouds, ys, copies=0):
       pointclouds.append(jittered_pc)
       ys.append(y)
 
-
   return pointclouds, ys
 
-# From PointNet
 # Our default is to do 3 equally spaced rotations around the unit circle
 def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
   delta_r = 2*np.pi / (num_rotations+1)
   rotation_angles = np.linspace(delta_r, 2*np.pi, num_rotations, endpoint=False)
 
   num_pclouds = len(pointclouds)
-
   pointclouds = list(pointclouds)
   ys = list(ys)
   yl = list(yl)
@@ -57,10 +54,8 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
         new_box = np.concatenate([LL, UR])
         new_y.append(new_box) 
 
-
       ys.append(new_y)
       yl.append(yl[k])
-
 
   return np.array(pointclouds), np.array(ys), np.array(yl)
 
@@ -221,8 +216,6 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
     print('Saving bbox cls predictions to {}'.format(cls_path))
     np.save(cls_path, all_cls_vals)
 
-
-
   return all_bboxes, all_cls_vals
 
 def voxelize_labels(labels, steps, kernel_size):
@@ -341,19 +334,8 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
           best_iou = iou
           best_index = k
 
-      # print(best_anchor)
-
-      # print(best_iou)
-      # print(best_index)
-      # print(bbox_loc)
-      # print(bbox_dims)
-      # print(bbox_dims/best_anchor)
-
-
       cls_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index] = categories[scene_id][bbox_id]
-
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, :3] = bbox_loc - (coords + 0.5)
-
       loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 3:] = np.log(bbox_dims/best_anchor)
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.
@@ -418,8 +400,6 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
     res_factor += 1
 
   cls_concat = np.concatenate(cls_labels_flat, axis=1).astype(np.int32)
-  # cls_no_class = np.ones_like(cls_concat) - cls_concat
-  # cls_concat = np.concatenate([cls_no_class, cls_concat], axis=-1)
   loc_concat = np.concatenate(loc_labels_flat, axis=1)
   return cls_concat, loc_concat 
 
@@ -446,12 +426,8 @@ def normalize_pointclouds_stanford(pointcloud_arr, seg_arr, probe_dims):
     xyz = pointcloud[:, :3]
     mins = xyz.min(axis=0)
     maxes = xyz.max(axis=0)
-
     dims = maxes-mins
-
     xyz = (xyz-mins) / dims * probe_dims
-
-
 
     if gmax is None:
       gmax = maxes
@@ -662,16 +638,10 @@ def load_directory_stanford(path, areas, categories):
         continue
       print("\tLoading room {}...".format(room))
 
-      
-      
       # Loop and load Annotations folder
       annotation_pc = []
       annotation_label = []
       for annotation in listdir(join(room_path, 'Annotations')):
-        # if annotation.startswith('wall') or annotation.startswith('ceiling') or\
-        #    annotation.startswith('beam') or annotation.startswith('floor') or\
-        #    annotation.startswith('door') or not annotation.endswith('.txt'):
-        #   continue
         if (not categories is None) and annotation.split('_')[0] not in categories:
           continue
         annotation_pc.append(np.genfromtxt(
@@ -691,6 +661,7 @@ def load_directory_stanford(path, areas, categories):
   labels = np.array(labels)
 
   return input_data, segmentations, labels
+
 
 def load_npy(X_path, ys_path, yl_path):
   """
@@ -752,6 +723,7 @@ def one_hot_vectorize_categories(yl, mapping=None):
   print('\tDictionary for class mapping: {}'.format(mapping))
 
   return np.array(onehot_labels), mapping
+  
 
 if __name__ == '__main__':
   cls_preds = np.load('/home/ryan/cs/datasets/SSNN/matterport/v1/scans/outputs/cls_predictions.npy')
