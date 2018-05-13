@@ -276,6 +276,7 @@ class SSNN:
 
     # Define optimizer.
     self.optimizer = tf.contrib.opt.NadamOptimizer(learning_rate).minimize(self.loss)
+    #self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
   def probe(self, X, shape, probe_path):
     """

@@ -618,6 +618,7 @@ def load_points_sunrgbd(path, X_npy_path, yb_npy_path, yl_npy_path,
     assert path is not None, "No path given for pointcloud directory."
     print("\tLoading points from directory...")
     X, yb, yl = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
+
     np.save(X_npy_path, X)
     np.save(yb_npy_path, yb)
     np.save(yl_npy_path, yl)
@@ -638,11 +639,13 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
         ...
     ...
   """
+
   all_areas = sorted(listdir(path))
+  all_areas = ['kv1', 'kv2']
 
   if is_train:
-    areas = all_areas[:int(len(all_areas)*train_test_split)]
-    #areas = all_areas[int(len(all_areas)*(.65)):]
+    #areas = all_areas[:int(len(all_areas)*train_test_split)]
+    areas = all_areas
   else:
     areas = all_areas[int(len(all_areas)*train_test_split):]
     #areas = all_areas[:int(len(all_areas)*.05)]
@@ -650,46 +653,58 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   input_data = []
   bboxes = []
   labels = []
+  total_regions = 0
   # Loop through buildings
+  if areas is None:
+    areas = sorted(listdir(path))
 
-  area_path = path
+  for area in areas:
+    ri = 0
+    print("\t\tLoading area {}...".format(area))
+    for dataset in listdir(join(path, area)):
+      area_path = join(path, area, dataset+'_processed')
+
+      if not isdir(area_path):
+        continue
       
-  ri = 0
-  while exists(join(area_path, "region{}.ply".format(ri))):
-    room = "region{}".format(ri)
-    ri += 1
-    room_path = join(area_path, room)
+      while exists(join(area_path, "region{}.ply".format(ri))):
+        room = "region{}".format(ri)
+        ri += 1
+        room_path = join(area_path, room)
 
-    # print("\tLoading room {}...".format(room))
+        # print("\tLoading room {}...".format(room))
 
-    # Load point cloud
-    categories = np.load(room_path+"_labels.npy")
+        # Load point cloud
+        categories = np.load(room_path+"_labels.npy")
 
-    input_pc = read_ply(room_path+".ply")
-    bbox = np.load(room_path+"_bboxes.npy")
-    input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
+        input_pc = read_ply(room_path+".ply")
+        bbox = np.load(room_path+"_bboxes.npy")
+        input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
 
-    fbbox = []
-    flabel = []
-    matches = 0
-    for ibbox, ilabel in zip(bbox, categories):
-      if len(objects) == 0 or ilabel in objects:
-        fbbox.append(ibbox)
-        flabel.append(ilabel)
-        matches += 1
-    
-    if matches > 0:
-      bboxes.append(fbbox)
-      labels.append(flabel)
-      input_data.append(input_pc)
+        fbbox = []
+        flabel = []
+        matches = 0
+        for ibbox, ilabel in zip(bbox, categories):
+          if len(objects) == 0 or ilabel in objects:
+            fbbox.append(ibbox)
+            flabel.append(ilabel)
+            matches += 1
+        
+        if matches > 0:
+          bboxes.append(fbbox)
+          labels.append(flabel)
+          input_data.append(input_pc)
 
-  print("\t\tLoaded {} regions".format(ri))
+    print("\t\tLoaded {} regions from area {}".format(ri, area))
+    total_regions += ri
 
   input_data = np.array(input_data)
   bboxes = np.array(bboxes)
   labels = np.array(labels)
 
   return input_data, bboxes, labels
+
+  
 
 def load_directory_stanford(path, areas, categories):
   """

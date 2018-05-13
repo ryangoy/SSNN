@@ -8,7 +8,9 @@ import pandas as pd
 from shutil import rmtree
 from pyntcloud.io import read_ply, write_ply
 
-def rgbd2pc_single(rgb_img, d_img, K, RT, index_matrix, KiX=None):
+def rgbd2pc(rgb_img, d_img, K, RT, KiX=None):
+
+    index_matrix = create_index_matrix(rgb_img.shape[0], rgb_img.shape[1])
 
     # processing of depth map
     d_img = np.right_shift(d_img, 3)
@@ -16,7 +18,11 @@ def rgbd2pc_single(rgb_img, d_img, K, RT, index_matrix, KiX=None):
     # d_img[d_img>8]=8
     rgb_img = rgb_img.reshape((-1, 3))
 
+
     # apply inverse K matrix
+    if len(K.shape) == 1:
+        K = K.reshape((3,3))
+
     cx = K[0,2]
     cy = K[1,2]
     fx = K[0,0]
@@ -44,13 +50,11 @@ def rgbd2pc_single(rgb_img, d_img, K, RT, index_matrix, KiX=None):
     return colored_pc
 
 
-def rgbd2pc(data_path, save_path, fullres=False):
+def process_folder(data_path, save_path, fullres=False):
 
     if exists(save_path):
         rmtree(save_path)
     os.makedirs(save_path)
-
-    index_matrix = create_index_matrix(530, 730)
 
     scene_index = 0
 
@@ -59,45 +63,50 @@ def rgbd2pc(data_path, save_path, fullres=False):
     for img in imgs:
         folder_path = join(data_path, img)
         if isdir(folder_path):
-            # extrinsics
-            extrinsics_folder = join(folder_path, 'extrinsics')
-            if len(listdir(extrinsics_folder)) > 1:
-                print('More than one file in extrinsics folder at {}.'.format(extrinsics_folder))
-            extrinsics_file = join(extrinsics_folder, listdir(extrinsics_folder)[0])
-            extrinsics_npy = np.loadtxt(extrinsics_file)
-            anno_extrinsics = extrinsics_npy[:3, :3]
+            
+            try:
+                # extrinsics
+                extrinsics_folder = join(folder_path, 'extrinsics')
 
-            if fullres:
-                fullres_folder = join(folder_path, 'fullres')
-                if not exists(fullres_folder):
-                    continue
-                rgb_img = None
-                d_img = None
-                intrinsics_npy = None
-                for f in listdir(fullres_folder):
-                    if f.endswith('.jpg'):
-                        rgb_img = imread(join(fullres_folder, f))
-                    elif f.endswith('.png'):
-                        d_img = imread(join(fullres_folder, f))
-                    elif f.endswith('.txt'):
-                        intrinsics_npy = np.loadtxt(join(fullres_folder, f))
+                # sometimes there is more than 1 extrinsics file.
+                extrinsics_file = join(extrinsics_folder, listdir(extrinsics_folder)[-1])
+                extrinsics_npy = np.loadtxt(extrinsics_file)
+                anno_extrinsics = extrinsics_npy[:3, :3]
 
-            else:
+                if fullres:
+                    fullres_folder = join(folder_path, 'fullres')
+                    if not exists(fullres_folder):
+                        continue
+                    rgb_img = None
+                    d_img = None
+                    intrinsics_npy = None
+                    for f in listdir(fullres_folder):
+                        if f.endswith('.jpg'):
+                            rgb_img = imread(join(fullres_folder, f))
+                        elif f.endswith('.png'):
+                            d_img = imread(join(fullres_folder, f))
+                        elif f.endswith('.txt'):
+                            intrinsics_npy = np.loadtxt(join(fullres_folder, f))
 
-                intrinsics_npy = np.loadtxt(join(folder_path, 'intrinsics.txt'))
-                for f in listdir(join(folder_path, 'image')):
-                    rgb_img = imread(join(folder_path, 'image', f))
+                else:
 
-                for f in listdir(join(folder_path, 'depth_bfx')):
-                    d_img = imread(join(folder_path, 'depth_bfx', f))
+                    intrinsics_npy = np.loadtxt(join(folder_path, 'intrinsics.txt'))
+                    for f in listdir(join(folder_path, 'image')):
+                        rgb_img = imread(join(folder_path, 'image', f))
 
-                if rgb_img is None or d_img is None or intrinsics_npy is None:
-                    print('Image didn\'t load in {}.'.format(folder_path))
-                    continue
+                    for f in listdir(join(folder_path, 'depth_bfx')):
+                        d_img = imread(join(folder_path, 'depth_bfx', f))
 
-            raw_annotations = json.load(open(join(folder_path, 'annotation3Dfinal', 'index.json')))['objects']
+                    if rgb_img is None or d_img is None or intrinsics_npy is None:
+                        print('Image didn\'t load in {}.'.format(folder_path))
+                        continue
+            
+                raw_annotations = json.load(open(join(folder_path, 'annotation3Dfinal', 'index.json')))['objects']
+            except FileNotFoundError:
+                print("\tFolder {} was skipped due to missing information.".format(folder_path))
+                continue
 
-            colored_pc = rgbd2pc_single(rgb_img, d_img, intrinsics_npy, extrinsics_npy, index_matrix).astype('float32')
+            colored_pc = rgbd2pc(rgb_img, d_img, intrinsics_npy, extrinsics_npy).astype('float32')
             result = pd.DataFrame(dtype='float32')
             result["x"] = colored_pc[:,0]
             result["y"] = colored_pc[:,1]
@@ -113,7 +122,7 @@ def rgbd2pc(data_path, save_path, fullres=False):
             bbox_loc = []
             bbox_cls = []
             for raw_annot in raw_annotations:
-                if raw_annot is None:
+                if raw_annot is None or type(raw_annot) is not dict:
                     continue
                 for poly in raw_annot['polygon']:
                     bbox = annotation_to_bbox(poly, anno_extrinsics)
@@ -130,10 +139,25 @@ def rgbd2pc(data_path, save_path, fullres=False):
                 write_ply(join(save_path, 'region'+str(scene_index)+'.ply'), points=result)
                 np.save(join(save_path, 'region{}_bboxes.npy'.format(scene_index)), np.array(bbox_loc))
                 np.save(join(save_path, 'region{}_labels.npy'.format(scene_index)), np.array(bbox_cls))
-                scene_index += 1
+                
+            else:
+                print("\tFolder {} was skipped due to missing information.".format(folder_path))
+
+            scene_index += 1
+
             
-        if scene_index % 10 == 0:
-            print('Processed {}/{} scenes.'.format(scene_index, len(imgs)))
+        if scene_index % 100 == 0:
+            print('\tProcessed {}/{} scenes from {}.'.format(scene_index, len(imgs), data_path))
+
+def process_sunrgbd(path):
+
+    for sensor in ['xtion']:
+    #for sensor in listdir(path):
+        if sensor != 'SUNRGBDtoolbox':
+            for dataset in listdir(join(path, sensor)):
+                if not dataset.endswith('_processed') and isdir(join(path, sensor, dataset)):
+                    print('Processing data from {}...'.format(join(path, sensor, dataset)))
+                    process_folder(join(path, sensor, dataset), join(path, sensor, dataset+'_processed'))
 
 def annotation_to_bbox(annotation, R):
     Xs = annotation['X']
@@ -184,4 +208,4 @@ def create_index_matrix(width, height):
     return np.stack(np.meshgrid(np.arange(1, height+1), np.arange(1, width+1)), axis=-1).reshape((-1, 2))
 
 if __name__ == '__main__':
-    rgbd2pc('/home/ryan/cs/datasets/SUNRGBD/kv2/align_kv2/', '/home/ryan/cs/datasets/SUNRGBD/kv2/align_kv2_processed/')
+    process_sunrgbd('/home/ryan/cs/datasets/SUNRGBD/')
