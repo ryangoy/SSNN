@@ -319,7 +319,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
       anchor_ious = []
       best_anchor = None
       best_index = 0
-      best_iou = 0
+      best_iou = -1
 
       b1 = bbox_loc - bbox_dims/2
       b2 = bbox_loc + bbox_dims/2
@@ -655,12 +655,14 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   bboxes = []
   labels = []
   total_regions = 0
+
   # Loop through buildings
   if areas is None:
     areas = sorted(listdir(path))
 
   for area in areas:
     ri = 0
+    counter = 0
     print("\t\tLoading area {}...".format(area))
     for dataset in listdir(join(path, area)):
       area_path = join(path, area, dataset+'_processed')
@@ -695,9 +697,10 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
           bboxes.append(fbbox)
           labels.append(flabel)
           input_data.append(input_pc)
+          counter += 1
 
-    print("\t\tLoaded {} regions from area {}".format(ri, area))
-    total_regions += ri
+    print("\t\tLoaded {} regions from area {}".format(counter, area))
+    total_regions += counter
 
   input_data = np.array(input_data)
   bboxes = np.array(bboxes)
