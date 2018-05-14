@@ -32,11 +32,11 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/buildings', 'Path to base directory.')
-flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/scans', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('rotated_copies', 3, 'Number of times the dataset is copied and rotated for data augmentation.')
+flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_integer('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
@@ -59,14 +59,14 @@ flags.DEFINE_integer('num_xy_steps', 128, 'Number of intervals to sample from in
 flags.DEFINE_integer('num_z_steps', 16, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
-flags.DEFINE_integer('num_kernels', 2, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 8, 'Number of sample points each kernel has.')
+flags.DEFINE_integer('num_kernels', 1, 'Number of kernels to probe with.')
+flags.DEFINE_integer('probes_per_kernel',32, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
 flags.DEFINE_integer('num_anchors', 4, 'Number of anchors to use.')
 
 # DO NOT CHANGE
 NUM_SCALES = 3
-NUM_HOOK_STEPS = int(FLAGS.num_z_steps)
+NUM_HOOK_STEPS = 16
 DIMS = np.array([FLAGS.num_xy_steps, FLAGS.num_xy_steps, FLAGS.num_z_steps])
 
 # Define sets for training and testing (Stanford dataset)

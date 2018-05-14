@@ -173,7 +173,18 @@ class SSNN:
                       strides=(2, 2, 1), padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-    
+    #TEST 64x64x64
+    # layer = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
+    #                   strides=2, padding='SAME', activation=tf.nn.relu, 
+    #                   kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+    # layer = tf.layers.conv3d(layer, filters=64, kernel_size=3, 
+    #                   strides=2, padding='SAME', activation=tf.nn.relu, 
+    #                   kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+
+    self.pool1 = self.conv0_1
+
     # # First conv block, 32x32x32
     # self.conv1_1 = tf.layers.conv3d(self.dot_product, filters=64, kernel_size=3, 
     #                   strides=1, padding='SAME', activation=tf.nn.relu, 
@@ -313,6 +324,9 @@ class SSNN:
       counter += 1
  
       pc_disc, probe_coords = self.sess.run([self.probe_op, self.probe_coords], feed_dict={self.points_ph: pc})
+      # print(pc_disc.shape)
+      np.save('pc_test.npy', pc_disc)
+
       probe_memmap[counter-1] = pc_disc[0]
 
       if counter ==1 :
@@ -378,7 +392,7 @@ class SSNN:
           counter = 0
 
       # Compute validation loss and validation mAP
-      if X_val is not None and y_val_cls is not None and y_val_loc is not None and epoch > 2:
+      if X_val is not None and y_val_cls is not None and y_val_loc is not None and epoch > 0:
         val_loss = 0
         val_cls_loss = 0
         val_loc_loss = 0

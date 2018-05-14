@@ -8,7 +8,7 @@ __global__ void ProbeKernel(int batches, int filters, int probes_per_filter, int
     float* gl_points, int* gl_indices, const float* weights, float xdim, float ydim, float zdim, int xy_steps, int z_steps, float ksize, float* output) {
 
     // N threads
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < batches*xy_steps*xy_steps*xy_steps*filters*probes_per_filter; i+= blockDim.x * gridDim.x){
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < batches*xy_steps*xy_steps*z_steps*filters*probes_per_filter; i+= blockDim.x * gridDim.x){
         // Compute the sample the thread corresponds to. Could have used CUDA dim3, but we need to loop through more for loops than 3.
         int batch = i / (xy_steps*xy_steps*z_steps*filters*probes_per_filter);
         int x_step = i % (xy_steps*xy_steps*z_steps*filters*probes_per_filter) / (xy_steps*z_steps*filters*probes_per_filter);
