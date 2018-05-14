@@ -116,8 +116,6 @@ def process_folder(data_path, save_path, fullres=False):
             result["g"] = colored_pc[:,4]
             result["b"] = colored_pc[:,5]
 
-            # print(read_ply(join(save_path, 'region'+str(scene_index)+'.ply'))["points"].dtypes)
-
             bbox_pcs = []
             bbox_loc = []
             bbox_cls = []
@@ -129,12 +127,7 @@ def process_folder(data_path, save_path, fullres=False):
                     #bbox_pcs.append(bbox_to_pc(bbox))
                     bbox_loc.append(bbox)
                     bbox_cls.append(raw_annot['name'])
-            # all_bbox_pcs = np.concatenate(bbox_pcs, axis=0)
-            # bbox_color = np.zeros((all_bbox_pcs.shape))
-            # bbox_color[:, 0] = 102
-            # bbox_color[:, 1] = 255
-            # bbox_color[:, 2] = 102
-            # all_bbox_pcs = np.concatenate([all_bbox_pcs, bbox_color], axis=-1)
+
             if len(bbox_loc) > 0 and len(bbox_cls) > 0:
                 write_ply(join(save_path, 'region'+str(scene_index)+'.ply'), points=result)
                 np.save(join(save_path, 'region{}_bboxes.npy'.format(scene_index)), np.array(bbox_loc))

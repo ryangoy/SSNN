@@ -427,7 +427,8 @@ def normalize_pointclouds_stanford(pointcloud_arr, seg_arr, probe_dims):
     mins = xyz.min(axis=0)
     maxes = xyz.max(axis=0)
     dims = maxes-mins
-    xyz = (xyz-mins) / dims * probe_dims
+
+    xyz = (xyz-mins)# / dims * probe_dims
 
     if gmax is None:
       gmax = maxes
@@ -437,7 +438,7 @@ def normalize_pointclouds_stanford(pointcloud_arr, seg_arr, probe_dims):
     shifted_objs = []
     # Loop through each object label in this scene.
     for obj in seg:
-      shifted_objs.append(np.array(obj[:,:3]-mins) / dims * probe_dims)
+      shifted_objs.append(np.array(obj[:,:3]-mins))# / dims * probe_dims)
     shifted_segmentations.append(shifted_objs)
     new_pc = np.array(xyz)
 
