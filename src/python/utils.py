@@ -618,13 +618,13 @@ def load_points_sunrgbd(path, X_npy_path, yb_npy_path, yl_npy_path,
   else:
     assert path is not None, "No path given for pointcloud directory."
     print("\tLoading points from directory...")
-    X, yb, yl = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
+    X, yb, yl, images, depthmaps, Ks, RTs = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
 
     np.save(X_npy_path, X)
     np.save(yb_npy_path, yb)
     np.save(yl_npy_path, yl)
     new_ds = True
-  return X, yb, yl, new_ds
+  return X, yb, yl, new_ds, images, depthmaps, Ks, RTs
 
 def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=True):
   """
@@ -654,6 +654,10 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   input_data = []
   bboxes = []
   labels = []
+  images = []
+  depthmaps = []
+  Ks = []
+  RTs = []
   total_regions = 0
 
   # Loop through buildings
@@ -679,9 +683,12 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
 
         # Load point cloud
         categories = np.load(room_path+"_labels.npy")
-
+        rgb_img = np.load(room_path+"_rgb.npy")
+        depthmap = np.load(room_path+"_d.npy")
         input_pc = read_ply(room_path+".ply")
         bbox = np.load(room_path+"_bboxes.npy")
+        K = np.load(room_path+"_k.npy")
+        RT = np.load(room_path+"_rt.npy")
         input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
 
         fbbox = []
@@ -697,6 +704,10 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
           bboxes.append(fbbox)
           labels.append(flabel)
           input_data.append(input_pc)
+          images.append(rgb_img)
+          depthmaps.append(depthmap)
+          Ks.append(K)
+          RTs.append(RT)
           counter += 1
 
     print("\t\tLoaded {} regions from area {}".format(counter, area))
@@ -705,8 +716,12 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   input_data = np.array(input_data)
   bboxes = np.array(bboxes)
   labels = np.array(labels)
+  images = np.array(images)
+  depthmaps = np.array(depthmaps)
+  Ks = np.array(Ks)
+  RTs = np.array(RTs)
 
-  return input_data, bboxes, labels
+  return input_data, bboxes, labels, images, depthmaps, Ks, RTs
 
   
 

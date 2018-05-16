@@ -132,6 +132,10 @@ def process_folder(data_path, save_path, fullres=False):
                 write_ply(join(save_path, 'region'+str(scene_index)+'.ply'), points=result)
                 np.save(join(save_path, 'region{}_bboxes.npy'.format(scene_index)), np.array(bbox_loc))
                 np.save(join(save_path, 'region{}_labels.npy'.format(scene_index)), np.array(bbox_cls))
+                np.save(join(save_path, 'region{}_rgb.npy'.format(scene_index)), rgb_img)
+                np.save(join(save_path, 'region{}_d.npy'.format(scene_index)), d_img)
+                np.save(join(save_path, 'region{}_k.npy'.format(scene_index)), intrinsics_npy)
+                np.save(join(save_path, 'region{}_rt.npy'.format(scene_index)), extrinsics_npy)
                 
             else:
                 print("\tFolder {} was skipped due to missing information.".format(folder_path))
@@ -144,7 +148,7 @@ def process_folder(data_path, save_path, fullres=False):
 
 def process_sunrgbd(path):
 
-    for sensor in ['xtion']:
+    for sensor in ['kv1', 'kv2']:
     #for sensor in listdir(path):
         if sensor != 'SUNRGBDtoolbox':
             for dataset in listdir(join(path, sensor)):

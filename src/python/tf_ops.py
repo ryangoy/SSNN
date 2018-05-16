@@ -54,3 +54,52 @@ def dot_product(inputs, filters=1, stddev=0.01, name='dot_product'):
     new_shape = [-1] + inputs.shape[1:4].as_list() + [filters]
     dot_product = tf.reshape(dot_product, new_shape)
     return dot_product, weights
+
+
+
+def backprojection(inp, d_img, K, RT, filters):
+
+    # output = tf.placeholder(tf.float32, (None, 32, 32, 32, filters))
+
+    tf_func = tf.py_func(project_2d_to_3d, [inp, d_img, K, RT], tf.float32)
+    tf_func.set_shape((None, 32, 32, 32, filters))
+    return tf_func
+
+def project_2d_to_3d(conv_out, d_img, K, RT):
+
+    step_x = int(d_img.shape[1]/conv_out.shape[1])
+    step_y = int(d_img.shape[2]/conv_out.shape[2])
+    index_matrix = np.stack(np.meshgrid(np.arange(1, d_img.shape[1]+1, step=step_x), np.arange(1, d_img.shape[2]+1), step=step_y), axis=-1).reshape((-1, 2))
+
+    # processing of depth map
+    d_img = np.right_shift(d_img, 3)
+    d_img = d_img[:, ::step_x,::step_y].astype(float).flatten()/1000
+    feature_vec = conv_out.reshape((-1, 3))
+
+    # apply inverse K matrix
+
+    cx = K[:,0,2]
+    cy = K[:,1,2]
+    fx = K[:,0,0]
+    fy = K[:,1,1]
+
+    x = (index_matrix[...,0]-cx) * d_img / fx
+    y = (index_matrix[...,1]-cy) * d_img / fy
+    z = d_img
+
+    # join channels
+    x = np.expand_dims(x, -1)
+    y = np.expand_dims(y, -1)
+    z = np.expand_dims(z, -1)
+    KiX = np.concatenate([x, z, -y], axis=-1)
+
+    # apply rotation and translation from extrinsics
+    R = RT[:,:, :3]
+    T = RT[:,:, 3:]
+    Y = KiX - np.tile(T, (1, 1, KiX.shape[0])).T
+    Y = Y.dot(np.linalg.inv(R))
+
+    output_tensor = np.zeros((conv_out.shape[0], conv_out.shape[1], conv_out.shape[2], conv_out.shape[2], conv_out.shape[3]))
+    output_tensor[Y] = feature_vec
+
+    return output_tensor

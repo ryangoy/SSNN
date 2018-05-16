@@ -32,8 +32,8 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/scans/', 'Path to base directory.')
-flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SUNRGBD', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'sunrgbd', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
 flags.DEFINE_integer('rotated_copies', 1, 'Number of times the dataset is copied and rotated for data augmentation.')
@@ -167,7 +167,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
                                   load_from_npy=load_from_npy, areas=areas, categories=CATEGORIES)
 
   elif FLAGS.dataset_name == 'sunrgbd':
-    X_raw, yb_raw, yl, new_ds = load_points_sunrgbd(path=data_dir, X_npy_path=x_path,
+    X_raw, yb_raw, yl, new_ds, images, depthmaps, Ks, RTs = load_points_sunrgbd(path=data_dir, X_npy_path=x_path,
                                     yb_npy_path = ys_path, yl_npy_path = yl_path, 
                                     load_from_npy=load_from_npy, is_train=is_train,
                                     categories=CATEGORIES, train_test_split=1.0 - FLAGS.test_split, use_rgb=FLAGS.use_rgb)
@@ -235,7 +235,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
       y_loc[problem_pc] = y_loc[problem_pc-1]
 
   print("\tFinished pre-processing of {} set.".format(input_type))
-  return X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping
+  return X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping, images, depthmaps, Ks, RTs
 
 def main(_):
   kernel_size = DIMS / FLAGS.num_steps
@@ -272,14 +272,22 @@ def main(_):
     y_trn_loc = y_loc[train_split:]
     y_trn_one_hot = y_cat_one_hot[train_split:]
     trn_bboxes = bboxes[train_split:]
+    trn_images = images[train_split:]
+    trn_depthmaps = images[train_split:]
+    trn_Ks = images[train_split:]
+    trn_RTs = RTs[train_split:]
     np.save('y_cls.npy', y_trn_cls)
     X_val = X[:train_split]
     y_val_cls = y_cls[:train_split]
     y_val_loc = y_loc[:train_split]
     y_val_one_hot = y_cat_one_hot[:train_split]
     val_bboxes = bboxes[:train_split]
+    val_images = images[:train_split]
+    val_depthmaps = images[:train_split]
+    val_Ks = images[:train_split]
+    val_RTs = RTs[:train_split]
     print("Beginning training...")
-    ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, val_bboxes, y_val_one_hot, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=FLAGS.checkpoint_save_interval)
+    ssnn.train_val(X_trn, y_trn_cls, y_trn_loc, X_val, y_val_cls, y_val_loc, val_bboxes, y_val_one_hot, trn_images, trn_depthmaps, trn_Ks, trn_RTs, val_images, val_depthmaps, val_Ks, val_RTs, epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size, save_interval=FLAGS.checkpoint_save_interval)
     pkl.dump(mapping, open(MAPPING, 'wb'))
 
   if FLAGS.test:

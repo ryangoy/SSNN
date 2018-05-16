@@ -131,6 +131,71 @@ class SSNN:
 
       return conf, loc
 
+  def rgb_pipeline(self, inp, filters=8, activation=tf.nn.relu):
+
+    # inp: 256 x 256 x 3
+
+    # 128 x 128
+
+    layer = tf.layers.conv2d(inp, filters, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.max_pooling2d(layer, 2, 2)
+
+    # 64 x 64
+    layer = tf.layers.conv2d(layer, filters*2, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters*2, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters*2, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.max_pooling2d(layer, 2, 2)
+
+    # 32 x 32
+    layer = tf.layers.conv2d(layer, filters*4, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters*4, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters*4, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters*4, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.max_pooling2d(layer, 2, 2)
+
+    return layer
+      
+
+  def d_pipeline(self, inp, filters=8, activation=tf.nn.relu):
+
+    # inp: 256 x 256 x 3
+
+    # 128 x 128
+    layer = tf.layers.conv2d(inp, filters, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.max_pooling2d(layer, 2, 2)
+
+    # 64 x 64
+    layer = tf.layers.conv2d(layer, filters*2, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters*2, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters*2, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.max_pooling2d(layer, 2, 2)
+
+    # 32 x 32
+    layer = tf.layers.conv2d(layer, filters*4, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters*4, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters*4, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.conv2d(layer, filters*4, 3, strides=1, padding='same', activation=activation)
+    layer = tf.layers.max_pooling2d(layer, 2, 2)
+
+    return layer
+
+  def rgbd_pipeline(self, filters=8, activation=tf.nn.relu):
+
+    self.X_rgb_ph = tf.placeholder(tf.float32, (None, 256, 256, 3))
+    self.X_d_ph = tf.placeholder(tf.float32, (None, 256, 256, 1))
+    self.K_ph = tf.placeholder(tf.float32, (None, 3, 3))
+    self.RT_ph = tf.placeholder(tf.float32, (None, 3, 4))
+
+    layer = tf.concat([self.rgb_pipeline(self.X_rgb_ph, filters), self.d_pipeline(self.X_d_ph, filters)], axis=-1)
+    layer = tf.layers.conv2d(layer, filters*2, 3, strides=1, padding='same', activation=activation)
+
+    layer = backprojection(layer, self.X_d_ph, self.K_ph, self.RT_ph, filters*2)
+
+    return layer
+
+
   def init_model(self, num_kernels, probes_per_kernel, probe_steps, probe_hook_steps, num_scales, num_classes,
                  learning_rate=0.0001, loc_loss_lambda=1, dot_layers=8, reuse_hook=False):
 
@@ -183,8 +248,11 @@ class SSNN:
                       strides=1, padding='SAME', activation=tf.nn.relu, 
                       kernel_initializer=tf.contrib.layers.xavier_initializer())
 
+    self.conv1_2 = tf.concat([self.conv1_2, self.rgbd_pipeline(8)], axis=-1)
+
     self.pool1 = tf.nn.max_pool3d(self.conv1_2, ksize=[1, 2, 2, 2, 1], 
                                   strides=[1, 2, 2, 2, 1], padding='SAME')
+
 
     # Second conv block, 16x16x16
     self.conv2_1 = tf.layers.conv3d(self.pool1, filters=64, kernel_size=3, 
@@ -324,7 +392,7 @@ class SSNN:
     return tf.add(input_layer, noise)
 
   def train_val(self, X_trn=None, y_trn_cls=None, y_trn_loc=None, X_val=None, y_val_cls=None, 
-                y_val_loc=None, val_bboxes=None, y_val_one_hot=None, epochs=10, batch_size=4, display_step=100, save_interval=100):
+                y_val_loc=None, val_bboxes=None, y_val_one_hot=None, trn_images=None, trn_depthmaps=None, trn_Ks=None, trn_RTs=None, val_images=None, val_depthmaps=None, val_Ks=None, val_RTs=None, epochs=10, batch_size=4, display_step=100, save_interval=100):
 
     assert y_trn_cls is not None and y_trn_loc is not None, "Labels must be defined for train_val call."
 
@@ -352,7 +420,7 @@ class SSNN:
         batch_y_cls = y_trn_cls[randomized_indices]
         batch_y_loc = y_trn_loc[randomized_indices]
         _, loss, cl, ll = self.sess.run([self.optimizer, self.loss, self.cls_loss, self.loc_loss], 
-                                 feed_dict={self.X_ph: batch_x, self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc})
+                                 feed_dict={self.X_ph: batch_x, self.y_ph_cls: batch_y_cls, self.y_ph_loc: batch_y_loc, self.X_rgb_ph: trn_images, self.X_d_ph: trn_depthmaps, self.K_ph: trn_Ks, self.RT_ph: trn_RTs})
 
         curr_cl_sum += cl
         curr_ll_sum += ll
