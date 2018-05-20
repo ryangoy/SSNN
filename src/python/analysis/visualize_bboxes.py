@@ -18,7 +18,7 @@ kernel_size = grid_size/num_steps
 
 for scene in range(bboxes.shape[0]):
   print('Scene {}:'.format(scene))
-  f, axarr = plt.subplots(num_steps/4, 4)
+  f, axarr = plt.subplots(int(num_steps/4), 4)
   f.set_figwidth(grid_size)
   for z_dim in range(num_steps):
     for bb_id in range(len(bboxes[scene])):
@@ -31,15 +31,15 @@ for scene in range(bboxes.shape[0]):
       center_loc = (bbox[:3] + bbox[3:])/2
       bbox_size = bbox[3:] - bbox[:3]
       curr_z = z_dim * kernel_size
-      axarr[z_dim/4, z_dim%4].set_xlim([0, grid_size])
-      axarr[z_dim/4, z_dim%4].set_ylim([0, grid_size])   
+      axarr[int(z_dim/4), z_dim%4].set_xlim([0, grid_size])
+      axarr[int(z_dim/4), z_dim%4].set_ylim([0, grid_size])   
 
       if (bbox[2] <= curr_z+kernel_size and bbox[2] >= curr_z) or\
          (bbox[5] <= curr_z+kernel_size and bbox[5] >= curr_z) or\
          (bbox[5] >= curr_z+kernel_size and bbox[2] <= curr_z):
 
-        axarr[z_dim/4, z_dim%4].add_patch(patches.Rectangle(bbox[:2], bbox_size[0], bbox_size[1]))
+        axarr[int(z_dim/4), z_dim%4].add_patch(patches.Rectangle(bbox[:2], bbox_size[0], bbox_size[1]))
         if cls_vals is not None:
-          axarr[z_dim/4, z_dim%4].text(bbox[0], bbox[1], str(most_likely_class), color='orange')
+          axarr[int(z_dim/4), z_dim%4].text(bbox[0], bbox[1], str(most_likely_class), color='orange')
 
   plt.show()

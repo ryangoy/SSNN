@@ -32,11 +32,11 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SSNN/matterport/scans/', 'Path to base directory.')
-flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/buildings', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'stanford', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('rotated_copies', 1, 'Number of times the dataset is copied and rotated for data augmentation.')
+flags.DEFINE_integer('rotated_copies',3, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_integer('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
@@ -51,7 +51,7 @@ flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 2, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 10, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 0.5, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
@@ -128,12 +128,22 @@ MAPPING          = join(output_dir, 'mapping.pkl')
 POSSIBLE_ANCHORS =  np.array([[1.0, 1.0, 1.0],
                               [2.0, 1.0, 1.0],
                               [1.0, 2.0, 1.0],
-                              [1.0, 1.0, 2.0],
+                              [0.5, 0.5, 1.0],
                               [2.0, 2.0, 1.0],
                               [0.5, 1.0, 1.0],
                               [1.0, 0.5, 1.0],
                               [0.5, 0.5, 1.0],
                               [1.0, 1.0, 0.5]])
+
+# POSSIBLE_ANCHORS =  np.array([[1.0, 1.0, 1.0],
+#                               [1.0, 1.0, 2.0],
+#                               [1.0, 1.0, 4.0],
+#                               [1.0, 2.0, 1.0],
+#                               [2.0, 2.0, 1.0],
+#                               [0.5, 1.0, 1.0],
+#                               [1.0, 0.5, 1.0],
+#                               [0.5, 0.5, 1.0],
+#                               [1.0, 1.0, 0.5]])
 
 ANCHORS = POSSIBLE_ANCHORS[:FLAGS.num_anchors]
 
@@ -156,6 +166,9 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   # elif True or FLAGS.dataset_name == 'matterport':
   normalize_pointclouds_fn = normalize_pointclouds_matterport
 
+  Ks = None
+  RTs = None
+  fnames = None
   if FLAGS.dataset_name == 'matterport':
     X_raw, yb_raw, yl, new_ds = load_points_matterport(path=data_dir, X_npy_path=x_path,
                                     yb_npy_path = ys_path, yl_npy_path = yl_path, 
@@ -167,7 +180,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
                                   load_from_npy=load_from_npy, areas=areas, categories=CATEGORIES)
 
   elif FLAGS.dataset_name == 'sunrgbd':
-    X_raw, yb_raw, yl, new_ds = load_points_sunrgbd(path=data_dir, X_npy_path=x_path,
+    X_raw, yb_raw, yl, new_ds, Ks, RTs, fnames = load_points_sunrgbd(path=data_dir, X_npy_path=x_path,
                                     yb_npy_path = ys_path, yl_npy_path = yl_path, 
                                     load_from_npy=load_from_npy, is_train=is_train,
                                     categories=CATEGORIES, train_test_split=1.0 - FLAGS.test_split, use_rgb=FLAGS.use_rgb)
@@ -235,7 +248,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
       y_loc[problem_pc] = y_loc[problem_pc-1]
 
   print("\tFinished pre-processing of {} set.".format(input_type))
-  return X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping
+  return X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping, Ks, RTs, fnames
 
 def main(_):
   kernel_size = DIMS / FLAGS.num_steps
@@ -261,7 +274,7 @@ def main(_):
 
   if FLAGS.train:
     # Pre-process train data. Train/test data pre-processing is split for easier data streaming.
-    X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
+    X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
                         CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, CLS_TRN_BBOX, FLAGS.load_from_npy,
                         load_probe, num_copies=FLAGS.rotated_copies)
 
@@ -286,10 +299,13 @@ def main(_):
     mapping=None
     #mapping = pkl.load(open(MAPPING, 'rb'))
     # Pre-process test data.
-    X_test, _, _, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
+    X_test, _, _, _, _, _, Ks, RTs, fnames = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
                         CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, CLS_TEST_BBOX, FLAGS.load_from_npy,
                         load_probe, is_train=False, oh_mapping=mapping)
 
+    np.save('test_Ks.npy', Ks)
+    np.save('test_RTs.npy', RTs)
+    np.save('test_fnames.npy', fnames)
 
     # Test model. Using validation since we won't be using real 
     # "test" data yet. Preds will be an array of bounding boxes. 
@@ -315,6 +331,9 @@ def main(_):
     # Compute recall and precision.
     compute_mAP(bboxes, bboxes_cls, np.load(BBOX_TEST_LABELS), np.load(CLS_TEST_BBOX), mapping=mapping, threshold=0.25)
     compute_mAP(bboxes, bboxes_cls, np.load(BBOX_TEST_LABELS), np.load(CLS_TEST_BBOX), mapping=mapping, threshold=0.5, plot_category=0)
+
+    bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
+                              DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, ANCHORS, conf_threshold=0.80)
 
   
   

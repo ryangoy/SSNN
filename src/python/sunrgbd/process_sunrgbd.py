@@ -93,6 +93,7 @@ def process_folder(data_path, save_path, fullres=False):
                     intrinsics_npy = np.loadtxt(join(folder_path, 'intrinsics.txt'))
                     for f in listdir(join(folder_path, 'image')):
                         rgb_img = imread(join(folder_path, 'image', f))
+                        image_index = str(f[-8:-4])
 
                     for f in listdir(join(folder_path, 'depth_bfx')):
                         d_img = imread(join(folder_path, 'depth_bfx', f))
@@ -129,9 +130,9 @@ def process_folder(data_path, save_path, fullres=False):
                     bbox_cls.append(raw_annot['name'])
 
             if len(bbox_loc) > 0 and len(bbox_cls) > 0:
-                write_ply(join(save_path, 'region'+str(scene_index)+'.ply'), points=result)
-                np.save(join(save_path, 'region{}_bboxes.npy'.format(scene_index)), np.array(bbox_loc))
-                np.save(join(save_path, 'region{}_labels.npy'.format(scene_index)), np.array(bbox_cls))
+                write_ply(join(save_path, 'region'+str(image_index)+'.ply'), points=result)
+                np.save(join(save_path, 'region{}_bboxes.npy'.format(image_index)), np.array(bbox_loc))
+                np.save(join(save_path, 'region{}_labels.npy'.format(image_index)), np.array(bbox_cls))
                 
             else:
                 print("\tFolder {} was skipped due to missing information.".format(folder_path))

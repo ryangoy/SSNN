@@ -6,6 +6,7 @@
 *.npy
 .ipynb_checkpoints
 *.swp
+checkpoints/
 
 *.o
 *.so

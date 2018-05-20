@@ -7,7 +7,7 @@ from os import makedirs, listdir
 import time
 from scipy.misc import imsave
 import matplotlib.pyplot as plt
-
+import pandas as pd
 
 # From PointNet
 def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
@@ -618,13 +618,13 @@ def load_points_sunrgbd(path, X_npy_path, yb_npy_path, yl_npy_path,
   else:
     assert path is not None, "No path given for pointcloud directory."
     print("\tLoading points from directory...")
-    X, yb, yl = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
+    X, yb, yl, Ks, RTs = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
 
     np.save(X_npy_path, X)
     np.save(yb_npy_path, yb)
     np.save(yl_npy_path, yl)
     new_ds = True
-  return X, yb, yl, new_ds
+  return X, yb, yl, new_ds, Ks, RTs
 
 def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=True):
   """
@@ -642,18 +642,21 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   """
 
   all_areas = sorted(listdir(path))
-  all_areas = ['kv1', 'kv2']
+  all_areas = ['kv1', 'kv2', 'realsense']
 
-  if is_train:
-    #areas = all_areas[:int(len(all_areas)*train_test_split)]
-    areas = all_areas
-  else:
-    areas = all_areas[int(len(all_areas)*train_test_split):]
-    #areas = all_areas[:int(len(all_areas)*.05)]
+  # if is_train:
+  #   #areas = all_areas[:int(len(all_areas)*train_test_split)]
+  #   areas = all_areas
+  # else:
+  #   areas = all_areas[int(len(all_areas)*train_test_split):]
+  #   #areas = all_areas[:int(len(all_areas)*.05)]
 
   input_data = []
   bboxes = []
   labels = []
+  Ks = []
+  RTs = []
+  fnames = []
   total_regions = 0
 
   # Loop through buildings
@@ -682,6 +685,12 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
 
         input_pc = read_ply(room_path+".ply")
         bbox = np.load(room_path+"_bboxes.npy")
+        K = np.load(room_path+"_k.npy")
+        if len(K.shape) == 1:
+          K = np.reshape(K, (3, 3))
+        RT = np.load(room_path+"_rt.npy")
+        if len(RT.shape) == 1:
+          RT = np.reshape(RT, (3, 4))
         input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
 
         fbbox = []
@@ -697,6 +706,9 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
           bboxes.append(fbbox)
           labels.append(flabel)
           input_data.append(input_pc)
+          Ks.append(K)
+          RTs.append(RT)
+          fnames.append(room_path)
           counter += 1
 
     print("\t\tLoaded {} regions from area {}".format(counter, area))
@@ -705,8 +717,27 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   input_data = np.array(input_data)
   bboxes = np.array(bboxes)
   labels = np.array(labels)
+  Ks = np.array(Ks)
+  RTs = np.array(RTs)
+  fnames = np.array(fnames)
 
-  return input_data, bboxes, labels
+
+  if is_train:
+    input_data = input_data[:int(len(input_data)*train_test_split)]
+    bboxes = bboxes[:int(len(bboxes)*train_test_split)]
+    labels = labels[:int(len(labels)*train_test_split)]
+    Ks = Ks[:int(len(labels)*train_test_split)]
+    RTs = RTs[:int(len(labels)*train_test_split)]
+    fnames = fnames[:int(len(labels)*train_test_split)]
+  else:
+    input_data = input_data[int(len(input_data)*train_test_split):]
+    bboxes = bboxes[int(len(bboxes)*train_test_split):]
+    labels = labels[int(len(labels)*train_test_split):]
+    Ks = Ks[int(len(labels)*train_test_split):]
+    RTs = RTs[int(len(labels)*train_test_split):]
+    fnames = fnames[int(len(labels)*train_test_split):]
+
+  return input_data, bboxes, labels, Ks, RTs, fnames
 
   
 
@@ -757,6 +788,16 @@ def load_directory_stanford(path, areas, categories):
       if len(annotation_pc) != 0:
         # Load point cloud
         input_pc = np.genfromtxt(join(room_path, room+'.txt'), dtype=np.float32)
+        # pc_df = pd.DataFrame()
+        # pc_df['x'] = input_pc[:,0]
+        # pc_df['y'] = input_pc[:,1]
+        # pc_df['z'] = input_pc[:,2]
+        # pc_df['r'] = input_pc[:,3]
+        # pc_df['g'] = input_pc[:,4]
+        # pc_df['b'] = input_pc[:,5]
+        # write_ply(join(room_path, room+'.ply'), points=pc_df)
+        input_pc = read_ply(join(room_path, room+'.ply'))
+        input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
         annotation_pc = np.array(annotation_pc)
         
         input_data.append(input_pc)
