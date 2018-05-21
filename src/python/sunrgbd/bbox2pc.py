@@ -7,7 +7,8 @@ import pandas as pd
 def bbox2pc(read_path, write_path):
     
     # shape: (num_bboxes, 6)
-    bbox_npy = np.load(read_path)
+    bbox_npy = np.array([np.load(read_path)[1][8]])
+    print(bbox_npy)
 
     bbox_pc = []
 
@@ -45,14 +46,13 @@ def create_pc(bbox):
                 corners.append([bbox[X], bbox[Y], bbox[Z]])
 
     points = []
-    for c1 in corners:
-        for c2 in corners:
-            if c1 is c2:
-                continue
+    c1s = [corners[0], corners[0], corners[0], corners[3], corners[3], corners[3], corners[5], corners[5], corners[5], corners[6], corners[6], corners[6]]
+    c2s = [corners[1], corners[2], corners[4], corners[7], corners[1], corners[2], corners[1], corners[4], corners[7], corners[2], corners[4], corners[7]]
+    for c1, c2 in zip(c1s, c2s):
 
-            interval = np.tile(np.reshape(np.linspace(0, 1, num=300), (-1,1)), (1, 3))
-            edge = (1-interval) * c1 + interval * c2
-            points.append(edge)
+        interval = np.tile(np.reshape(np.linspace(0, 1, num=300), (-1,1)), (1, 3))
+        edge = (1-interval) * c1 + interval * c2
+        points.append(edge)
 
     points = np.concatenate(points, axis=0)
 

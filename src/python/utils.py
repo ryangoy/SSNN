@@ -8,6 +8,7 @@ import time
 from scipy.misc import imsave
 import matplotlib.pyplot as plt
 import pandas as pd
+import pickle as pkl
 
 # From PointNet
 def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.05):
@@ -464,6 +465,7 @@ def normalize_pointclouds_matterport(pointcloud_arr, seg_arr, probe_dims, use_rg
   shifted_segmentations = []
   gmax = None
 
+  transforms = {'t':[], 's':[]}
   # Loop through scenes.
   for pointcloud, seg in zip(pointcloud_arr, seg_arr):
     xyz = pointcloud[:, :3]
@@ -484,10 +486,16 @@ def normalize_pointclouds_matterport(pointcloud_arr, seg_arr, probe_dims, use_rg
     shifted_segmentations.append(shifted_objs)
     
     xyz = (xyz-mins) * mult_dims
+    transforms['t'].append(mins)
+    transforms['s'].append(mult_dims)
+
+
     new_pc = np.array(xyz)
     if use_rgb:
       new_pc = np.concatenate([new_pc, pointcloud[:, 3:]], axis=1)
     shifted_pointclouds.append(new_pc)
+
+  pkl.dump(transforms, open("test_transforms.pkl", "wb"))
   return shifted_pointclouds, gmax, shifted_segmentations
 
 def load_points_stanford(path, X_npy_path, ys_npy_path, yl_npy_path,
@@ -618,13 +626,13 @@ def load_points_sunrgbd(path, X_npy_path, yb_npy_path, yl_npy_path,
   else:
     assert path is not None, "No path given for pointcloud directory."
     print("\tLoading points from directory...")
-    X, yb, yl, Ks, RTs = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
+    X, yb, yl, Ks, RTs, fnames = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
 
     np.save(X_npy_path, X)
     np.save(yb_npy_path, yb)
     np.save(yl_npy_path, yl)
     new_ds = True
-  return X, yb, yl, new_ds, Ks, RTs
+  return X, yb, yl, new_ds, Ks, RTs, fnames
 
 def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=True):
   """
@@ -642,7 +650,7 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   """
 
   all_areas = sorted(listdir(path))
-  all_areas = ['kv1', 'kv2', 'realsense']
+  all_areas = ['kv1', 'kv2']
 
   # if is_train:
   #   #areas = all_areas[:int(len(all_areas)*train_test_split)]
@@ -650,6 +658,7 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   # else:
   #   areas = all_areas[int(len(all_areas)*train_test_split):]
   #   #areas = all_areas[:int(len(all_areas)*.05)]
+  areas = all_areas
 
   input_data = []
   bboxes = []
@@ -726,16 +735,16 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
     input_data = input_data[:int(len(input_data)*train_test_split)]
     bboxes = bboxes[:int(len(bboxes)*train_test_split)]
     labels = labels[:int(len(labels)*train_test_split)]
-    Ks = Ks[:int(len(labels)*train_test_split)]
-    RTs = RTs[:int(len(labels)*train_test_split)]
-    fnames = fnames[:int(len(labels)*train_test_split)]
+    Ks = Ks[:int(len(Ks)*train_test_split)]
+    RTs = RTs[:int(len(RTs)*train_test_split)]
+    fnames = fnames[:int(len(fnames)*train_test_split)]
   else:
     input_data = input_data[int(len(input_data)*train_test_split):]
     bboxes = bboxes[int(len(bboxes)*train_test_split):]
     labels = labels[int(len(labels)*train_test_split):]
-    Ks = Ks[int(len(labels)*train_test_split):]
-    RTs = RTs[int(len(labels)*train_test_split):]
-    fnames = fnames[int(len(labels)*train_test_split):]
+    Ks = Ks[int(len(Ks)*train_test_split):]
+    RTs = RTs[int(len(RTs)*train_test_split):]
+    fnames = fnames[int(len(fnames)*train_test_split):]
 
   return input_data, bboxes, labels, Ks, RTs, fnames
 
