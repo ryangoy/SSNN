@@ -7,7 +7,7 @@ import pandas as pd
 def bbox2pc(read_path, write_path):
     
     # shape: (num_bboxes, 6)
-    bbox_npy = np.array([np.load(read_path)[1][8]])
+    bbox_npy = np.load(read_path)[0]
     print(bbox_npy)
 
     bbox_pc = []

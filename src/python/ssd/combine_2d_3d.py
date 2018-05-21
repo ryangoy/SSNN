@@ -27,10 +27,7 @@ def combine_2d_3d(img, labels, labels_conf, preds, preds_conf, threshold=0.5):
 
             # If we found a label that matches our prediction, i.e. a true positive
             if min(min_UR - max_LL) > 0 and intersection/union > threshold:
-                print("Found something")
-                print(pred_conf)
                 preds_conf[index] = [(1.0-pred_conf[0])/2 + pred_conf[0]]
-
                 good_preds.append(pred)
                 break
             else:
@@ -95,22 +92,18 @@ def untransform_bboxes(preds, labels, transforms):
         scene_labels = []
         mult_dims = np.array([s[0], s[1], s[2], s[0], s[1], s[2]])
         bmins = np.array([t[0], t[1], t[2], t[0], t[1], t[2]])
-        for i in range(len(preds[scene])):#zip(preds[scene], labels[scene]):
+        for i in range(len(preds[scene])):
             pred = preds[scene][i]
             scene_preds.append(pred/mult_dims + bmins)
-            
 
         for i in range(len(labels[scene])):
             label = labels[scene][i]
             scene_labels.append(label/mult_dims + bmins)
 
-
         new_preds.append(np.array(scene_preds))
         new_labels.append(np.array(scene_labels))
 
     return np.array(new_preds), np.array(new_labels)
-
-
 
 
 if __name__ == '__main__':
@@ -120,16 +113,13 @@ if __name__ == '__main__':
     outputs_dir = sys.argv[1]
     bboxes_conf = np.load(join(outputs_dir, "bbox_cls_predictions.npy"))
     bboxes = np.load(join(outputs_dir, "bbox_predictions.npy"))
-
     labels = np.load(join(outputs_dir, "bbox_test_labels.npy"))
     labels_conf = np.load(join(outputs_dir, "bbox_test_cls_labels.npy"))
-
     bboxes_cls = []
-
     bboxes, labels = untransform_bboxes(bboxes, labels, transforms)
 
-
-    for index in range(10):
+    # for each scene...
+    for index in range(len(labels)):
         fname = np.load(sys.argv[2])[index]
         print(fname)
         img = np.load(fname+'_rgb.npy')
@@ -144,5 +134,4 @@ if __name__ == '__main__':
         pred_proj_bboxes = proj_3d(cls_3d, bboxes_3d, K, RT, fname)
         bboxes_cls.append(combine_2d_3d(img, label_proj_bboxes, labels_conf[index], pred_proj_bboxes, cls_3d))
 
-    np.save('toilet_bbox.npy', bboxes)
     compute_mAP(bboxes, bboxes_conf, labels, labels_conf, threshold=0.25)
