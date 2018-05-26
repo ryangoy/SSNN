@@ -32,11 +32,11 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/home/ryan/cs/datasets/SUNRGBD', 'Path to base directory.')
+flags.DEFINE_string('data_dir', '/media/ryan/sandisk/SUNRGBD', 'Path to base directory.')
 flags.DEFINE_string('dataset_name', 'sunrgbd', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('rotated_copies', 1, 'Number of times the dataset is copied and rotated for data augmentation.')
+flags.DEFINE_integer('rotated_copies', 3, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_integer('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
@@ -45,9 +45,10 @@ flags.DEFINE_boolean('use_rgb', True, 'If True, then loads colored pointclouds. 
 flags.DEFINE_string('single_class', None, 'Class name for single object detector.')
 flags.DEFINE_boolean('train', True, 'If True, the model trains and validates.')
 flags.DEFINE_boolean('test', True, 'If True, the model tests as long as it load from a valid checkpoint or follow after training.')
+flags.DEFINE_string('output_category', '', 'Prefix to output folder')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 50, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 80, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
@@ -59,7 +60,7 @@ flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in eac
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 2, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 32, 'Number of sample points each kernel has.')
+flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
 flags.DEFINE_integer('num_anchors', 4, 'Number of anchors to use.')
 
@@ -69,8 +70,8 @@ NUM_HOOK_STEPS = int(FLAGS.num_steps / 2)
 DIMS = np.array([7.5, 7.5, 7.5])
 
 # Define sets for training and testing (Stanford dataset)
-TRAIN_AREAS = ['Area_6', 'Area_2', 'Area_3', 'Area_4', 'Area_5'] 
-TEST_AREAS = ['Area_1']
+TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5'] 
+TEST_AREAS = ['Area_6']
 
 # Define categories.
 # CATEGORIES = ['box', 'picture', 'pillow', 'curtain', 'table', 'bench', 'side table', 'window', 'bed', 'tv', 
@@ -91,7 +92,7 @@ else:
 intermediate_dir = join(FLAGS.data_dir, 'intermediates')
 if not exists(intermediate_dir):
   makedirs(intermediate_dir)
-output_dir = join(FLAGS.data_dir, 'outputs')
+output_dir = join(FLAGS.data_dir, FLAGS.output_category+'outputs')
 if not exists(output_dir):
   makedirs(output_dir)
 
@@ -195,7 +196,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   # Shift to the same coordinate space between pointclouds while getting the max
   # width, height, and depth dims of all rooms.
 
-
+  print(len(X_raw))
   if FLAGS.dataset_name == 'stanford':
     print("\tGenerating bboxes...")
     bboxes = generate_bounding_boxes(yb_raw, bbox_labels)
@@ -207,10 +208,10 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   print("\tAugmenting dataset...")
   X_raw, bboxes, yl = rotate_pointclouds(X_raw, bboxes, yl, num_rotations=num_copies)
 
-
+  print(len(X_raw))
   print("\tNormalizing pointclouds...")
   X_cont, dims, bboxes = normalize_pointclouds_fn(X_raw, bboxes, DIMS)
-
+  print(len(X_cont))
   np.save(bbox_labels, bboxes)
 
   yl = np.array(yl)
@@ -221,10 +222,14 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   print("\tProcessing labels...")
   y_cat_one_hot, mapping = one_hot_vectorize_categories(yl, mapping=oh_mapping)
   np.save(cls_by_box, y_cat_one_hot)
+
+  print("\tCreating jaccard labels...")
   y_cls, y_loc = create_jaccard_labels(bboxes, y_cat_one_hot, len(mapping)+1, NUM_HOOK_STEPS, kernel_size, ANCHORS)
 
   np.save(cls_labels, y_cls)
   np.save(loc_labels, y_loc)
+
+
 
   # Probe processing.
   if exists(probe_path) and load_probe_output and not new_ds:
@@ -303,9 +308,9 @@ def main(_):
                         CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, CLS_TEST_BBOX, FLAGS.load_from_npy,
                         load_probe, is_train=False, oh_mapping=mapping)
 
-    np.save('test_Ks.npy', Ks)
-    np.save('test_RTs.npy', RTs)
-    np.save('test_fnames.npy', fnames)
+    np.save(join(output_dir, 'test_Ks.npy'), Ks)
+    np.save(join(output_dir, 'test_RTs.npy'), RTs)
+    np.save(join(output_dir, 'test_fnames.npy'), fnames)
 
     # Test model. Using validation since we won't be using real 
     # "test" data yet. Preds will be an array of bounding boxes. 
@@ -323,14 +328,16 @@ def main(_):
     cls_f = np.load(CLS_PREDS)
     loc_f = np.load(LOC_PREDS)
 
-    bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
+    cls_test_bbox = np.load(CLS_TEST_BBOX)
+    bbox_test_labels = np.load(BBOX_TEST_LABELS)
+
+    if len(cls_test_bbox) > 0:
+
+      bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
                               DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, ANCHORS, conf_threshold=0.10)
-
-
-
-    # Compute recall and precision.
-    compute_mAP(bboxes, bboxes_cls, np.load(BBOX_TEST_LABELS), np.load(CLS_TEST_BBOX), mapping=mapping, threshold=0.25)
-    compute_mAP(bboxes, bboxes_cls, np.load(BBOX_TEST_LABELS), np.load(CLS_TEST_BBOX), mapping=mapping, threshold=0.5, plot_category=0)
+      # Compute recall and precision.
+      compute_mAP(bboxes, bboxes_cls, bbox_test_labels, cls_test_bbox, mapping=mapping, threshold=0.25)
+      compute_mAP(bboxes, bboxes_cls, bbox_test_labels, cls_test_bbox, mapping=mapping, threshold=0.5, plot_category=0)
 
     bboxes, bboxes_cls = output_to_bboxes(cls_f, loc_f, NUM_HOOK_STEPS, NUM_SCALES, 
                               DIMS/NUM_HOOK_STEPS, BBOX_PREDS, BBOX_CLS_PREDS, ANCHORS, conf_threshold=0.50)

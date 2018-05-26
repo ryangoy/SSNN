@@ -31,6 +31,7 @@ def combine_2d_3d(img, labels, labels_conf, preds, preds_conf, threshold=0.5):
                 good_preds.append(pred)
                 break
             else:
+                continue
                 preds_conf[index] = [pred_conf[0]/2]
 
     plt.imshow(img / 255.)
@@ -57,6 +58,7 @@ def proj_3d(cls_3d, loc_3d, K, RT, fnames):
     R = RT[:, :3]
     T = RT[:, 3:].T
 
+    print(loc_3d)
     un_r_ll = np.dot(loc_3d[:, :3], R)
 
     un_r_ur = np.dot(loc_3d[:, 3:], R)
@@ -117,11 +119,12 @@ if __name__ == '__main__':
     labels_conf = np.load(join(outputs_dir, "bbox_test_cls_labels.npy"))
     bboxes_cls = []
     bboxes, labels = untransform_bboxes(bboxes, labels, transforms)
+    fnames = np.load(join(outputs_dir, "test_fnames.npy"))
 
     # for each scene...
     for index in range(len(labels)):
-        fname = np.load(sys.argv[2])[index]
-        print(fname)
+        fname = fnames[index]
+        # print(fname)
         img = np.load(fname+'_rgb.npy')
         cls_3d = bboxes_conf[index]
         bboxes_3d = bboxes[index]

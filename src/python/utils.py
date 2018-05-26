@@ -313,31 +313,28 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
       coords = np.floor(bbox_loc).astype(int)
 
 
-      if coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps or min(coords) < 0:
-        print("[WARNING] A bbox label was located outside of the pointcloud.")
-        continue
+      if not (coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps or min(coords) < 0):
+        anchor_ious = []
+        best_anchor = None
+        best_index = 0
+        best_iou = -1
 
-      anchor_ious = []
-      best_anchor = None
-      best_index = 0
-      best_iou = -1
+        b1 = bbox_loc - bbox_dims/2
+        b2 = bbox_loc + bbox_dims/2
+        b = np.append(b1, b2)
+        for k, anchor in enumerate(anchor_boxes):
+          c1 = coords - anchor/2 + 0.5
+          c2 = coords + anchor/2 + 0.5
+          c = np.append(c1, c2)
+          iou = compute_iou(c,b)
+          if iou > best_iou:
+            best_anchor = anchor
+            best_iou = iou
+            best_index = k
 
-      b1 = bbox_loc - bbox_dims/2
-      b2 = bbox_loc + bbox_dims/2
-      b = np.append(b1, b2)
-      for k, anchor in enumerate(anchor_boxes):
-        c1 = coords - anchor/2 + 0.5
-        c2 = coords + anchor/2 + 0.5
-        c = np.append(c1, c2)
-        iou = compute_iou(c,b)
-        if iou > best_iou:
-          best_anchor = anchor
-          best_iou = iou
-          best_index = k
-
-      cls_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index] = categories[scene_id][bbox_id]
-      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, :3] = bbox_loc - (coords + 0.5)
-      loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 3:] = np.log(bbox_dims/best_anchor)
+        cls_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index] = categories[scene_id][bbox_id]
+        loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, :3] = bbox_loc - (coords + 0.5)
+        loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 3:] = np.log(bbox_dims/best_anchor)
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.
       
@@ -467,7 +464,12 @@ def normalize_pointclouds_matterport(pointcloud_arr, seg_arr, probe_dims, use_rg
 
   transforms = {'t':[], 's':[]}
   # Loop through scenes.
-  for pointcloud, seg in zip(pointcloud_arr, seg_arr):
+  for i in range(len(pointcloud_arr)):#zip(pointcloud_arr, seg_arr):
+    pointcloud = pointcloud_arr[i]
+    if len(seg_arr) > 0:
+      seg = seg_arr[i]
+    else:
+      seg = None
     xyz = pointcloud[:, :3]
     mins = xyz.min(axis=0)
     maxes = xyz.max(axis=0)
@@ -480,10 +482,11 @@ def normalize_pointclouds_matterport(pointcloud_arr, seg_arr, probe_dims, use_rg
     shifted_objs = []
     # Loop through each object label in this scene.
     mult_dims =  probe_dims / dims
-    for obj in seg:
-      bmins = [mins[0], mins[1], mins[2], mins[0], mins[1], mins[2]]
-      shifted_objs.append((obj-bmins) *np.array([mult_dims[0], mult_dims[1], mult_dims[2], mult_dims[0], mult_dims[1], mult_dims[2]]))
-    shifted_segmentations.append(shifted_objs)
+    if seg is not None:
+      for obj in seg:
+        bmins = [mins[0], mins[1], mins[2], mins[0], mins[1], mins[2]]
+        shifted_objs.append((obj-bmins) *np.array([mult_dims[0], mult_dims[1], mult_dims[2], mult_dims[0], mult_dims[1], mult_dims[2]]))
+      shifted_segmentations.append(shifted_objs)
     
     xyz = (xyz-mins) * mult_dims
     transforms['t'].append(mins)
@@ -626,13 +629,95 @@ def load_points_sunrgbd(path, X_npy_path, yb_npy_path, yl_npy_path,
   else:
     assert path is not None, "No path given for pointcloud directory."
     print("\tLoading points from directory...")
-    X, yb, yl, Ks, RTs, fnames = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
+    yb = np.array([])
+    yl = np.array([])
+    Ks = np.array([])
+    RTs = np.array([])
+    if is_train:
+      X, yb, yl, Ks, RTs, fnames = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
+    else:
+      X, fnames = load_test_directory_sunrgbd(path)
 
     np.save(X_npy_path, X)
     np.save(yb_npy_path, yb)
     np.save(yl_npy_path, yl)
     new_ds = True
   return X, yb, yl, new_ds, Ks, RTs, fnames
+
+def load_test_directory_sunrgbd(path):
+
+  input_data = []
+  # bboxes = []
+  # labels = []
+  # Ks = []
+  # RTs = []
+  fnames = []
+  total_regions = 0
+  ri = 0
+
+  # Loop through buildings
+  areas = ["test"]
+
+  for area in areas:
+    ri = 0
+    counter = 0
+    print("\t\tLoading area {}...".format(area))
+    for dataset in listdir(join(path, area)):
+      area_path = join(path, area, dataset+'_processed')
+
+      if not isdir(area_path):
+        continue
+      
+      for room in listdir(area_path):# exists(join(area_path, "region{}.ply".format(ri))):
+
+        ri += 1
+        room_path = join(area_path, room)
+
+        # print("\tLoading room {}...".format(room))
+
+        # Load point cloud
+        #categories = np.load(room_path+"_labels.npy")
+
+        input_pc = read_ply(room_path)
+        #bbox = np.load(room_path+"_bboxes.npy")
+        # K = np.load(room_path+"_k.npy")
+        # if len(K.shape) == 1:
+        #   K = np.reshape(K, (3, 3))
+        # RT = np.load(room_path+"_rt.npy")
+        # if len(RT.shape) == 1:
+        #   RT = np.reshape(RT, (3, 4))
+        input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
+
+        # fbbox = []
+        # flabel = []
+        #matches = 0
+        # for ibbox, ilabel in zip(bbox, categories):
+        #   if len(objects) == 0 or ilabel in objects:
+        #     fbbox.append(ibbox)
+        #     flabel.append(ilabel)
+        #     matches += 1
+        
+        # if matches > 0:
+          #bboxes.append(fbbox)
+          #labels.append(flabel)
+        input_data.append(input_pc)
+        # Ks.append(K)
+        # RTs.append(RT)
+        fnames.append(room_path)
+        counter += 1
+
+    print("\t\tLoaded {} regions from area {}".format(counter, area))
+    total_regions += counter
+
+  input_data = np.array(input_data)
+  #bboxes = np.array(bboxes)
+  #labels = np.array(labels)
+  # Ks = np.array(Ks)
+  # RTs = np.array(RTs)
+  fnames = np.array(fnames)
+
+  return input_data, fnames
+
 
 def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=True):
   """
@@ -649,16 +734,16 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
     ...
   """
 
-  all_areas = sorted(listdir(path))
-  all_areas = ['kv1', 'kv2']
+  # all_areas = sorted(listdir(path))
+  # all_areas = ['kv1', 'kv2', 'realsense']
 
-  # if is_train:
-  #   #areas = all_areas[:int(len(all_areas)*train_test_split)]
-  #   areas = all_areas
-  # else:
-  #   areas = all_areas[int(len(all_areas)*train_test_split):]
-  #   #areas = all_areas[:int(len(all_areas)*.05)]
-  areas = all_areas
+
+  if is_train:
+    #areas = all_areas[:int(len(all_areas)*train_test_split)]
+    areas = ['kv1', 'kv2']
+  else:
+    areas = ['test']
+    #areas = all_areas[:int(len(all_areas)*.05)]
 
   input_data = []
   bboxes = []
@@ -686,7 +771,6 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
         room = "region{}".format(ri)
         ri += 1
         room_path = join(area_path, room)
-
         # print("\tLoading room {}...".format(room))
 
         # Load point cloud
@@ -731,20 +815,20 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   fnames = np.array(fnames)
 
 
-  if is_train:
-    input_data = input_data[:int(len(input_data)*train_test_split)]
-    bboxes = bboxes[:int(len(bboxes)*train_test_split)]
-    labels = labels[:int(len(labels)*train_test_split)]
-    Ks = Ks[:int(len(Ks)*train_test_split)]
-    RTs = RTs[:int(len(RTs)*train_test_split)]
-    fnames = fnames[:int(len(fnames)*train_test_split)]
-  else:
-    input_data = input_data[int(len(input_data)*train_test_split):]
-    bboxes = bboxes[int(len(bboxes)*train_test_split):]
-    labels = labels[int(len(labels)*train_test_split):]
-    Ks = Ks[int(len(Ks)*train_test_split):]
-    RTs = RTs[int(len(RTs)*train_test_split):]
-    fnames = fnames[int(len(fnames)*train_test_split):]
+  # if is_train:
+  #   input_data = input_data[:int(len(input_data)*train_test_split)]
+  #   bboxes = bboxes[:int(len(bboxes)*train_test_split)]
+  #   labels = labels[:int(len(labels)*train_test_split)]
+  #   Ks = Ks[:int(len(Ks)*train_test_split)]
+  #   RTs = RTs[:int(len(RTs)*train_test_split)]
+  #   fnames = fnames[:int(len(fnames)*train_test_split)]
+  # else:
+  #   input_data = input_data[int(len(input_data)*train_test_split):]
+  #   bboxes = bboxes[int(len(bboxes)*train_test_split):]
+  #   labels = labels[int(len(labels)*train_test_split):]
+  #   Ks = Ks[int(len(Ks)*train_test_split):]
+  #   RTs = RTs[int(len(RTs)*train_test_split):]
+  #   fnames = fnames[int(len(fnames)*train_test_split):]
 
   return input_data, bboxes, labels, Ks, RTs, fnames
 

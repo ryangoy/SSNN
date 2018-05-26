@@ -25,8 +25,8 @@ def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold):
             for l in range(len(labels[scene])):
 
                 label = labels[scene][l]
-                # if l in matched_labels:
-                #     continue
+                if l in matched_labels:
+                    continue
 
                 max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)
                 min_UR = np.min(np.array([pred[3:], label[3:]]), axis=0)
