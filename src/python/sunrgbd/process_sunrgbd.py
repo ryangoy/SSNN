@@ -61,83 +61,99 @@ def process_folder(data_path, save_path, fullres=False):
     imgs = listdir(data_path)
     imgs = sorted(imgs)
     for img in imgs:
-        folder_path = join(data_path, img)
-        if isdir(folder_path):
-            
-            try:
-                # extrinsics
-                extrinsics_folder = join(folder_path, 'extrinsics')
-
-                # sometimes there is more than 1 extrinsics file.
-                extrinsics_file = join(extrinsics_folder, listdir(extrinsics_folder)[-1])
-                extrinsics_npy = np.loadtxt(extrinsics_file)
-                anno_extrinsics = extrinsics_npy[:3, :3]
-
-                if fullres:
-                    fullres_folder = join(folder_path, 'fullres')
-                    if not exists(fullres_folder):
-                        continue
-                    rgb_img = None
-                    d_img = None
-                    intrinsics_npy = None
-                    for f in listdir(fullres_folder):
-                        if f.endswith('.jpg'):
-                            rgb_img = imread(join(fullres_folder, f))
-                        elif f.endswith('.png'):
-                            d_img = imread(join(fullres_folder, f))
-                        elif f.endswith('.txt'):
-                            intrinsics_npy = np.loadtxt(join(fullres_folder, f))
-
-                else:
-
-                    intrinsics_npy = np.loadtxt(join(folder_path, 'intrinsics.txt'))
-                    for f in listdir(join(folder_path, 'image')):
-                        rgb_img = imread(join(folder_path, 'image', f))
-                        image_index = str(f[-8:-4])
-
-                    for f in listdir(join(folder_path, 'depth_bfx')):
-                        d_img = imread(join(folder_path, 'depth_bfx', f))
-
-                    if rgb_img is None or d_img is None or intrinsics_npy is None:
-                        print('Image didn\'t load in {}.'.format(folder_path))
-                        continue
-            
-                raw_annotations = json.load(open(join(folder_path, 'annotation3Dfinal', 'index.json')))['objects']
-            except FileNotFoundError:
-                print("\tFolder {} was skipped due to missing information.".format(folder_path))
-                continue
-
-            colored_pc = rgbd2pc(rgb_img, d_img, intrinsics_npy, extrinsics_npy).astype('float32')
-            result = pd.DataFrame(dtype='float32')
-            result["x"] = colored_pc[:,0]
-            result["y"] = colored_pc[:,1]
-            result["z"] = colored_pc[:,2]
-
-            result["r"] = colored_pc[:,3]
-            result["g"] = colored_pc[:,4]
-            result["b"] = colored_pc[:,5]
-
-            bbox_pcs = []
-            bbox_loc = []
-            bbox_cls = []
-            for raw_annot in raw_annotations:
-                if raw_annot is None or type(raw_annot) is not dict:
-                    continue
-                for poly in raw_annot['polygon']:
-                    bbox = annotation_to_bbox(poly, anno_extrinsics)
-                    #bbox_pcs.append(bbox_to_pc(bbox))
-                    bbox_loc.append(bbox)
-                    bbox_cls.append(raw_annot['name'])
-
-            if len(bbox_loc) > 0 and len(bbox_cls) > 0:
-                write_ply(join(save_path, 'region'+str(image_index)+'.ply'), points=result)
-                np.save(join(save_path, 'region{}_bboxes.npy'.format(image_index)), np.array(bbox_loc))
-                np.save(join(save_path, 'region{}_labels.npy'.format(image_index)), np.array(bbox_cls))
+        if img == '.DS_Store':
+            continue
+        orig_dir = join(data_path, img)
+        next_dir = listdir(orig_dir)[0]
+        if listdir(orig_dir)[0] == '.DS_Store':
+            next_dir = listdir(orig_dir[1])
+        xtion_dir = join(data_path, img, next_dir)
+        if isdir(xtion_dir):
+            folder_paths = []
+            for num in listdir(xtion_dir):
+                folder_paths.append(join(xtion_dir, num))
+        else:
+            folder_paths = [orig_dir]
+        for folder_path in folder_paths:
+            if isdir(folder_path):
                 
-            else:
-                print("\tFolder {} was skipped due to missing information.".format(folder_path))
+                try:
+                    # extrinsics
+                    extrinsics_folder = join(folder_path, 'extrinsics')
 
-            scene_index += 1
+                    # sometimes there is more than 1 extrinsics file.
+                    extrinsics_file = join(extrinsics_folder, listdir(extrinsics_folder)[-1])
+                    extrinsics_npy = np.loadtxt(extrinsics_file)
+                    anno_extrinsics = extrinsics_npy[:3, :3]
+
+                    if fullres:
+                        fullres_folder = join(folder_path, 'fullres')
+                        if not exists(fullres_folder):
+                            continue
+                        rgb_img = None
+                        d_img = None
+                        intrinsics_npy = None
+                        for f in listdir(fullres_folder):
+                            if f.endswith('.jpg'):
+                                rgb_img = imread(join(fullres_folder, f))
+                            elif f.endswith('.png'):
+                                d_img = imread(join(fullres_folder, f))
+                            elif f.endswith('.txt'):
+                                intrinsics_npy = np.loadtxt(join(fullres_folder, f))
+
+                    else:
+
+                        intrinsics_npy = np.loadtxt(join(folder_path, 'intrinsics.txt'))
+                        for f in listdir(join(folder_path, 'image')):
+                            rgb_img = imread(join(folder_path, 'image', f))
+                            image_index = str(f[-8:-4])
+
+                        for f in listdir(join(folder_path, 'depth')):
+                            d_img = imread(join(folder_path, 'depth', f))
+
+                        if rgb_img is None or d_img is None or intrinsics_npy is None:
+                            print('Image didn\'t load in {}.'.format(folder_path))
+                            continue
+                
+                    raw_annotations = json.load(open(join(folder_path, 'annotation3Dfinal', 'index.json')))['objects']
+                except FileNotFoundError:
+                    print("\tFolder {} was skipped due to missing information.".format(folder_path))
+                    continue
+
+                colored_pc = rgbd2pc(rgb_img, d_img, intrinsics_npy, extrinsics_npy).astype('float32')
+                result = pd.DataFrame(dtype='float32')
+                result["x"] = colored_pc[:,0]
+                result["y"] = colored_pc[:,1]
+                result["z"] = colored_pc[:,2]
+
+                result["r"] = colored_pc[:,3]
+                result["g"] = colored_pc[:,4]
+                result["b"] = colored_pc[:,5]
+
+                bbox_pcs = []
+                bbox_loc = []
+                bbox_cls = []
+                for raw_annot in raw_annotations:
+                    if raw_annot is None or type(raw_annot) is not dict:
+                        continue
+                    for poly in raw_annot['polygon']:
+                        bbox = annotation_to_bbox(poly, anno_extrinsics)
+                        #bbox_pcs.append(bbox_to_pc(bbox))
+                        bbox_loc.append(bbox)
+                        bbox_cls.append(raw_annot['name'])
+
+                if len(bbox_loc) > 0 and len(bbox_cls) > 0:
+                    write_ply(join(save_path, 'region'+str(image_index)+'.ply'), points=result)
+                    np.save(join(save_path, 'region'+str(image_index)+'_rgb.npy'), rgb_img)
+                    np.save(join(save_path, 'region{}_bboxes.npy'.format(image_index)), np.array(bbox_loc))
+                    np.save(join(save_path, 'region{}_labels.npy'.format(image_index)), np.array(bbox_cls))
+                    np.save(join(save_path, 'region'+str(image_index)+'_k.npy'), intrinsics_npy)
+                    np.save(join(save_path, 'region'+str(image_index)+'_rt.npy'), extrinsics_npy)
+                    
+                else:
+                    print("\tFolder {} was skipped due to missing information.".format(folder_path))
+
+                scene_index += 1
 
             
         if scene_index % 100 == 0:
@@ -154,8 +170,10 @@ def process_test_folder(data_path, save_path, fullres=False):
 
     imgs = listdir(data_path)
     imgs = sorted(imgs)
+
     for img in imgs:
         folder_path = join(data_path, img)
+
         if isdir(folder_path):
             
             try:
@@ -183,7 +201,6 @@ def process_test_folder(data_path, save_path, fullres=False):
                             intrinsics_npy = np.loadtxt(join(fullres_folder, f))
 
                 else:
-
                     intrinsics_npy = np.loadtxt(join(folder_path, 'intrinsics.txt'))
                     for f in listdir(join(folder_path, 'image')):
                         rgb_img = imread(join(folder_path, 'image', f))
@@ -214,7 +231,11 @@ def process_test_folder(data_path, save_path, fullres=False):
             # bbox_pcs = []
             # bbox_loc = []
             # bbox_cls = []
-            write_ply(join(save_path, 'region'+str(int(image_index))+'.ply'), points=result)
+            write_ply(join(save_path, 'region'+str(image_index)+'.ply'), points=result)
+            np.save(join(save_path, 'region'+str(image_index)+'_rgb.npy'), rgb_img)
+            np.save(join(save_path, 'region'+str(image_index)+'_k.npy'), intrinsics_npy)
+            np.save(join(save_path, 'region'+str(image_index)+'_d.npy'), d_img)
+            np.save(join(save_path, 'region'+str(image_index)+'_rt.npy'), extrinsics_npy)
             # for raw_annot in raw_annotations:
             #     if raw_annot is None or type(raw_annot) is not dict:
             #         continue
@@ -234,19 +255,19 @@ def process_test_folder(data_path, save_path, fullres=False):
 
             scene_index += 1
 
-            
         if scene_index % 100 == 0:
             print('\tProcessed {}/{} scenes from {}.'.format(scene_index, len(imgs), data_path))
 
 def process_sunrgbd(path):
 
-    for sensor in ['test']:
+    for sensor in ['xtion']:
     #for sensor in listdir(path):
         if sensor != 'SUNRGBDtoolbox':
             for dataset in listdir(join(path, sensor)):
                 if not dataset.endswith('_processed') and isdir(join(path, sensor, dataset)):
                     print('Processing data from {}...'.format(join(path, sensor, dataset)))
-                    process_test_folder(join(path, sensor, dataset), join(path, sensor, dataset+'_processed'))
+                    process_folder(join(path, sensor, dataset), join(path, sensor, dataset+'_processed'))
+
 
 def annotation_to_bbox(annotation, R):
     Xs = annotation['X']

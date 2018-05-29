@@ -278,19 +278,18 @@ class SSNN:
     self.optimizer = tf.contrib.opt.NadamOptimizer(learning_rate).minimize(self.loss)
     #self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
-  def probe(self, X, shape, probe_path):
+  def probe(self, X, probe_path, total_pcs, curr_pc):
     """
     Args:
       X (np.ndarray): array of pointclouds (batches, num_points, 3)
     """
     pcs = []
-    problem_pcs = []
-    counter = 0
+    counter = curr_pc
 
 
     # Initialize memmap: robust to data larger than memory size.
 
-    probe_memmap = np.memmap(probe_path, dtype='float32', mode='w+', shape=(len(X), self.probe_steps, 
+    probe_memmap = np.memmap(probe_path, dtype='float32', mode='w+', shape=(total_pcs, self.probe_steps, 
                              self.probe_steps, self.probe_steps, self.num_kernels, self.probes_per_kernel, 4))
     
     for pc in X:
@@ -309,7 +308,7 @@ class SSNN:
       if counter ==1 :
         np.save('probe_coords.npy', np.array(probe_coords))
 
-      if counter % 1 == 0:
+      if counter % 10 == 0:
         print('\t\tFinished probing {} pointclouds'.format(counter))
       
     self.probe_output = probe_memmap
@@ -317,7 +316,7 @@ class SSNN:
     # Write memmap to disk
     probe_memmap.flush()
 
-    return probe_memmap, problem_pcs
+    return probe_memmap
     
   def gaussian_noise_jitter(self, input_layer, std):
     noise = tf.random_normal(shape=tf.shape(input_layer), mean=0.0, stddev=std, dtype=tf.float32)

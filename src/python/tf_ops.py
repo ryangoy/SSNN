@@ -46,11 +46,12 @@ def dot_product(inputs, filters=1, stddev=0.01, name='dot_product'):
     #   Convolutional weights are (kernel_width, kernel_height, num_input_features, num_output_features)
     #   Dot product weights are (kernels, probes_per_kernel, num_output_features)
     weights = tf.Variable(tf.truncated_normal(shape=inputs.shape[-3:].as_list() + [filters], stddev=stddev), name=name)
-    
+
     # Hooray for Tensorflow methods :)
     dot_product = tf.tensordot(inputs, weights, axes=3)
   
     # Output shape should be (batches, x, y, z, output_features)
     new_shape = [-1] + inputs.shape[1:4].as_list() + [filters]
+
     dot_product = tf.reshape(dot_product, new_shape)
     return dot_product, weights

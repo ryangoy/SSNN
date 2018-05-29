@@ -11,8 +11,11 @@ import os
 from os.path import join, isdir, exists
 from os import listdir, makedirs
 from utils import *
+from load_data import *
+from processing import *
 from SSNN import SSNN
 import time
+from shutil import rmtree
 from object_boundaries import generate_bounding_boxes
 import os
 import psutil
@@ -48,7 +51,7 @@ flags.DEFINE_boolean('test', True, 'If True, the model tests as long as it load 
 flags.DEFINE_string('output_category', '', 'Prefix to output folder')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 80, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 45, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
@@ -60,7 +63,7 @@ flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in eac
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 2, 'Number of kernels to probe with.')
-flags.DEFINE_integer('probes_per_kernel', 64, 'Number of sample points each kernel has.')
+flags.DEFINE_integer('probes_per_kernel', 32, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
 flags.DEFINE_integer('num_anchors', 4, 'Number of anchors to use.')
 
@@ -90,6 +93,10 @@ else:
 
 # Define constant paths (TODO: make this more organized between datasets)
 intermediate_dir = join(FLAGS.data_dir, 'intermediates')
+
+if exists(intermediate_dir) and not FLAGS.load_from_npy:
+  rmtree(intermediate_dir)
+
 if not exists(intermediate_dir):
   makedirs(intermediate_dir)
 output_dir = join(FLAGS.data_dir, FLAGS.output_category+'outputs')
@@ -165,7 +172,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   #   normalize_pointclouds_fn = normalize_pointclouds_stanford
 
   # elif True or FLAGS.dataset_name == 'matterport':
-  normalize_pointclouds_fn = normalize_pointclouds_matterport
+    # normalize_pointclouds_fn = normalize_pointclouds
 
   Ks = None
   RTs = None
@@ -186,71 +193,69 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
                                     load_from_npy=load_from_npy, is_train=is_train,
                                     categories=CATEGORIES, train_test_split=1.0 - FLAGS.test_split, use_rgb=FLAGS.use_rgb)
 
-  print("\tConverting RGB to HSV...")
-  for X_rgb in X_raw:
-    X_rgb[:, 3:] = rgb_to_hsv(X_rgb[:,3:])
-
-  print("\tLoaded {} pointclouds for {}.".format(len(X_raw), input_type))
+  print("\tLoaded {} pointclouds for {}.".format(len(fnames), input_type))
   process = psutil.Process(os.getpid())
- 
-  # Shift to the same coordinate space between pointclouds while getting the max
-  # width, height, and depth dims of all rooms.
 
-  print(len(X_raw))
-  if FLAGS.dataset_name == 'stanford':
-    print("\tGenerating bboxes...")
-    bboxes = generate_bounding_boxes(yb_raw, bbox_labels)
-  else:
-    bboxes = yb_raw
-  
-  bboxes_raw = bboxes
+  if X_raw is not None: # non batch loading
+    batch_loading = False
+  else: 
+    batch_loading = True
 
-  print("\tAugmenting dataset...")
-  X_raw, bboxes, yl = rotate_pointclouds(X_raw, bboxes, yl, num_rotations=num_copies)
+  save_index = 0
+  curr_X_path = x_path[:-4] + str(save_index) + x_path[-4:]
+  transforms = {'t':[], 's':[]}
+  while not batch_loading or exists(curr_X_path):
+    if batch_loading:
+      print("\tPre-processing batch {}...".format(save_index))
+      X_raw = np.load(curr_X_path)
 
-  print(len(X_raw))
-  print("\tNormalizing pointclouds...")
-  X_cont, dims, bboxes = normalize_pointclouds_fn(X_raw, bboxes, DIMS)
-  print(len(X_cont))
-  np.save(bbox_labels, bboxes)
+    # process
+    X_raw = process_rgb2hsv(X_raw)
+    bboxes = process_bounding_boxes(yb_raw, bbox_labels, FLAGS.dataset_name)
+    X_raw, bboxes, yl = rotate_pointclouds(X_raw, bboxes, yl, num_rotations=num_copies)
+    X_cont, dims, bboxes, transforms = normalize_pointclouds(X_raw, bboxes, DIMS, transforms)
+
+    print("\tAmount of memory used before probing: {}GB".format(process.memory_info().rss // 1e9))
+    print("\tRunning probe operation...")
+    probe_start = time.time()
+    X = model.probe(X_cont, probe_path, len(fnames)*(1+num_copies), save_index*1000)
+    probe_time = time.time() - probe_start
+    print("\tProbe operation took {:.4f} seconds to run.".format(probe_time))
+    print("\tAmount of memory used after probing: {}GB".format(process.memory_info().rss // 1e9))
+
+    if not batch_loading: # just one pass needed if no batch loading
+      break
+    else:
+      np.save(curr_X_path, X)
+      save_index += 1
+      curr_X_path = x_path[:-4] + str(save_index) + x_path[-4:]
+
 
   yl = np.array(yl)
   kernel_size = DIMS / NUM_HOOK_STEPS
 
-
-
   print("\tProcessing labels...")
   y_cat_one_hot, mapping = one_hot_vectorize_categories(yl, mapping=oh_mapping)
-  np.save(cls_by_box, y_cat_one_hot)
-
+  
   print("\tCreating jaccard labels...")
   y_cls, y_loc = create_jaccard_labels(bboxes, y_cat_one_hot, len(mapping)+1, NUM_HOOK_STEPS, kernel_size, ANCHORS)
-
+  
+  np.save(cls_by_box, y_cat_one_hot)
+  np.save(bbox_labels, bboxes)
   np.save(cls_labels, y_cls)
   np.save(loc_labels, y_loc)
+  pkl.dump(transforms, open("test_transforms.pkl", "wb"))
 
 
+  # disabled pre-probe processing until we can figure out how to load probe positions
+  # # Probe processing.
+  # if exists(probe_path) and load_probe_output and not new_ds:
+  #   # Used for developing so redudant calculations are omitted.
+  #   print ("\tLoading previous probe output...")
+  #   X = np.memmap(probe_path, dtype='float32', mode='r', shape=(len(X_cont), FLAGS.num_steps, 
+  #                            FLAGS.num_steps, FLAGS.num_steps, FLAGS.num_kernels, FLAGS.probes_per_kernel, 4))
+  # else:
 
-  # Probe processing.
-  if exists(probe_path) and load_probe_output and not new_ds:
-    # Used for developing so redudant calculations are omitted.
-    print ("\tLoading previous probe output...")
-    X = np.memmap(probe_path, dtype='float32', mode='r', shape=(len(X_cont), FLAGS.num_steps, 
-                             FLAGS.num_steps, FLAGS.num_steps, FLAGS.num_kernels, FLAGS.probes_per_kernel, 4))
-  else:
-    print("\tAmount of memory used before probing: {}GB".format(process.memory_info().rss // 1e9))
-    print("\tRunning probe operation...")
-    probe_start = time.time()
-    probe_shape = (len(X_cont), NUM_HOOK_STEPS, NUM_HOOK_STEPS, NUM_HOOK_STEPS, FLAGS.num_kernels, FLAGS.probes_per_kernel)
-    X, problem_pcs = model.probe(X_cont, probe_shape, probe_path)
-    probe_time = time.time() - probe_start
-    print("\tProbe operation took {:.4f} seconds to run.".format(probe_time))
-    print("\tAmount of memory used after probing: {}GB".format(process.memory_info().rss // 1e9))
-    
-    # TODO: delete hard-coded elements of problem pointcloud removal (see SSNN.py counter var if/else logic).
-    for problem_pc in problem_pcs:
-      y_cls[problem_pc] = y_cls[problem_pc-1]
-      y_loc[problem_pc] = y_loc[problem_pc-1]
 
   print("\tFinished pre-processing of {} set.".format(input_type))
   return X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping, Ks, RTs, fnames
