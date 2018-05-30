@@ -106,6 +106,7 @@ def normalize_pointclouds(pointcloud_arr, seg_arr, probe_dims, transforms, use_r
 
     shifted_objs = []
     # Loop through each object label in this scene.
+    dims[dims < 0.1] = 0.1
     mult_dims =  probe_dims / dims
     if seg is not None:
       for obj in seg:

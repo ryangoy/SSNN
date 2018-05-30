@@ -55,6 +55,7 @@ def flatten_output(cls_preds, loc_preds, steps, res_factor, num_anchors, num_cla
 
 def softmax(x):
   exp = np.exp(x)
+  exp[exp > 1e6] = 1e6
   return exp / np.sum(exp)
 
 def save_output(cls_path, loc_path, cls_preds, loc_preds, steps, res_factor, num_anchors, num_classes):
