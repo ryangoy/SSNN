@@ -30,8 +30,8 @@ def visualize_scales(voxels_path, n_steps, n_scale):
       d_slice = d_slice.sum(axis=-1)
       d_slice = np.reshape(d_slice, (num_steps, num_steps, num_steps, -1))
 
-      #d_slice = np.max(d_slice, axis=-1)
-      d_slice = d_slice[...,4]
+      d_slice = np.max(d_slice, axis=-1)
+      # d_slice = d_slice[...,0]
 
       for z_dim in range(num_steps):
         axarr[int(curr_index/4), curr_index%4].imshow(d_slice[:,:,z_dim].T, interpolation='nearest', cmap='hot', vmin=0, vmax=1)

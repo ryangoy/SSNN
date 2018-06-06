@@ -124,7 +124,7 @@ class SSNN:
       # input_layer_loc = tf.contrib.layers.batch_norm(input_layer_loc)
 
       # Predicts the center coordinate and relative scale of the box
-      loc = tf.layers.conv3d(input_layer_loc, filters=len(self.anchors)*6, kernel_size=1, padding='SAME',
+      loc = tf.layers.conv3d(input_layer_loc, filters=len(self.anchors)*7, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
       self.hook_num += 1
@@ -152,7 +152,7 @@ class SSNN:
 
     # Concatenated hook outputs
     self.y_ph_cls = tf.placeholder(tf.int32, (None, num_p_features, len(self.anchors), num_classes))
-    self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, len(self.anchors), 6))
+    self.y_ph_loc = tf.placeholder(tf.float32, (None, num_p_features, len(self.anchors), 7))
 
     # Dot product layer
     self.X_ph = tf.nn.dropout(self.X_ph, self.dropout)
@@ -235,19 +235,19 @@ class SSNN:
                                tf.reshape(cls_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3], len(self.anchors), num_classes)),
                                tf.reshape(cls_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], len(self.anchors), num_classes))],
                                axis=1)
-    self.loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], len(self.anchors), 6)),
-                               tf.reshape(loc_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3],len(self.anchors),  6)),
-                               tf.reshape(loc_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], len(self.anchors), 6))],
+    self.loc_hooks_flat = tf.concat([tf.reshape(loc_hook1, (-1, self.conv2_2.shape.as_list()[1]*self.conv2_2.shape.as_list()[2]*self.conv2_2.shape.as_list()[3], len(self.anchors), 7)),
+                               tf.reshape(loc_hook2, (-1, self.conv3_2.shape.as_list()[1]*self.conv3_2.shape.as_list()[2]*self.conv3_2.shape.as_list()[3],len(self.anchors),  7)),
+                               tf.reshape(loc_hook3, (-1, self.conv4_2.shape.as_list()[1]*self.conv4_2.shape.as_list()[2]*self.conv4_2.shape.as_list()[3], len(self.anchors), 7))],
                                axis=1)
 
 
     # Mask out the voxels that don't have a bounding box associated with it. Note that y_ph_cls holds one-hot vectors.
     pos_mask = tf.cast(tf.reduce_sum(self.y_ph_cls[...,1:], axis=-1), tf.float32)
     pos_mask_exp = tf.expand_dims(pos_mask, -1)
-    pos_mask_loc = tf.tile(pos_mask_exp, [1,1,1,6])
+    pos_mask_loc = tf.tile(pos_mask_exp, [1,1,1,7])
     neg_mask = tf.cast(self.y_ph_cls[...,0], tf.float32)
     neg_mask_exp = tf.expand_dims(neg_mask, -1)
-    neg_mask_loc = tf.tile(neg_mask_exp, [1,1,1,6])
+    neg_mask_loc = tf.tile(neg_mask_exp, [1,1,1,7])
 
     N_pos = tf.reduce_sum(pos_mask)
     N_neg = tf.reduce_sum(neg_mask)
@@ -330,6 +330,7 @@ class SSNN:
     train_losses = []
     val_losses = []
     mAPs = []
+
     for epoch in range(epochs):
       indices = list(range(X_trn.shape[0]))
       curr_cl_sum = 0

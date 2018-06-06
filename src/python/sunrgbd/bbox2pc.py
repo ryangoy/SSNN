@@ -7,8 +7,7 @@ import pandas as pd
 def bbox2pc(read_path, write_path):
     
     # shape: (num_bboxes, 6)
-    bbox_npy = np.load(read_path)[0]
-    print(bbox_npy)
+    bbox_npy = np.load(read_path)
 
     bbox_pc = []
 
@@ -35,7 +34,14 @@ def bbox2pc(read_path, write_path):
     np.savetxt(write_path, bbox_pc)
 
 
-def create_pc(bbox):
+def create_pc(bbox_raw):
+
+    bbox = np.concatenate([-bbox_raw[3:6], +bbox_raw[3:6]])
+    sinval = np.sin(bbox_raw[6])
+    cosval = np.cos(bbox_raw[6])
+
+    R = np.array([[cosval, -sinval, 0], [sinval, cosval, 0], [0, 0, 1]])
+
     Xs = [0, 3]
     Ys = [1, 4]
     Zs = [2, 5]
@@ -46,8 +52,10 @@ def create_pc(bbox):
                 corners.append([bbox[X], bbox[Y], bbox[Z]])
 
     points = []
-    c1s = [corners[0], corners[0], corners[0], corners[3], corners[3], corners[3], corners[5], corners[5], corners[5], corners[6], corners[6], corners[6]]
-    c2s = [corners[1], corners[2], corners[4], corners[7], corners[1], corners[2], corners[1], corners[4], corners[7], corners[2], corners[4], corners[7]]
+    c1s = np.array([corners[0], corners[0], corners[0], corners[3], corners[3], corners[3], corners[5], corners[5], corners[5], corners[6], corners[6], corners[6]])
+    c2s = np.array([corners[1], corners[2], corners[4], corners[7], corners[1], corners[2], corners[1], corners[4], corners[7], corners[2], corners[4], corners[7]])
+    c1s = np.dot(c1s, R.T) + bbox_raw[:3]
+    c2s = np.dot(c2s, R.T) + bbox_raw[:3]
     for c1, c2 in zip(c1s, c2s):
 
         interval = np.tile(np.reshape(np.linspace(0, 1, num=300), (-1,1)), (1, 3))

@@ -39,7 +39,7 @@ flags.DEFINE_string('data_dir', '/media/ryan/sandisk/SUNRGBD', 'Path to base dir
 flags.DEFINE_string('dataset_name', 'sunrgbd', 'Name of dataset. Supported datasets are [stanford, matterport].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('rotated_copies', 3, 'Number of times the dataset is copied and rotated for data augmentation.')
+flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_integer('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
@@ -70,7 +70,7 @@ flags.DEFINE_integer('num_anchors', 4, 'Number of anchors to use.')
 # DO NOT CHANGE
 NUM_SCALES = 3
 NUM_HOOK_STEPS = int(FLAGS.num_steps / 2)
-DIMS = np.array([7.5, 7.5, 7.5])
+DIMS = np.array([4.0, 4.0, 4.0])
 
 # Define sets for training and testing (Stanford dataset)
 TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5'] 
@@ -212,7 +212,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     # process
     X_raw = process_rgb2hsv(X_raw)
     bboxes = process_bounding_boxes(yb_raw, bbox_labels, FLAGS.dataset_name)
-    X_raw, bboxes, yl = rotate_pointclouds(X_raw, bboxes, yl, num_rotations=num_copies)
+    # X_raw, bboxes, yl = rotate_pointclouds(X_raw, bboxes, yl, num_rotations=num_copies)
     X_cont, dims, bboxes, transforms = normalize_pointclouds(X_raw, bboxes, DIMS, transforms)
 
     print("\tAmount of memory used before probing: {}GB".format(process.memory_info().rss // 1e9))
@@ -222,7 +222,6 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     probe_time = time.time() - probe_start
     print("\tProbe operation took {:.4f} seconds to run.".format(probe_time))
     print("\tAmount of memory used after probing: {}GB".format(process.memory_info().rss // 1e9))
-
     if not batch_loading: # just one pass needed if no batch loading
       break
     else:

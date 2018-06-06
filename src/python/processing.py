@@ -51,14 +51,24 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
       rotation_matrix = np.array([[cosval, -sinval, 0],
                                   [sinval, cosval, 0],
                                   [0, 0, 1]])
-      rotated_pc = np.dot(shape_pc, rotation_matrix)
+      rotated_pc = np.dot(shape_pc, rotation_matrix.T)
       pointclouds.append(np.concatenate([rotated_pc, color_pc], axis=-1))
       new_y = []
+      num_90 = int(rotation_angle / (np.pi / 2))
+      if num_90 % 2 == 1:
+        turn_90 = True
+      else:
+        turn_90 = False
+      extra_theta = rotation_angle % (np.pi / 2)
+
       for obj in ys[k]:
-        rotated_obj = np.dot(obj.reshape((-1, 3)), rotation_matrix)
-        LL = np.min(rotated_obj, axis=0)
-        UR = np.max(rotated_obj, axis=0)
-        new_box = np.concatenate([LL, UR])
+        #rotated_obj = np.dot(obj.reshape((-1, 3)), rotation_matrix)
+        rotated_centroid = np.dot(obj[:3], rotation_matrix.T)
+        rotated_coeffs = np.array([obj[4], obj[3], obj[5]])
+        rotated_theta = np.array([obj[6]+extra_theta])
+        # LL = np.min(rotated_obj, axis=0)
+        # UR = np.max(rotated_obj, axis=0)
+        new_box = np.concatenate([rotated_centroid, rotated_coeffs, rotated_theta])
         new_y.append(new_box) 
 
       ys.append(new_y)
@@ -110,11 +120,13 @@ def normalize_pointclouds(pointcloud_arr, seg_arr, probe_dims, transforms, use_r
     mult_dims =  probe_dims / dims
     if seg is not None:
       for obj in seg:
-        bmins = [mins[0], mins[1], mins[2], mins[0], mins[1], mins[2]]
-        shifted_objs.append((obj-bmins) *np.array([mult_dims[0], mult_dims[1], mult_dims[2], mult_dims[0], mult_dims[1], mult_dims[2]]))
+        #new_bbox = np.concatenate([obj[:3]-mins, obj[3:6]*mult_dims, obj[6:]], axis=0)
+        new_bbox = np.concatenate([obj[:3]-mins, obj[3:6], obj[6:]], axis=0)
+        shifted_objs.append(new_bbox)
       shifted_segmentations.append(shifted_objs)
     
-    xyz = (xyz-mins) * mult_dims
+    # xyz = (xyz-mins) * mult_dims
+    xyz = xyz-mins
     transforms['t'].append(mins)
     transforms['s'].append(mult_dims)
 

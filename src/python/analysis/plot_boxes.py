@@ -6,7 +6,8 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection
 import matplotlib.pyplot as plt
 
 def plot_bounding_box(bbox, ax, color):
-    volume = (bbox[3]-bbox[0])*(bbox[4]-bbox[1])*(bbox[5]-bbox[2])
+    volume = (bbox[3])*(bbox[4])*(bbox[5])
+    bbox = np.concatenate([bbox[:3]-bbox[3:6], bbox[:3]+bbox[3:6]])
     volume = abs(volume)
     
     points = np.array([[bbox[0], bbox[1], bbox[2]],
@@ -92,18 +93,21 @@ def find_IoU(preds, labels):
     matched_labels=[]
     for p in range(len(labels)):
         pred = preds[p]
+        pred = np.concatenate([pred[:3]-pred[3:6], pred[:3]+pred[3:6]])
+
         # Find a label that the prediction corresponds to if it exists.
         pred_matched = False  
         
         for l in range(len(labels)):
 
             label = labels[l]
+            label = np.concatenate([label[:3]-label[3:6], label[:3]+label[3:6]])
             if l in matched_labels:
                 continue
 
             max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)
             
-            min_UR = np.min(np.array([pred[3:], label[3:]]), axis=0)
+            min_UR = np.min(np.array([pred[3:6], label[3:6]]), axis=0)
             print('pred_coords: {}'.format(pred))
             print('label_coords: {}'.format(label))
             print('MaxLL: {}'.format(max_LL))
@@ -111,9 +115,9 @@ def find_IoU(preds, labels):
             intersection = max(0, np.prod(min_UR - max_LL))
             print('intersection: {}'.format(intersection))
 
-            union = np.prod(pred[3:]-pred[:3]) + np.prod(label[3:]-label[:3]) - intersection
-            vol_pred = np.prod(pred[3:] - pred[:3])
-            vol_label = np.prod(label[3:] - label[:3])
+            union = np.prod(pred[3:6]-pred[:3]) + np.prod(label[3:6]-label[:3]) - intersection
+            vol_pred = np.prod(pred[3:6] - pred[:3])
+            vol_label = np.prod(label[3:6] - label[:3])
             print('vol_pred: {}, vol_label: {}, pred/label: {}, label/pred: {}'.format(vol_pred, vol_label, vol_pred/vol_label, vol_label/vol_pred))
             print('union: {}'.format(union))
             print('IoU: {}'.format(intersection/union))

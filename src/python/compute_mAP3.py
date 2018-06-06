@@ -28,11 +28,11 @@ def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold):
                 if l in matched_labels:
                     continue
 
-                max_LL = np.max(np.array([pred[:3], label[:3]]), axis=0)
-                min_UR = np.min(np.array([pred[3:], label[3:]]), axis=0)
+                max_LL = np.max(np.array([pred[:3] - pred[3:6], label[:3] - label[3:6]]), axis=0)
+                min_UR = np.min(np.array([pred[:3] + pred[3:6], label[:3] + label[3:6]]), axis=0)
                 intersection = max(0, np.prod(min_UR - max_LL))
 
-                union = np.prod(pred[3:]-pred[:3]) + np.prod(label[3:]-label[:3]) - intersection
+                union = np.prod(pred[3:6]) + np.prod(label[3:6]) - intersection
 
                 # If we found a label that matches our prediction, i.e. a true positive
                 if min(min_UR - max_LL) > 0 and intersection/union > threshold and labels_confs[scene][l] == 1:

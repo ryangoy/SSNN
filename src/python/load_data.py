@@ -53,47 +53,48 @@ def load_test_directory_sunrgbd(path, X_npy_path):
   index = 0
 
   # Loop through buildings
-  areas = ["test"]
+  areas = ["train"]
 
   for area in areas:
     counter = 0
     print("\t\tLoading area {}...".format(area))
-    for dataset in listdir(join(path, area)):
-      area_path = join(path, area, dataset+'_processed')
+    # for dataset in listdir(join(path, area)):
+    #   area_path = join(path, area, dataset+'_processed')
+    area_path = join(path, area)
+    for room in listdir(area_path):
+      # if not isdir(area_path):
+      #   continue
+      # area_path 
+      # for room in listdir(area_path):
+      #   if not room.endswith('.ply') or room.endswith('_pc.ply') or room.endswith('_bbox.ply'):
+      #       continue
+      room_path = join(area_path, room)
 
-      if not isdir(area_path):
-        continue
-      
-      for room in listdir(area_path):
-        if not room.endswith('.ply') or room.endswith('_pc.ply') or room.endswith('_bbox.ply'):
-            continue
-        room_path = join(area_path, room)
+      input_pc = read_ply(room_path)
 
-        input_pc = read_ply(room_path)
+      # K = np.load(room_path+"_k.npy")
+      # if len(K.shape) == 1:
+      #   K = np.reshape(K, (3, 3))
+      # RT = np.load(room_path+"_rt.npy")
+      # if len(RT.shape) == 1:
+      #   RT = np.reshape(RT, (3, 4))
+      input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
 
-        # K = np.load(room_path+"_k.npy")
-        # if len(K.shape) == 1:
-        #   K = np.reshape(K, (3, 3))
-        # RT = np.load(room_path+"_rt.npy")
-        # if len(RT.shape) == 1:
-        #   RT = np.reshape(RT, (3, 4))
-        input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
+      input_data.append(input_pc)
+      # Ks.append(K)
+      # RTs.append(RT)
+      fnames.append(room_path)
+      index += 1
+      counter += 1
 
-        input_data.append(input_pc)
-        # Ks.append(K)
-        # RTs.append(RT)
-        fnames.append(room_path)
-        index += 1
-        counter += 1
-
-        if index % 1000 == 0:
-            print("\t\tLoaded {} pointclouds, saving batch...".format(index))
-            X_curr_path = X_npy_path[:-4] + str(n_save) + X_npy_path[-4:]
-            np.save(X_curr_path, np.array(input_data))
-            n_save += 1
-            del input_data
-            input_data = []
-            print("\t\tBatch save successful.")
+      if index % 1000 == 0:
+          print("\t\tLoaded {} pointclouds, saving batch...".format(index))
+          X_curr_path = X_npy_path[:-4] + str(n_save) + X_npy_path[-4:]
+          np.save(X_curr_path, np.array(input_data))
+          n_save += 1
+          del input_data
+          input_data = []
+          print("\t\tBatch save successful.")
 
     print("\t\tLoaded {} regions from area {}".format(counter, area))
     total_regions += counter
@@ -129,7 +130,7 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
 
 
   if is_train:
-    areas = ['kv1', 'realsense', 'xtion', 'kv2']
+    areas = ['train']
   else:
     areas = ['test']
 
@@ -146,50 +147,47 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
     areas = sorted(listdir(path))
 
   for area in areas:
-    ri = 0
     counter = 0
     print("\t\tLoading area {}...".format(area))
-    for dataset in listdir(join(path, area)):
-      area_path = join(path, area, dataset+'_processed')
-
-      if not isdir(area_path):
+    for room in listdir(join(path, area)):
+      if not room.endswith('.ply'):
         continue
+
+      room_path = join(path, area, room[:-4])
+
+
+      # Load point cloud
+      categories = np.load(room_path+"_labels.npy")
+
+      input_pc = read_ply(room_path+".ply")
+      bbox = np.load(room_path+"_bboxes.npy")
+      K = np.load(room_path+"_k.npy")
+      if len(K.shape) == 1:
+        K = np.reshape(K, (3, 3))
+      RT = np.load(room_path+"_rt.npy")
+      if len(RT.shape) == 1:
+        RT = np.reshape(RT, (3, 3))
+      input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
+
+      fbbox = []
+      flabel = []
+      matches = 0
+      for ibbox, ilabel in zip(bbox, categories):
+        if len(objects) == 0 or ilabel in objects:
+          fbbox.append(ibbox)
+          flabel.append(ilabel)
+          matches += 1
       
-      while exists(join(area_path, "region{}.ply".format(ri))):
-        room = "region{}".format(ri)
-        ri += 1
-        room_path = join(area_path, room)
-
-        # Load point cloud
-        categories = np.load(room_path+"_labels.npy")
-
-        input_pc = read_ply(room_path+".ply")
-        bbox = np.load(room_path+"_bboxes.npy")
-        K = np.load(room_path+"_k.npy")
-        if len(K.shape) == 1:
-          K = np.reshape(K, (3, 3))
-        RT = np.load(room_path+"_rt.npy")
-        if len(RT.shape) == 1:
-          RT = np.reshape(RT, (3, 4))
-        input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
-
-        fbbox = []
-        flabel = []
-        matches = 0
-        for ibbox, ilabel in zip(bbox, categories):
-          if len(objects) == 0 or ilabel in objects:
-            fbbox.append(ibbox)
-            flabel.append(ilabel)
-            matches += 1
-        
-        if matches > 0:
-          bboxes.append(fbbox)
-          labels.append(flabel)
-          input_data.append(input_pc)
-          Ks.append(K)
-          RTs.append(RT)
-          fnames.append(room_path)
-          counter += 1
+      if matches > 0:
+        bboxes.append(fbbox)
+        labels.append(flabel)
+        input_data.append(input_pc)
+        Ks.append(K)
+        RTs.append(RT)
+        fnames.append(room_path)
+        counter += 1
+        if counter % 100 == 0:
+          print("\t\t\tLoaded {} rooms".format(counter))
 
     print("\t\tLoaded {} regions from area {}".format(counter, area))
     total_regions += counter
@@ -203,20 +201,6 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
 
   print("finished casting to np array")
 
-  # if is_train:
-  #   input_data = input_data[:int(len(input_data)*train_test_split)]
-  #   bboxes = bboxes[:int(len(bboxes)*train_test_split)]
-  #   labels = labels[:int(len(labels)*train_test_split)]
-  #   Ks = Ks[:int(len(Ks)*train_test_split)]
-  #   RTs = RTs[:int(len(RTs)*train_test_split)]
-  #   fnames = fnames[:int(len(fnames)*train_test_split)]
-  # else:
-  #   input_data = input_data[int(len(input_data)*train_test_split):]
-  #   bboxes = bboxes[int(len(bboxes)*train_test_split):]
-  #   labels = labels[int(len(labels)*train_test_split):]
-  #   Ks = Ks[int(len(Ks)*train_test_split):]
-  #   RTs = RTs[int(len(RTs)*train_test_split):]
-  #   fnames = fnames[int(len(fnames)*train_test_split):]
 
   return input_data, bboxes, labels, Ks, RTs, fnames
 

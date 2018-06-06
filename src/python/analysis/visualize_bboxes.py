@@ -28,8 +28,10 @@ for scene in range(bboxes.shape[0]):
         cls_val = cls_vals[scene][bb_id]
         most_likely_class = cls_val.argmax()
 
-      center_loc = (bbox[:3] + bbox[3:])/2
-      bbox_size = bbox[3:] - bbox[:3]
+      # center_loc = (bbox[:3] + bbox[3:6])/2
+      # bbox_size = bbox[3:6] - bbox[:3]
+      center_loc = bbox[:3]
+      bbox_size = bbox[3:6] * 2
       curr_z = z_dim * kernel_size
       axarr[int(z_dim/4), z_dim%4].set_xlim([0, grid_size])
       axarr[int(z_dim/4), z_dim%4].set_ylim([0, grid_size])   
