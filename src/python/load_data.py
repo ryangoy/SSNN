@@ -31,7 +31,7 @@ def load_points_sunrgbd(path, X_npy_path, yb_npy_path, yl_npy_path,
     if is_train:
       X, yb, yl, Ks, RTs, fnames = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
     else:
-      X, fnames = load_test_directory_sunrgbd(path, X_npy_path)
+      X, Ks, RTs, fnames = load_test_directory_sunrgbd(path, X_npy_path)
 
     # np.save(X_npy_path, X)
     # np.save(yb_npy_path, yb)
@@ -68,7 +68,6 @@ def load_test_directory_sunrgbd(path, X_npy_path):
 
 
       # Load point cloud
-      categories = np.load(room_path+"_labels.npy")
 
       input_pc = read_ply(room_path+".ply")
       K = np.load(room_path+"_k.npy")
@@ -102,7 +101,7 @@ def load_test_directory_sunrgbd(path, X_npy_path):
   print("finished casting to np array")
 
 
-  return input_data, bboxes, labels, Ks, RTs, fnames
+  return input_data, Ks, RTs, fnames
 
 
 def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=True):

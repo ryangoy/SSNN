@@ -97,8 +97,6 @@ def plot_3d_bboxes():
 
 
 def find_IoU(preds, labels):
-    print(len(preds))
-    print(len(labels))
     matched_labels=[]
     for p in range(len(labels)):
         pred = preds[p]

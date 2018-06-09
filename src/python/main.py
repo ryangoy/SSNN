@@ -51,7 +51,7 @@ flags.DEFINE_boolean('test', True, 'If True, the model tests as long as it load 
 flags.DEFINE_string('output_category', '', 'Prefix to output folder')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 30, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
@@ -65,7 +65,7 @@ flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 2, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 32, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
-flags.DEFINE_integer('num_anchors', 3, 'Number of anchors to use.')
+flags.DEFINE_integer('num_anchors', 4, 'Number of anchors to use.')
 
 # DO NOT CHANGE
 NUM_SCALES = 3
