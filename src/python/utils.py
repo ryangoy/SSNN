@@ -42,7 +42,7 @@ def flatten_output(cls_preds, loc_preds, steps, res_factor, num_anchors, num_cla
 
     for cls_pred, loc_pred in zip(cls_preds[scene], loc_preds[scene]):
       cls_preds_flat.append(np.reshape(cls_pred, (int((steps/(2**res_factor))**3), num_anchors, num_classes)))
-      loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), num_anchors, 6)))
+      loc_preds_flat.append(np.reshape(loc_pred, (int((steps/(2**res_factor))**3), num_anchors, 7)))
       res_factor += 1
     cls_output.append(np.concatenate(cls_preds_flat, axis=0))
     loc_output.append(np.concatenate(loc_preds_flat, axis=0))
@@ -161,10 +161,8 @@ def output_to_bboxes(cls_preds, loc_preds, num_steps, num_downsamples,
             for a, anchor in enumerate(anchor_boxes):
               if max(cls_hook[i, j, k, a]) > conf_threshold:
                 center_pt = loc_hook[i, j, k, a, :3] + [i,j,k] + 0.5
-                half_dims = (np.exp(loc_hook[i, j, k, a, 3:6]) * anchor)
+                half_dims = np.exp(loc_hook[i, j, k, a, 3:6]) * anchor
                 theta = loc_hook[i, j, k, a, 6]
-                # LL = (center_pt - half_dims) * curr_ksize
-                # UR = (center_pt + half_dims) * curr_ksize
                 centroid = center_pt * curr_ksize
                 coeffs = half_dims * curr_ksize
                 bbox = np.concatenate([centroid, coeffs, [theta]], axis=0)
@@ -301,11 +299,10 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
             best_iou = iou
             best_index = k
 
-        print("label relative loc is {} relative size is {}".format((bbox_loc - (coords + 0.5)) ,bbox_dims))
         cls_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index] = categories[scene_id][bbox_id]
         loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, :3] = bbox_loc - (coords + 0.5)
         loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 3:6] = np.log(bbox_dims/best_anchor)
-        loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 6] = 0
+        loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 6] = theta
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.
       
@@ -352,12 +349,10 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
 
                 floored_coord = np.floor(curr_coord).astype(int)
                 if ji > 0.25:
-                  print("ji >0.25 relative loc is {} relative size is {}".format((bbox_UR + bbox_LL)/2 - curr_coord, bbox_UR - bbox_LL))
-                  #cls_labels[s][scene_id, curr_coord[0], curr_coord[1], curr_coord[2]] = 1
                   cls_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a] = categories[scene_id][bbox_id]
                   loc_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a, :3] = (bbox_UR + bbox_LL)/2 - curr_coord
-                  loc_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a, 3:6] = np.log((bbox_UR - bbox_LL)/anchor)
-                  loc_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a, 6] = 0
+                  loc_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a, 3:6] = np.log((bbox_UR - bbox_LL)/anchor/2)
+                  loc_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a, 6] = theta
 
         bbox_loc /= 2
 

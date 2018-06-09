@@ -106,8 +106,6 @@ def process_sunrgbd(path):
         bbox_loc = np.concatenate([np.array(centroids), np.array(coeffs), np.array(thetas).reshape(-1,1)], axis=-1)
         bbox_cls = np.array(classnames)
         
-        # print('/n/fs/sun3d/data/SUNRGBD/kv2/kinect2data/000002_2014-05-26_14-23-37_260595134347_rgbf000103-resize' in v_dirs)
-        # print('/n/fs/sun3d/data/SUNRGBD/kv2/kinect2data/000002_2014-05-26_14-23-37_260595134347_rgbf000103-resize/' in v_dirs)
 
         # if join('/n/fs/sun3d/data/', scene_path + '/') in t_dirs:
         #     save_path = join(path, 'train', str(rgb_name)[:-4])
@@ -150,25 +148,59 @@ def process_sunrgbd(path):
 
     print('Skipped {} entries'.format(num_skipped))
 
-def annotation_to_bbox(annotation, R):
-    Xs = annotation['X']
-    Zs = annotation['Z']
-    Ymin = annotation['Ymin']
-    Ymax = annotation['Ymax']
 
-    xc = np.concatenate([Xs, Xs], axis=0)
-    yc = np.array([Ymin]*len(Xs)+[Ymax]*len(Xs))
-    zc = np.concatenate([Zs, Zs], axis=0)
+def process_test_sunrgbd(path):
 
-    coords = np.stack([xc, yc, zc])
 
-    # for some reason we don't have to apply any transformations here
-    tcoords = coords
+    if isdir(join(path, 'test')):
+        rmtree(join(path, 'test'))
 
-    tcoords = np.array([tcoords[0], tcoords[2], -tcoords[1]])
-    bbox = np.concatenate([np.min(tcoords, axis=1), np.max(tcoords, axis=1)])
+    makedirs(join(path, 'test'))
 
-    return bbox
+    gt_data = loadmat(join(path, 'SUNRGBDMetaStructIOTest.mat'))['SUNRGBDMetaStructIOTest'][0]
+    tv_split = loadmat(join(path, 'allsplit.mat'))['trainvalsplit'][0,0]
+    t_dirs = tv_split[0][:,0]
+    v_dirs = tv_split[1][:,0]
+
+    t_dirs = [str(t[0]) for t in t_dirs]
+    v_dirs = [str(v[0]) for v in v_dirs]
+
+    t_dirs.sort()
+    v_dirs.sort()
+    num_skipped = 0
+    scene_index = 0
+    for scene_gt in gt_data:
+        scene_path = scene_gt[0][0]
+        intrinsics = scene_gt[3]
+        extrinsics = scene_gt[2]
+        d_name = scene_gt[7][0]
+        rgb_name = scene_gt[8][0]
+
+        save_path = join(path, 'test', basename(str(scene_path)))
+
+        rgb_img = imread(join(path, "sunrgbd_test", scene_path[14:], 'image', str(rgb_name)))
+        d_img = imread(join(path, "sunrgbd_test", scene_path[14:], 'depth', str(d_name)))
+        colored_pc = rgbd2pc(rgb_img, d_img, intrinsics, extrinsics).astype('float32')
+        result = pd.DataFrame(dtype='float32')
+        result["x"] = colored_pc[:,0]
+        result["y"] = colored_pc[:,1]
+        result["z"] = colored_pc[:,2]
+
+        result["r"] = colored_pc[:,3]
+        result["g"] = colored_pc[:,4]
+        result["b"] = colored_pc[:,5]
+
+        write_ply(save_path+'.ply', points=result)
+        np.save(save_path+'_rgb.npy', rgb_img)
+        np.save(save_path+'_k.npy', intrinsics)
+        np.save(save_path+'_d.npy', d_img)
+        np.save(save_path+'_rt.npy', extrinsics)
+        scene_index += 1
+
+        if scene_index % 100 == 0:
+            print('\tProcessed {}/{}.'.format(scene_index, len(gt_data)))
+
+    print('Skipped {} entries'.format(num_skipped))
 
 def bbox_to_pc(bbox):
     Xs = [0, 3]

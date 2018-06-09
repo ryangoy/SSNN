@@ -5,9 +5,11 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection
 import matplotlib.pyplot as plt
 
-def plot_bounding_box(bbox, ax, color):
-    volume = (bbox[3])*(bbox[4])*(bbox[5])
-    bbox = np.concatenate([bbox[:3]-bbox[3:6], bbox[:3]+bbox[3:6]])
+def plot_bounding_box(bbox_raw, ax, color):
+    volume = np.prod(bbox_raw[3:6])
+    theta = bbox_raw[6]
+    centroid = bbox_raw[:3]
+    bbox = np.concatenate([-bbox_raw[3:6], bbox_raw[3:6]])
     volume = abs(volume)
     
     points = np.array([[bbox[0], bbox[1], bbox[2]],
@@ -23,6 +25,13 @@ def plot_bounding_box(bbox, ax, color):
 
     for i in range(8): 
         Z[i,:] = points[i,:]
+
+    cosval = np.cos(theta)
+    sinval = np.sin(theta)
+    R = np.array([[cosval, -sinval, 0], [sinval, cosval, 0], [0, 0, 1]])
+
+    Z = np.dot(Z, R.T)
+    Z += centroid
 
 
     ax.scatter3D(Z[:, 0], Z[:, 1], Z[:, 2])
@@ -47,6 +56,7 @@ def plot_3d_bboxes():
     preds = np.load('../category_preds_nms.npy')
     labels = np.load('../category_labels.npy')
 
+
     pred_vols = []
     label_vols = []
     scene_id = 0
@@ -57,9 +67,9 @@ def plot_3d_bboxes():
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
-        ax.set_xlim(0,8)
-        ax.set_ylim(0, 8)
-        ax.set_zlim(0, 8)
+        ax.set_xlim(0,4)
+        ax.set_ylim(0,4)
+        ax.set_zlim(0,4)
 
         #for pred in scene_preds:
         print('Scene {}'.format(scene_id))
@@ -69,7 +79,6 @@ def plot_3d_bboxes():
 #                break
             v = plot_bounding_box(scene_preds[i], ax, color='b')
             pred_vols.append(v)
-#            break
 
         for label in scene_labels:
 #            if len(scene_labels) > 1:
@@ -79,8 +88,8 @@ def plot_3d_bboxes():
             
         plt.show()
         scene_id+=1 
-    plt.hist(pred_vols, bins=25, color='b', alpha=0.5, range=(0, 100))
-    plt.hist(label_vols, bins=25, color='r', alpha=0.5, range=(0,100))
+    plt.hist(pred_vols, bins=25, color='b', alpha=0.5, range=(0, 10))
+    plt.hist(label_vols, bins=25, color='r', alpha=0.5, range=(0,10))
     plt.show()
     
     plt.hist(np.array(pred_vols)/np.array(label_vols), range=(0, 5), bins=20, color='b')

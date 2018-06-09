@@ -125,7 +125,7 @@ def normalize_pointclouds(pointcloud_arr, seg_arr, probe_dims, transforms, use_r
         shifted_objs.append(new_bbox)
       shifted_segmentations.append(shifted_objs)
     
-    # xyz = (xyz-mins) * mult_dims
+    #xyz = (xyz-mins) * mult_dims
     xyz = xyz-mins
     transforms['t'].append(mins)
     transforms['s'].append(mult_dims)

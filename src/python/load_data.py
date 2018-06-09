@@ -42,75 +42,67 @@ def load_points_sunrgbd(path, X_npy_path, yb_npy_path, yl_npy_path,
 
 def load_test_directory_sunrgbd(path, X_npy_path):
 
-  input_data = []
-
-  # Ks = []
-  # RTs = []
-  fnames = []
-  total_regions = 0
-  ri = 0
-  n_save = 0
-  index = 0
 
   # Loop through buildings
-  areas = ["train"]
+  areas = ['test']
+
+  input_data = []
+
+  Ks = []
+  RTs = []
+  fnames = []
+  total_regions = 0
+
+  # Loop through buildings
+  if areas is None:
+    areas = sorted(listdir(path))
 
   for area in areas:
     counter = 0
     print("\t\tLoading area {}...".format(area))
-    # for dataset in listdir(join(path, area)):
-    #   area_path = join(path, area, dataset+'_processed')
-    area_path = join(path, area)
-    for room in listdir(area_path):
-      # if not isdir(area_path):
-      #   continue
-      # area_path 
-      # for room in listdir(area_path):
-      #   if not room.endswith('.ply') or room.endswith('_pc.ply') or room.endswith('_bbox.ply'):
-      #       continue
-      room_path = join(area_path, room)
+    for room in listdir(join(path, area)):
+      if not room.endswith('.ply'):
+        continue
 
-      input_pc = read_ply(room_path)
+      room_path = join(path, area, room[:-4])
 
-      # K = np.load(room_path+"_k.npy")
-      # if len(K.shape) == 1:
-      #   K = np.reshape(K, (3, 3))
-      # RT = np.load(room_path+"_rt.npy")
-      # if len(RT.shape) == 1:
-      #   RT = np.reshape(RT, (3, 4))
+
+      # Load point cloud
+      categories = np.load(room_path+"_labels.npy")
+
+      input_pc = read_ply(room_path+".ply")
+      K = np.load(room_path+"_k.npy")
+      if len(K.shape) == 1:
+        K = np.reshape(K, (3, 3))
+      RT = np.load(room_path+"_rt.npy")
+      if len(RT.shape) == 1:
+        RT = np.reshape(RT, (3, 3))
       input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
 
+      fbbox = []
+      flabel = []
+      matches = 0
+     
       input_data.append(input_pc)
-      # Ks.append(K)
-      # RTs.append(RT)
+      Ks.append(K)
+      RTs.append(RT)
       fnames.append(room_path)
-      index += 1
       counter += 1
-
-      if index % 1000 == 0:
-          print("\t\tLoaded {} pointclouds, saving batch...".format(index))
-          X_curr_path = X_npy_path[:-4] + str(n_save) + X_npy_path[-4:]
-          np.save(X_curr_path, np.array(input_data))
-          n_save += 1
-          del input_data
-          input_data = []
-          print("\t\tBatch save successful.")
+      if counter % 100 == 0:
+        print("\t\t\tLoaded {} rooms".format(counter))
 
     print("\t\tLoaded {} regions from area {}".format(counter, area))
     total_regions += counter
 
-  if n_save != 0:
-    X_curr_path = X_npy_path[:-4] + str(n_save) + X_npy_path[-4:]
-    input_data = np.array(input_data)
-    np.save(X_curr_path, input_data)
-    del input_data
-    input_data = None
-  
-  # Ks = np.array(Ks)
-  # RTs = np.array(RTs)
+  input_data = np.array(input_data)
+  Ks = np.array(Ks)
+  RTs = np.array(RTs)
   fnames = np.array(fnames)
 
-  return input_data, fnames
+  print("finished casting to np array")
+
+
+  return input_data, bboxes, labels, Ks, RTs, fnames
 
 
 def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=True):
