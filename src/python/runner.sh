@@ -1,5 +1,5 @@
-#declare -a arr=("bathtub" "bed" "bookshelf" "chair" "desk" "dresser" "nightstand" "sofa" "table" "toilet")
-declare -a arr=("chair" "night_stand")
+declare -a arr=("bathtub" "bed" "bookshelf" "chair" "desk" "dresser" "nightstand" "sofa" "table" "toilet")
+#declare -a arr=("chair" "night_stand")
 
 for i in "${arr[@]}"
 do

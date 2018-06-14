@@ -64,7 +64,10 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
       for obj in ys[k]:
         #rotated_obj = np.dot(obj.reshape((-1, 3)), rotation_matrix)
         rotated_centroid = np.dot(obj[:3], rotation_matrix.T)
-        rotated_coeffs = np.array([obj[4], obj[3], obj[5]])
+        if turn_90:
+          rotated_coeffs = np.array([obj[4], obj[3], obj[5]])
+        else:
+          rotated_coeffs = obj[3:6]
         rotated_theta = np.array([obj[6]+extra_theta])
         # LL = np.min(rotated_obj, axis=0)
         # UR = np.max(rotated_obj, axis=0)
@@ -73,7 +76,6 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
 
       ys.append(new_y)
       yl.append(yl[k])
-
   return np.array(pointclouds), np.array(ys), np.array(yl)
 
 
