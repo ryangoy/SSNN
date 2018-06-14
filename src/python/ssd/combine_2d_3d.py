@@ -58,7 +58,7 @@ def proj_3d(cls_3d, loc_3d, K, RT, fnames):
 
     R = RT[:, :3]
     T = RT[:, 3:].T
-
+    loc_3d = np.concatenate([loc_3d[:3]-loc_3d[3:6], loc_3d[:3]+loc_3d[3:6]])
     un_r_ll = np.dot(loc_3d[:, :3], R)
 
     un_r_ur = np.dot(loc_3d[:, 3:], R)
@@ -92,11 +92,10 @@ def untransform_bboxes(preds, transforms):
         s = transforms['s'][scene]
         scene_preds = []
         scene_labels = []
-        mult_dims = np.array([s[0], s[1], s[2], s[0], s[1], s[2]])
-        bmins = np.array([t[0], t[1], t[2], t[0], t[1], t[2]])
         for i in range(len(preds[scene])):
             pred = preds[scene][i]
-            scene_preds.append(pred/mult_dims + bmins)
+            pred = np.concatenate([pred[:3]+t, pred[3:6]/s, pred[6:]])
+            scene_preds.append(pred)
 
         # for i in range(len(labels[scene])):
         #     label = labels[scene][i]
