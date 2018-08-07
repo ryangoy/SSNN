@@ -92,7 +92,8 @@ def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nm
     APs = []
     for c in range(len(preds_conf[0][0])):
 
-
+        print(preds_conf.shape)
+        print(preds.shape)
         if use_nms:
             new_preds, new_preds_conf = nms(preds_conf, preds, 0.05, c)
         else:
@@ -103,6 +104,7 @@ def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nm
         category_labels = []
         category_labels_conf = []
         disp_labels = []
+
         for i in range(len(new_preds_conf)):
             if len(new_preds_conf[i]) == 0:
                 continue

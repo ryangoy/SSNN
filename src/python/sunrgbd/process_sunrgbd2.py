@@ -61,8 +61,12 @@ def process_sunrgbd(path):
     if isdir(join(path, 'val')):
         rmtree(join(path, 'val'))
 
+    if isdir(join(path, 'test')):
+        rmtree(join(path, 'test'))
+
     makedirs(join(path, 'train'))
     makedirs(join(path, 'val'))
+    makedirs(join(path, 'test'))
 
     gt_data = loadmat(join(path, 'SUNRGBDMeta3DBB_v2.mat'))['SUNRGBDMeta'][0]
     tv_split = loadmat(join(path, 'allsplit.mat'))['trainvalsplit'][0,0]
@@ -76,6 +80,9 @@ def process_sunrgbd(path):
     v_dirs.sort()
     num_skipped = 0
     scene_index = 0
+
+    val_split = len(gt_data) * 0.8
+
     for scene_gt in gt_data:
         scene_path = scene_gt[0][0]
         intrinsics = scene_gt[2]
@@ -116,7 +123,10 @@ def process_sunrgbd(path):
         #     num_skipped += 1
         #     continue
 
-        save_path = join(path, 'train', basename(str(scene_path)))
+        if scene_index < val_split:
+            save_path = join(path, 'train', basename(str(scene_path)))
+        else:
+            save_path = join(path, 'val', basename(str(scene_path)))
 
         rgb_img = imread(join(path, scene_path[8:], 'image', str(rgb_name)))
         d_img = imread(join(path, scene_path[8:], 'depth', str(d_name)))

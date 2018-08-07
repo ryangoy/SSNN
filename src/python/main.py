@@ -185,7 +185,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
                                   load_from_npy=load_from_npy, areas=areas, categories=CATEGORIES)
 
   elif FLAGS.dataset_name == 'sunrgbd':
-    X_raw, yb_raw, yl, new_ds, Ks, RTs, fnames = load_points_sunrgbd(path=data_dir, X_npy_path=x_path,
+    X_raw, yb_raw, yl, new_ds, Ks, RTs, fnames, indices = load_points_sunrgbd(path=data_dir, X_npy_path=x_path,
                                     yb_npy_path = ys_path, yl_npy_path = yl_path, 
                                     load_from_npy=load_from_npy, is_train=is_train,
                                     categories=CATEGORIES, train_test_split=1.0 - FLAGS.test_split, use_rgb=FLAGS.use_rgb)
@@ -240,7 +240,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   np.save(bbox_labels, bboxes)
   np.save(cls_labels, y_cls)
   np.save(loc_labels, y_loc)
-  pkl.dump(transforms, open("test_transforms.pkl", "wb"))
+  pkl.dump(transforms, open(join(output_dir, "test_transforms.pkl"), "wb"))
 
 
   # disabled pre-probe processing until we can figure out how to load probe positions
@@ -254,7 +254,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
 
 
   print("\tFinished pre-processing of {} set.".format(input_type))
-  return X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping, Ks, RTs, fnames
+  return X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping, Ks, RTs, fnames, indices
 
 def main(_):
   kernel_size = DIMS / FLAGS.num_steps
@@ -280,7 +280,7 @@ def main(_):
 
   if FLAGS.train:
     # Pre-process train data. Train/test data pre-processing is split for easier data streaming.
-    X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
+    X, y_cls, y_loc, y_cat_one_hot, bboxes, mapping, _, _, _, _ = preprocess_input(ssnn, FLAGS.data_dir, TRAIN_AREAS, X_TRN, YS_TRN, YL_TRN, PROBE_TRN, 
                         CLS_TRN_LABELS, LOC_TRN_LABELS, BBOX_TRN_LABELS, CLS_TRN_BBOX, FLAGS.load_from_npy,
                         load_probe, num_copies=FLAGS.rotated_copies)
 
@@ -305,13 +305,14 @@ def main(_):
     mapping=None
     #mapping = pkl.load(open(MAPPING, 'rb'))
     # Pre-process test data.
-    X_test, _, _, _, _, _, Ks, RTs, fnames = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
+    X_test, _, _, _, _, _, Ks, RTs, fnames, indices = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
                         CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, CLS_TEST_BBOX, FLAGS.load_from_npy,
                         load_probe, is_train=False, oh_mapping=mapping)
 
     np.save(join(output_dir, 'test_Ks.npy'), Ks)
     np.save(join(output_dir, 'test_RTs.npy'), RTs)
     np.save(join(output_dir, 'test_fnames.npy'), fnames)
+    np.save(join(output_dir, 'indices.npy'), indices)
 
     # Test model. Using validation since we won't be using real 
     # "test" data yet. Preds will be an array of bounding boxes. 

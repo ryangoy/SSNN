@@ -4,12 +4,22 @@ import sys
 import pandas as pd
 
 
-def bbox2pc(read_path, write_path):
+def bbox2pc(read_path, write_path, confidences=None):
     
+
     # shape: (num_bboxes, 6)
-    bbox_npy = np.load(read_path)
+    bbox_npy = np.load(read_path)[1]
 
     bbox_pc = []
+
+    if confidences is not None:
+        confidences = np.load(confidences)
+        print(confidences[1])
+        conf_indices = np.argsort(confidences[1])[::-1]
+        print(conf_indices)
+        conf_indices = conf_indices[:5]
+        bbox_npy = bbox_npy[conf_indices]
+        
 
     for bbox in bbox_npy:
         bbox_pc.append(create_pc(bbox))
@@ -69,6 +79,9 @@ def create_pc(bbox_raw):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Usage:\n\tpython bbox2pc.py <path to bbox npy file> <path to bbox save file>\n")
+        print("Usage:\n\tpython bbox2pc.py <path to bbox npy file> <path to bbox save file> <path to bbox confidences (optional)>\n")
         exit()
-    bbox2pc(sys.argv[1], sys.argv[2])
+    if len(sys.argv) == 3:
+        bbox2pc(sys.argv[1], sys.argv[2])
+    else:
+        bbox2pc(sys.argv[1], sys.argv[2], sys.argv[3])

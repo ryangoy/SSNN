@@ -82,6 +82,8 @@ def nms(cls_preds, loc_preds, overlap_thresh, class_num):
     for i in range(len(cls_preds)):
         if len(loc_preds[i]) == 0:
             continue
+        # print(loc_preds.shape)
+        # print(loc_preds[i].shape)
         x1 = loc_preds[i][:,0]
         y1 = loc_preds[i][:,1]
         z1 = loc_preds[i][:,2]
@@ -90,7 +92,12 @@ def nms(cls_preds, loc_preds, overlap_thresh, class_num):
         z2 = loc_preds[i][:,5]
  
         # scores are the probability of a given bbox being an ROI
+        # print(i)
+        # print(class_num)
+        if len(cls_preds[i]) == 0:
+          continue
         scores = cls_preds[i][:,class_num] 
+        # print(cls_preds[i].shape)
         volumes = np.abs((x2 - x1) * (y2 - y1) * (z2 - z1))
         idxs = np.argsort(scores)[::-1]
         pick = []

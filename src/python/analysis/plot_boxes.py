@@ -4,6 +4,7 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection
 import matplotlib.pyplot as plt
+import sys
 
 def plot_bounding_box(bbox_raw, ax, color):
     volume = np.prod(bbox_raw[3:6])
@@ -52,9 +53,9 @@ def plot_bounding_box(bbox_raw, ax, color):
     ax.add_collection3d(collection)
     return volume
 
-def plot_3d_bboxes():
-    preds = np.load('../category_preds_nms.npy')
-    labels = np.load('../category_labels.npy')
+def plot_3d_bboxes(prds='../category_preds_nms.npy', labs='../category_labels.npy'):
+    preds = np.load(prds)
+    labels = np.load(labs)
 
 
     pred_vols = []
@@ -136,4 +137,7 @@ def find_IoU(preds, labels):
 
 
 if __name__ == '__main__':
-    plot_3d_bboxes()
+    if len(sys.argv) < 2:
+        plot_3d_bboxes()
+    else:
+        plot_3d_bboxes(sys.argv[1], sys.argv[2])

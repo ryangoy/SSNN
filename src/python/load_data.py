@@ -29,16 +29,17 @@ def load_points_sunrgbd(path, X_npy_path, yb_npy_path, yl_npy_path,
     Ks = np.array([])
     RTs = np.array([])
     if is_train:
-      X, yb, yl, Ks, RTs, fnames = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
+      X, yb, yl, Ks, RTs, fnames, indices = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
     else:
-      X, Ks, RTs, fnames = load_test_directory_sunrgbd(path, X_npy_path)
+      X, yb, yl, Ks, RTs, fnames, indices = load_directory_sunrgbd(path, train_test_split, is_train, categories, use_rgb)
+      #X, Ks, RTs, fnames = load_test_directory_sunrgbd(path, X_npy_path)
 
     # np.save(X_npy_path, X)
     # np.save(yb_npy_path, yb)
     # np.save(yl_npy_path, yl)
     # print("finished saving")
     new_ds = True
-  return X, yb, yl, new_ds, Ks, RTs, fnames
+  return X, yb, yl, new_ds, Ks, RTs, fnames, indices
 
 def load_test_directory_sunrgbd(path, X_npy_path):
 
@@ -132,6 +133,8 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   RTs = []
   fnames = []
   total_regions = 0
+  index = 0
+  indices = []
 
   # Loop through buildings
   if areas is None:
@@ -176,9 +179,12 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
         Ks.append(K)
         RTs.append(RT)
         fnames.append(room_path)
+        indices.append(index)
         counter += 1
         if counter % 100 == 0:
           print("\t\t\tLoaded {} rooms".format(counter))
+
+      index += 1
 
     print("\t\tLoaded {} regions from area {}".format(counter, area))
     total_regions += counter
@@ -193,7 +199,7 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   print("finished casting to np array")
 
 
-  return input_data, bboxes, labels, Ks, RTs, fnames
+  return input_data, bboxes, labels, Ks, RTs, fnames, indices
 
 
 
