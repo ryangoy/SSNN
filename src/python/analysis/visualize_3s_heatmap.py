@@ -18,7 +18,7 @@ def visualize_scales(voxels_path, n_steps, n_scale):
   for scene in range(voxels.shape[0]):
     print('Scene {}:'.format(scene))
 
-  
+    # uncomment
     f, axarr = plt.subplots(int(num_graphs/4), 4)
 
     last_index = 0
@@ -34,10 +34,17 @@ def visualize_scales(voxels_path, n_steps, n_scale):
       # d_slice = d_slice[...,0]
 
       for z_dim in range(num_steps):
+        #uncomment
         axarr[int(curr_index/4), curr_index%4].imshow(d_slice[:,:,z_dim].T, interpolation='nearest', cmap='hot', vmin=0, vmax=1)
         axarr[int(curr_index/4), curr_index%4].invert_yaxis()
         curr_index += 1
-
+        
+        #comment
+        # if scale == NUM_SCALE-1 and z_dim == 0:
+        #   plt.imshow(d_slice[:,:,z_dim].T, interpolation='nearest', cmap='hot', vmin=0, vmax=1)
+        #   plt.xticks([0, 1, 2, 3])
+        #   plt.yticks([0, 1, 2, 3])
+          #finish comment
       last_index += num_steps**3
       num_steps = int(num_steps/2)
 

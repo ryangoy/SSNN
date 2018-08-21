@@ -51,11 +51,11 @@ flags.DEFINE_boolean('test', True, 'If True, the model tests as long as it load 
 flags.DEFINE_string('output_category', '', 'Prefix to output folder')
 
 # Training hyperparameters.
-flags.DEFINE_integer('num_epochs', 30, 'Number of epochs to train.')
+flags.DEFINE_integer('num_epochs', 40, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 0.5, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
@@ -65,12 +65,12 @@ flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
 flags.DEFINE_integer('num_kernels', 2, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 32, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
-flags.DEFINE_integer('num_anchors', 4, 'Number of anchors to use.')
+flags.DEFINE_integer('num_anchors', 2, 'Number of anchors to use.')
 
 # DO NOT CHANGE
 NUM_SCALES = 3
 NUM_HOOK_STEPS = int(FLAGS.num_steps / 2)
-DIMS = np.array([4.0, 4.0, 4.0])
+DIMS = np.array([7.5, 7.5, 7.5])
 
 # Define sets for training and testing (Stanford dataset)
 TRAIN_AREAS = ['Area_1', 'Area_2', 'Area_3', 'Area_4', 'Area_5'] 
@@ -86,8 +86,8 @@ if FLAGS.single_class is None:
     CATEGORIES = ['sofa', 'table', 'chair', 'board']
   else:
     #CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'chair', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
-    CATEGORIES = ['bookshelf', 'chair', 'desk', 'sofa', 'table', 'toilet']
-    #CATEGORIES = ['sofa', 'table', 'chair', 'board']
+    #CATEGORIES = ['bookshelf', 'chair', 'desk', 'sofa', 'table', 'toilet']
+    CATEGORIES = ['bathtub', 'bed', 'bookshelf', 'desk', 'dresser', 'nightstand', 'sofa', 'table', 'toilet']
 else:
   CATEGORIES = [FLAGS.single_class]
 
@@ -134,14 +134,16 @@ MAPPING          = join(output_dir, 'mapping.pkl')
 
 
 POSSIBLE_ANCHORS =  np.array([[1.0, 1.0, 1.0],
+                              [1.0, 1.0, 2.0],
                               [2.0, 1.0, 1.0],
-                              [1.0, 2.0, 1.0],
-                              [2.0, 2.0, 1.0],
+                              [1.0, 2.0, 1.0], 
+                              [2.0, 2.0, 1.0],       
+                              [1.0, 1.0, 0.5],
                               [0.5, 0.5, 1.0],
                               [0.5, 1.0, 1.0],
                               [1.0, 0.5, 1.0],
                               [0.5, 0.5, 1.0],
-                              [1.0, 1.0, 0.5]])
+                              ])
 
 # POSSIBLE_ANCHORS =  np.array([[1.0, 1.0, 1.0],
 #                               [0.5, 1.0, 1.0],
@@ -302,17 +304,17 @@ def main(_):
     pkl.dump(mapping, open(MAPPING, 'wb'))
 
   if FLAGS.test:
-    mapping=None
     #mapping = pkl.load(open(MAPPING, 'rb'))
     # Pre-process test data.
     X_test, _, _, _, _, _, Ks, RTs, fnames, indices = preprocess_input(ssnn, FLAGS.data_dir, TEST_AREAS, X_TEST, YS_TEST, YL_TEST, PROBE_TEST, 
                         CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, CLS_TEST_BBOX, FLAGS.load_from_npy,
                         load_probe, is_train=False, oh_mapping=mapping)
 
-    np.save(join(output_dir, 'test_Ks.npy'), Ks)
-    np.save(join(output_dir, 'test_RTs.npy'), RTs)
-    np.save(join(output_dir, 'test_fnames.npy'), fnames)
-    np.save(join(output_dir, 'indices.npy'), indices)
+    if Ks is not None:
+      np.save(join(output_dir, 'test_Ks.npy'), Ks)
+      np.save(join(output_dir, 'test_RTs.npy'), RTs)
+      np.save(join(output_dir, 'test_fnames.npy'), fnames)
+      np.save(join(output_dir, 'indices.npy'), indices)
 
     # Test model. Using validation since we won't be using real 
     # "test" data yet. Preds will be an array of bounding boxes. 

@@ -102,12 +102,8 @@ class SSNN:
       if reuse and self.hook_num != 1:
         scope.reuse_variables()
 
-
-
       input_layer_cls = tf.layers.conv3d(input_layer, filters=64, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-
 
       input_layer_cls = tf.nn.dropout(input_layer_cls, self.dropout)
 
@@ -115,7 +111,6 @@ class SSNN:
       # Predicts the confidence of whether or not an objects exists per feature.
       conf = tf.layers.conv3d(input_layer_cls, filters=len(self.anchors)*num_classes, kernel_size=1, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
-
 
       input_layer_loc = tf.layers.conv3d(input_layer, filters=64, kernel_size=3, padding='SAME',
                               strides=1, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
@@ -262,6 +257,8 @@ class SSNN:
 
     cls_loss = pos_loss + 100*neg_loss 
     cls_loss = tf.reduce_sum(cls_loss)
+
+    # cls_loss = self.focal_loss(logits, self.y_ph_cls)
     
     # Define loc loss.
     loc_loss = tf.abs(self.y_ph_loc - self.loc_hooks_flat)
@@ -278,6 +275,23 @@ class SSNN:
     self.optimizer = tf.contrib.opt.NadamOptimizer(learning_rate).minimize(self.loss)
     #self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
+  def focal_loss(self, prediction_tensor, target_tensor, weights=None, alpha=0.25, gamma=2):
+    sigmoid_p = tf.nn.sigmoid(prediction_tensor)
+    zeros = tf.zeros_like(sigmoid_p, dtype=sigmoid_p.dtype)
+
+    target_tensor = tf.cast(target_tensor, sigmoid_p.dtype)
+    # For poitive prediction, only need consider front part loss, back part is 0;
+    # target_tensor > zeros <=> z=1, so poitive coefficient = z - p.
+    pos_p_sub = tf.where(target_tensor > zeros, target_tensor - sigmoid_p, zeros)
+    
+    # For negative prediction, only need consider back part loss, front part is 0;
+    # target_tensor > zeros <=> z=1, so negative coefficient = 0.
+    neg_p_sub = tf.where(target_tensor > zeros, zeros, sigmoid_p)
+    per_entry_cross_ent = - alpha * (pos_p_sub ** gamma) * tf.log(tf.clip_by_value(sigmoid_p, 1e-8, 1.0)) \
+                          - (1 - alpha) * (neg_p_sub ** gamma) * tf.log(tf.clip_by_value(1.0 - sigmoid_p, 1e-8, 1.0))
+    return tf.reduce_sum(per_entry_cross_ent)
+
+
   def probe(self, X, probe_path, total_pcs, curr_pc):
     """
     Args:
@@ -286,11 +300,10 @@ class SSNN:
     pcs = []
     counter = curr_pc
 
-
     # Initialize memmap: robust to data larger than memory size.
-    print(probe_path)
-    print((total_pcs, self.probe_steps, 
-                             self.probe_steps, self.probe_steps, self.num_kernels, self.probes_per_kernel, 4))
+    # print(probe_path)
+    # print((total_pcs, self.probe_steps, 
+    #                          self.probe_steps, self.probe_steps, self.num_kernels, self.probes_per_kernel, 4))
     probe_memmap = np.memmap(probe_path, dtype='float32', mode='w+', shape=(total_pcs, self.probe_steps, 
                              self.probe_steps, self.probe_steps, self.num_kernels, self.probes_per_kernel, 4))
     
@@ -393,9 +406,9 @@ class SSNN:
           val_cls_loss += vcl
           val_loc_loss += vll
           counter += 1
-        # np.save("dp_weights.npy", np.array(val_dp_weights))
-        # np.save("pool1.npy", np.array(pool1))
-        # np.save("pc_batch.npy", np.array(val_batch_x))
+        np.save("dp_weights.npy", np.array(val_dp_weights))
+        np.save("pool1.npy", np.array(pool1))
+        np.save("pc_batch.npy", np.array(val_batch_x))
 
         # compute validation mAP
         val_cls_preds = np.concatenate(val_cls_preds, axis=0)
@@ -427,7 +440,6 @@ class SSNN:
       hooks, dp_weights = self.sess.run([self.cls_hooks + self.loc_hooks, self.dp_weights], feed_dict={self.X_ph: batch_x})
       cls_preds.append(hooks[:3])
       loc_preds.append(hooks[3:])
-
 
     return cls_preds, loc_preds
 

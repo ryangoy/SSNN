@@ -29,7 +29,7 @@ for i in range(grid.shape[0]):
 
 	print(weightings.shape)
 	x, y, z = np.indices(weightings.shape)
-	print weightings.max()
+
 	# and plot everything
 	fig = plt.figure()
 	# ax = fig.gca(projection='3d')

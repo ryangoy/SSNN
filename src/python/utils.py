@@ -309,7 +309,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
         cls_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index] = categories[scene_id][bbox_id]
         loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, :3] = bbox_loc - (coords + 0.5)
         loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 3:6] = np.log(bbox_dims/best_anchor)
-        loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 6] = theta
+        loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 6] = 0
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.
       
@@ -359,7 +359,7 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
                   cls_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a] = categories[scene_id][bbox_id]
                   loc_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a, :3] = (bbox_UR + bbox_LL)/2 - curr_coord
                   loc_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a, 3:6] = np.log((bbox_UR - bbox_LL)/anchor/2)
-                  loc_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a, 6] = theta
+                  loc_labels[s][scene_id, floored_coord[0], floored_coord[1], floored_coord[2], a, 6] = 0
 
         bbox_loc /= 2
 

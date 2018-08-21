@@ -16,7 +16,6 @@ from compute_mAP3 import compute_mAP
 def combine_2d_3d(img, labels, labels_conf, preds, preds_conf, img_index, name="", threshold=0.5):
     
     good_preds = []
-
     for index in range(len(preds)):
         pred = preds[index]
         pred_conf = preds_conf[index]
@@ -31,15 +30,15 @@ def combine_2d_3d(img, labels, labels_conf, preds, preds_conf, img_index, name="
 
             # If we found a label that matches our prediction, i.e. a true positive
             if min(min_UR - max_LL) > 0 and intersection/union > threshold:
-                preds_conf[index] = [(1.0-pred_conf[0])/2 + pred_conf[0]]
+                preds_conf[index] = [label_conf*0.5 + 0.5*pred_conf[0]]
                 good_preds.append(pred)
                 break
             else:
-                continue
-                preds_conf[index] = [pred_conf[0]/2]
+                preds_conf[index] = [0.5*pred_conf[0]]
 
     plt.imshow(img / 255.)
     currentAxis = plt.gca()
+
     for bbox in labels:
         coords = (bbox[0], bbox[1]), bbox[2]-bbox[0], bbox[3]-bbox[1]
         currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor='red', linewidth=2))
@@ -98,7 +97,7 @@ def untransform_bboxes(preds, transforms):
         scene_labels = []
         for i in range(len(preds[scene])):
             pred = preds[scene][i]
-            pred = np.concatenate([pred[:3]+t, pred[3:6]/s, pred[6:]])
+            pred = np.concatenate([pred[:3]+t, pred[3:6], pred[6:]])
             scene_preds.append(pred)
 
         # for i in range(len(labels[scene])):
@@ -129,11 +128,12 @@ if __name__ == '__main__':
     labels = np.load('/home/ryan/cs/repos/ssd_keras/ssd_bboxes.npy', encoding="latin1")
     labels_conf = np.load('/home/ryan/cs/repos/ssd_keras/ssd_cls.npy', encoding="latin1")
 
-    if len(sys.argv) > 3:
-        indices = np.load(join(outputs_dir, 'indices.npy'))
-        print(indices)
-        labels = labels[indices]
-        labels_conf = labels_conf[indices]
+    # if len(sys.argv) > 3:
+    #     indices = np.load(join(outputs_dir, 'indices.npy'))
+    #     print(indices)
+    #     print(len(indices))
+    #     labels = labels[indices]
+    #     labels_conf = labels_conf[indices]
 
     class_bboxes = []
     for sc in range(len(labels)):
@@ -151,6 +151,7 @@ if __name__ == '__main__':
     bboxes_cls = []
     bboxes = untransform_bboxes(bboxes, transforms)
     fnames = np.load(join(outputs_dir, "test_fnames.npy"))
+
 
     # for each scene...
     for index in range(len(labels)):
@@ -171,6 +172,6 @@ if __name__ == '__main__':
             # print(g.shape)
             bboxes_cls.append(g)
         else:
-            bboxes_cls.append([])
+            bboxes_cls.append(cls_3d)
     np.save(join(outputs_dir, 'bbox_cls_predictions_combined.npy'), np.array(bboxes_cls))
     #compute_mAP(bboxes, bboxes_conf, labels, labels_conf, threshold=0.25)

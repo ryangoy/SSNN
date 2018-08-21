@@ -17,7 +17,12 @@ def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold):
     # Loop through all the predictions for a scene in descending order of confidence values. Calculates AP.
     for scene in range(len(preds)):
         matched_labels = []
+        sorted_scene_pred_indices = np.argsort(preds_conf[scene])[::-1]
+        preds_conf[scene] = preds_conf[scene][sorted_scene_pred_indices]
+        preds[scene] = preds[scene][sorted_scene_pred_indices]
+
         for p in range(min(100, len(preds[scene]))):
+
             pred = preds[scene][p]
             # Find a label that the prediction corresponds to if it exists.
             pred_matched = False  
@@ -92,10 +97,8 @@ def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nm
     APs = []
     for c in range(len(preds_conf[0][0])):
 
-        print(preds_conf.shape)
-        print(preds.shape)
         if use_nms:
-            new_preds, new_preds_conf = nms(preds_conf, preds, 0.05, c)
+            new_preds, new_preds_conf = nms(preds_conf, preds, 0.1, c)
         else:
             new_preds, new_preds_conf = preds, preds_conf
 

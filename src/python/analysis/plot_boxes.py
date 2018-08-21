@@ -35,7 +35,7 @@ def plot_bounding_box(bbox_raw, ax, color):
     Z += centroid
 
 
-    ax.scatter3D(Z[:, 0], Z[:, 1], Z[:, 2])
+    # ax.scatter3D(Z[:, 0], Z[:, 1], Z[:, 2])
 
     # list of sides' polygons of figure
     verts = [[Z[0],Z[1],Z[2],Z[3]],
@@ -47,10 +47,10 @@ def plot_bounding_box(bbox_raw, ax, color):
      [Z[2],Z[3],Z[7],Z[6]]]
 
     # plot sides
-    collection = Poly3DCollection(verts, facecolors=None, linewidths=1, edgecolors=color, alpha=0.1)
-    face_color = color # alternative: matplotlib.colors.rgb2hex([0.5, 0.5, 1])
-    collection.set_facecolor(face_color)
-    ax.add_collection3d(collection)
+    # collection = Poly3DCollection(verts, facecolors=None, linewidths=1, edgecolors=color, alpha=0.1)
+    # face_color = color # alternative: matplotlib.colors.rgb2hex([0.5, 0.5, 1])
+    # collection.set_facecolor(face_color)
+    # ax.add_collection3d(collection)
     return volume
 
 def plot_3d_bboxes(prds='../category_preds_nms.npy', labs='../category_labels.npy'):
@@ -62,44 +62,49 @@ def plot_3d_bboxes(prds='../category_preds_nms.npy', labs='../category_labels.np
     label_vols = []
     scene_id = 0
     for scene_preds, scene_labels in zip(preds, labels):
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111, projection='3d')
 
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-        ax.set_xlim(0,4)
-        ax.set_ylim(0,4)
-        ax.set_zlim(0,4)
+        # ax.set_xlabel('X')
+        # ax.set_ylabel('Y')
+        # ax.set_zlabel('Z')
+        # ax.set_xlim(0,4)
+        # ax.set_ylim(0,4)
+        # ax.set_zlim(0,4)
 
         #for pred in scene_preds:
         print('Scene {}'.format(scene_id))
+        if len(scene_preds) == 0 or len(scene_preds) < len(scene_labels):
+            # plt.show()
+            scene_id+=1
+            continue
         find_IoU(scene_preds, scene_labels)
         for i in range(len(scene_labels)):
 #            if len(scene_labels) > 1:
 #                break
-            v = plot_bounding_box(scene_preds[i], ax, color='b')
+            v = plot_bounding_box(scene_preds[i], None, color='b')
             pred_vols.append(v)
 
         for label in scene_labels:
 #            if len(scene_labels) > 1:
 #                break
-            v = plot_bounding_box(label, ax, color='r')
+            v = plot_bounding_box(label, None, color='r')
             label_vols.append(v)
             
-        plt.show()
+        # plt.show()
         scene_id+=1 
-    plt.hist(pred_vols, bins=25, color='b', alpha=0.5, range=(0, 10))
-    plt.hist(label_vols, bins=25, color='r', alpha=0.5, range=(0,10))
+    plt.hist(pred_vols, bins=100, color='b', alpha=0.5, range=(0, 0.6))
+    plt.hist(label_vols, bins=100, color='r', alpha=0.5, range=(0,0.6))
     plt.show()
     
-    plt.hist(np.array(pred_vols)/np.array(label_vols), range=(0, 5), bins=20, color='b')
+    plt.hist(np.array(pred_vols)/np.array(label_vols), range=(0, 5), bins=100, color="#3F5D7D")
     plt.show()
 
 
 def find_IoU(preds, labels):
     matched_labels=[]
-    for p in range(len(labels)):
+
+    for p in range(min(len(preds), len(labels))):
         pred = preds[p]
         pred = np.concatenate([pred[:3]-pred[3:6], pred[:3]+pred[3:6]])
 
@@ -137,7 +142,9 @@ def find_IoU(preds, labels):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 3:
         plot_3d_bboxes()
-    else:
+    elif len(sys.argv) < 4:
         plot_3d_bboxes(sys.argv[1], sys.argv[2])
+    else:
+        plot_3d_bboxes(sys.argv[1], sys.argv[2], sys.argv[3])
