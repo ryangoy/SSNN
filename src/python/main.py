@@ -35,11 +35,11 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/media/ryan/sandisk/SUNRGBD', 'Path to base directory.')
-flags.DEFINE_string('dataset_name', 'sunrgbd', 'Name of dataset. Supported datasets are [stanford, matterport].')
+flags.DEFINE_string('data_dir', '/media/ryan/sandisk/matterport/scans', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport, sunrgbd].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('rotated_copies', 3, 'Number of times the dataset is copied and rotated for data augmentation.')
+flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_integer('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
@@ -176,11 +176,13 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
   Ks = None
   RTs = None
   fnames = None
+  indices = None
   if FLAGS.dataset_name == 'matterport':
     X_raw, yb_raw, yl, new_ds = load_points_matterport(path=data_dir, X_npy_path=x_path,
                                     yb_npy_path = ys_path, yl_npy_path = yl_path, 
                                     load_from_npy=load_from_npy, is_train=is_train,
                                     categories=CATEGORIES, train_test_split=1.0 - FLAGS.test_split, use_rgb=FLAGS.use_rgb)
+
   elif FLAGS.dataset_name == 'stanford':
     X_raw, yb_raw, yl, new_ds = load_points_stanford(path=data_dir, X_npy_path=x_path,
                                   ys_npy_path = ys_path, yl_npy_path = yl_path, 
@@ -192,7 +194,8 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
                                     load_from_npy=load_from_npy, is_train=is_train,
                                     categories=CATEGORIES, train_test_split=1.0 - FLAGS.test_split, use_rgb=FLAGS.use_rgb)
 
-  print("\tLoaded {} pointclouds for {}.".format(len(fnames), input_type))
+
+  print("\tLoaded {} pointclouds for {}.".format(len(X_raw), input_type))
   process = psutil.Process(os.getpid())
 
   if X_raw is not None: # non batch loading
@@ -211,13 +214,16 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     # process
     X_raw = process_rgb2hsv(X_raw)
     bboxes = process_bounding_boxes(yb_raw, bbox_labels, FLAGS.dataset_name)
+
     X_raw, bboxes, yl = rotate_pointclouds(X_raw, bboxes, yl, num_rotations=num_copies)
-    X_cont, dims, bboxes, transforms = normalize_pointclouds(X_raw, bboxes, DIMS, transforms)
+
+    X_cont, dims, bboxes, transforms = normalize_pointclouds(X_raw, bboxes, DIMS, transforms, dataset=FLAGS.dataset_name)
+
 
     print("\tAmount of memory used before probing: {}GB".format(process.memory_info().rss // 1e9))
     print("\tRunning probe operation...")
     probe_start = time.time()
-    X = model.probe(X_cont, probe_path, len(fnames)*(1+num_copies), save_index*1000)
+    X = model.probe(X_cont, probe_path, len(X_raw), save_index*1000)
     probe_time = time.time() - probe_start
     print("\tProbe operation took {:.4f} seconds to run.".format(probe_time))
     print("\tAmount of memory used after probing: {}GB".format(process.memory_info().rss // 1e9))
@@ -228,13 +234,12 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
       save_index += 1
       curr_X_path = x_path[:-4] + str(save_index) + x_path[-4:]
 
-
   yl = np.array(yl)
   kernel_size = DIMS / NUM_HOOK_STEPS
 
   print("\tProcessing labels...")
   y_cat_one_hot, mapping = one_hot_vectorize_categories(yl, mapping=oh_mapping)
-  
+
   print("\tCreating jaccard labels...")
   y_cls, y_loc = create_jaccard_labels(bboxes, y_cat_one_hot, len(mapping)+1, NUM_HOOK_STEPS, kernel_size, ANCHORS)
   
@@ -287,10 +292,13 @@ def main(_):
                         load_probe, num_copies=FLAGS.rotated_copies)
 
     # Train model.
+
     train_split = int((FLAGS.val_split) * X.shape[0])
+
     X_trn = X[train_split:]
     y_trn_cls = y_cls[train_split:]
     y_trn_loc = y_loc[train_split:]
+
     y_trn_one_hot = y_cat_one_hot[train_split:]
     trn_bboxes = bboxes[train_split:]
     np.save('y_cls.npy', y_trn_cls)

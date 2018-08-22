@@ -256,7 +256,6 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
   cls_labels = []
   loc_labels = []
 
-
   for d in range(num_downsamples):
     k = int(steps/(2**d))
     cls_null = np.zeros((len(labels), k, k, k, len(anchor_boxes), num_classes))
@@ -272,7 +271,10 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
       # bbox is [x, y, z, w/2, h/2, d/2, theta]
       bbox_loc = bbox[:3] / kernel_size
       bbox_dims = bbox[3:6] / kernel_size
-      theta = bbox[6]
+      if len(bbox) > 6:
+        theta = bbox[6]
+      else:
+        theta = 0
       max_dim = np.max(bbox_dims) * 2
       scale = 0
 
@@ -285,7 +287,11 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
         scale += 1
       best_kernel_size = kernel_size * 2**scale
       best_num_steps = steps / (2**scale)
+
+
+
       coords = np.floor(bbox_loc).astype(int)
+
 
       if not (coords[0] >= best_num_steps or coords[1] >= best_num_steps or coords[2] >= best_num_steps or min(coords) < 0):
         anchor_ious = []
@@ -308,14 +314,18 @@ def create_jaccard_labels(labels, categories, num_classes, steps, kernel_size, a
 
         cls_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index] = categories[scene_id][bbox_id]
         loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, :3] = bbox_loc - (coords + 0.5)
-        loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 3:6] = np.log(bbox_dims/best_anchor)
+
+        loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 3:6] = np.log((bbox_dims+1e-6)/best_anchor)
         loc_labels[scale][scene_id, coords[0], coords[1], coords[2], best_index, 6] = 0
 
       # Second phase: for each feature box, if the jaccard overlap is > 0.25, set it equal to 1 as well.
       
 
       # Get bbox coords in voxel grid space. This will be divided by 2 every downsample.
-      theta = bbox[6]
+      if len(bbox) > 6:
+        theta = bbox[6]
+      else:
+        theta = 0
       bbox = np.concatenate([bbox[:3] / kernel_size, bbox[3:6] / kernel_size], axis=0)
       bbox_loc = np.concatenate([bbox[:3]-bbox[3:], bbox[:3]+bbox[3:]], axis=0)
       

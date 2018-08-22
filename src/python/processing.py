@@ -68,10 +68,15 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
           rotated_coeffs = np.array([obj[4], obj[3], obj[5]])
         else:
           rotated_coeffs = obj[3:6]
-        rotated_theta = np.array([obj[6]+extra_theta])
-        # LL = np.min(rotated_obj, axis=0)
-        # UR = np.max(rotated_obj, axis=0)
-        new_box = np.concatenate([rotated_centroid, rotated_coeffs, rotated_theta])
+
+        if len(obj) > 6:
+          rotated_theta = np.array([obj[6]+extra_theta])
+
+          # LL = np.min(rotated_obj, axis=0)
+          # UR = np.max(rotated_obj, axis=0)
+          new_box = np.concatenate([rotated_centroid, rotated_coeffs, rotated_theta])
+        else:
+          new_box = np.concatenate([rotated_centroid, rotated_coeffs])
         new_y.append(new_box) 
 
       ys.append(new_y)
@@ -80,7 +85,7 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
 
 
 
-def normalize_pointclouds(pointcloud_arr, seg_arr, probe_dims, transforms, use_rgb=True):
+def normalize_pointclouds(pointcloud_arr, seg_arr, probe_dims, transforms, use_rgb=True, dataset='sunrgbd'):
   """
   Shifts pointclouds so the smallest xyz values map to the origin. We want to 
   preserve relative scale, but this also leads to excess or missed computation
@@ -123,7 +128,15 @@ def normalize_pointclouds(pointcloud_arr, seg_arr, probe_dims, transforms, use_r
     if seg is not None:
       for obj in seg:
         #new_bbox = np.concatenate([obj[:3]-mins, obj[3:6]*mult_dims, obj[6:]], axis=0)
-        new_bbox = np.concatenate([obj[:3]-mins, obj[3:6], obj[6:]], axis=0)
+        if dataset == 'sunrgbd':
+          new_bbox = np.concatenate([obj[:3]-mins, obj[3:6], obj[6:]], axis=0)
+        else:
+          # print('start')
+          # print(obj)
+          center = (obj[3:6]+obj[:3])/2
+          side_dims = (obj[3:6]-obj[:3])/2
+          new_bbox = np.concatenate([center-mins, side_dims, obj[6:]], axis=0)
+          # print(new_bbox)
         shifted_objs.append(new_bbox)
       shifted_segmentations.append(shifted_objs)
     

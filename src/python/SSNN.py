@@ -255,7 +255,7 @@ class SSNN:
     neg_loss = tf.multiply(neg_mask, cls_loss) / (N_neg + 1)
     pos_loss = tf.multiply(pos_mask, cls_loss) / (N_pos + 1)
 
-    cls_loss = pos_loss + 100*neg_loss 
+    cls_loss = pos_loss + 50*neg_loss 
     cls_loss = tf.reduce_sum(cls_loss)
 
     # cls_loss = self.focal_loss(logits, self.y_ph_cls)
