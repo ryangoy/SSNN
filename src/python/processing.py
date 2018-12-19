@@ -33,7 +33,7 @@ def process_bounding_boxes(yb_raw, bbox_labels, ds_name):
   return bboxes
 
 # Our default is to do 3 equally spaced rotations around the unit circle
-def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
+def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3, dataset='sunrgbd'):
   print("\tAugmenting dataset...")
   delta_r = 2*np.pi / (num_rotations+1)
   rotation_angles = np.linspace(delta_r, 2*np.pi, num_rotations, endpoint=False)
@@ -42,6 +42,7 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
   pointclouds = list(pointclouds)
   ys = list(ys)
   yl = list(yl)
+
   for k in range(num_pclouds):
     shape_pc = pointclouds[k][:, :3]
     color_pc = pointclouds[k][:, 3:]
@@ -62,25 +63,40 @@ def rotate_pointclouds(pointclouds, ys, yl, num_rotations=3):
       extra_theta = rotation_angle % (np.pi / 2)
 
       for obj in ys[k]:
-        #rotated_obj = np.dot(obj.reshape((-1, 3)), rotation_matrix)
-        rotated_centroid = np.dot(obj[:3], rotation_matrix.T)
-        if turn_90:
-          rotated_coeffs = np.array([obj[4], obj[3], obj[5]])
-        else:
-          rotated_coeffs = obj[3:6]
+        if dataset == 'sunrgbd':
+          rotated_centroid = np.dot(obj[:3], rotation_matrix.T)
+        
+          
+          if turn_90:
+            rotated_coeffs = np.array([obj[4], obj[3], obj[5]])
+          else:
+            rotated_coeffs = obj[3:6]
 
-        if len(obj) > 6:
-          rotated_theta = np.array([obj[6]+extra_theta])
 
-          # LL = np.min(rotated_obj, axis=0)
-          # UR = np.max(rotated_obj, axis=0)
-          new_box = np.concatenate([rotated_centroid, rotated_coeffs, rotated_theta])
+          if len(obj) > 6:
+            rotated_theta = np.array([obj[6]+extra_theta])
+
+            
+            new_box = np.concatenate([rotated_centroid, rotated_coeffs, rotated_theta])
+          else:
+            new_box = np.concatenate([rotated_centroid, rotated_coeffs])
+
         else:
-          new_box = np.concatenate([rotated_centroid, rotated_coeffs])
+          rotated_obj = np.dot(obj.reshape((-1, 3)), rotation_matrix.T)
+          LL = np.min(rotated_obj, axis=0)
+          UR = np.max(rotated_obj, axis=0)
+          if len(obj) > 6:
+            rotated_theta = np.array([obj[6]+extra_theta])
+
+            new_box = np.concatenate([LL, UR, rotated_theta])
+          else:
+            new_box = np.concatenate([LL, UR])
+
         new_y.append(new_box) 
 
       ys.append(new_y)
       yl.append(yl[k])
+
   return np.array(pointclouds), np.array(ys), np.array(yl)
 
 

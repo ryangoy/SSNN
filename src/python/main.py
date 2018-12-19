@@ -35,11 +35,11 @@ FLAGS = flags.FLAGS
 #########
 
 # Data information: loading and saving options.
-flags.DEFINE_string('data_dir', '/media/ryan/sandisk/matterport/scans', 'Path to base directory.')
-flags.DEFINE_string('dataset_name', 'matterport', 'Name of dataset. Supported datasets are [stanford, matterport, sunrgbd].')
+flags.DEFINE_string('data_dir', '/media/ryan/sandisk/SUNRGBD', 'Path to base directory.')
+flags.DEFINE_string('dataset_name', 'sunrgbd', 'Name of dataset. Supported datasets are [stanford, matterport, sunrgbd].')
 flags.DEFINE_bool('load_from_npy', False, 'Whether to load from preloaded dataset')
 flags.DEFINE_bool('load_probe_output', False, 'Load the probe output if a valid file exists.')
-flags.DEFINE_integer('rotated_copies', 0, 'Number of times the dataset is copied and rotated for data augmentation.')
+flags.DEFINE_integer('rotated_copies', 3, 'Number of times the dataset is copied and rotated for data augmentation.')
 flags.DEFINE_string('checkpoint_save_dir', None, 'Path to saving checkpoint.')
 flags.DEFINE_string('checkpoint_load_dir', None, 'Path to loading checkpoint.')
 flags.DEFINE_integer('checkpoint_load_iter', 50, 'Iteration from save dir to load.')
@@ -55,17 +55,17 @@ flags.DEFINE_integer('num_epochs', 40, 'Number of epochs to train.')
 flags.DEFINE_float('test_split', 0.1, 'Percentage of input data to use as test data.')
 flags.DEFINE_float('val_split', 0.1, 'Percentage of input data to use as validation. Taken after the test split.')
 flags.DEFINE_float('learning_rate', 0.00005, 'Learning rate for training.')
-flags.DEFINE_float('loc_loss_lambda', 1, 'Relative weight of localization params.')
+flags.DEFINE_float('loc_loss_lambda', 3, 'Relative weight of localization params.')
 flags.DEFINE_float('dropout', 0.5, 'Keep probability for layers with dropout.')
 
 # Probing hyperparameters.
 flags.DEFINE_integer('num_steps', 32, 'Number of intervals to sample from in each xyz direction.')
 flags.DEFINE_integer('k_size_factor', 3, 'Size of the probing kernel with respect to the step size.')
 flags.DEFINE_integer('batch_size', 4, 'Batch size for training.')
-flags.DEFINE_integer('num_kernels', 2, 'Number of kernels to probe with.')
+flags.DEFINE_integer('num_kernels', 4, 'Number of kernels to probe with.')
 flags.DEFINE_integer('probes_per_kernel', 32, 'Number of sample points each kernel has.')
 flags.DEFINE_integer('num_dot_layers', 16, 'Number of dot product layers per kernel')
-flags.DEFINE_integer('num_anchors', 2, 'Number of anchors to use.')
+flags.DEFINE_integer('num_anchors', 4, 'Number of anchors to use.')
 
 # DO NOT CHANGE
 NUM_SCALES = 3
@@ -134,11 +134,11 @@ MAPPING          = join(output_dir, 'mapping.pkl')
 
 
 POSSIBLE_ANCHORS =  np.array([[1.0, 1.0, 1.0],
-                              [1.0, 1.0, 2.0],
                               [2.0, 1.0, 1.0],
                               [1.0, 2.0, 1.0], 
                               [2.0, 2.0, 1.0],       
                               [1.0, 1.0, 0.5],
+                              [1.0, 1.0, 2.0],
                               [0.5, 0.5, 1.0],
                               [0.5, 1.0, 1.0],
                               [1.0, 0.5, 1.0],
@@ -175,16 +175,15 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
 
   Ks = None
   RTs = None
-  fnames = None
   indices = None
   if FLAGS.dataset_name == 'matterport':
-    X_raw, yb_raw, yl, new_ds = load_points_matterport(path=data_dir, X_npy_path=x_path,
+    X_raw, yb_raw, yl, new_ds, _, _, fnames, _ = load_points_matterport(path=data_dir, X_npy_path=x_path,
                                     yb_npy_path = ys_path, yl_npy_path = yl_path, 
                                     load_from_npy=load_from_npy, is_train=is_train,
                                     categories=CATEGORIES, train_test_split=1.0 - FLAGS.test_split, use_rgb=FLAGS.use_rgb)
 
   elif FLAGS.dataset_name == 'stanford':
-    X_raw, yb_raw, yl, new_ds = load_points_stanford(path=data_dir, X_npy_path=x_path,
+    X_raw, yb_raw, yl, new_ds, _, _, fnames, _ = load_points_stanford(path=data_dir, X_npy_path=x_path,
                                   ys_npy_path = ys_path, yl_npy_path = yl_path, 
                                   load_from_npy=load_from_npy, areas=areas, categories=CATEGORIES)
 
@@ -215,7 +214,7 @@ def preprocess_input(model, data_dir, areas, x_path, ys_path, yl_path, probe_pat
     X_raw = process_rgb2hsv(X_raw)
     bboxes = process_bounding_boxes(yb_raw, bbox_labels, FLAGS.dataset_name)
 
-    X_raw, bboxes, yl = rotate_pointclouds(X_raw, bboxes, yl, num_rotations=num_copies)
+    X_raw, bboxes, yl = rotate_pointclouds(X_raw, bboxes, yl, num_rotations=num_copies, dataset=FLAGS.dataset_name)
 
     X_cont, dims, bboxes, transforms = normalize_pointclouds(X_raw, bboxes, DIMS, transforms, dataset=FLAGS.dataset_name)
 
@@ -318,10 +317,12 @@ def main(_):
                         CLS_TEST_LABELS, LOC_TEST_LABELS, BBOX_TEST_LABELS, CLS_TEST_BBOX, FLAGS.load_from_npy,
                         load_probe, is_train=False, oh_mapping=mapping)
 
+
+    np.save(join(output_dir, 'test_fnames.npy'), fnames)
     if Ks is not None:
       np.save(join(output_dir, 'test_Ks.npy'), Ks)
       np.save(join(output_dir, 'test_RTs.npy'), RTs)
-      np.save(join(output_dir, 'test_fnames.npy'), fnames)
+      
       np.save(join(output_dir, 'indices.npy'), indices)
 
     # Test model. Using validation since we won't be using real 

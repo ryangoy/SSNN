@@ -10,6 +10,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pickle as pkl
 
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import colors
+from matplotlib.ticker import PercentFormatter
+
 
 def load_points_sunrgbd(path, X_npy_path, yb_npy_path, yl_npy_path,
                            load_from_npy=True, train_test_split=0.9, is_train=True, categories=None, use_rgb=True):
@@ -135,6 +140,7 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   total_regions = 0
   index = 0
   indices = []
+  ds = []
 
   # Loop through buildings
   if areas is None:
@@ -184,6 +190,18 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
         if counter % 100 == 0:
           print("\t\t\tLoaded {} rooms".format(counter))
 
+        minx = min(input_pc[:,0])
+        maxx = max(input_pc[:,0])
+        x_d = maxx - minx
+        miny = min(input_pc[:,1])
+        maxy = max(input_pc[:,1])
+        y_d = maxy - miny
+        minz = min(input_pc[:,2])
+        maxz = max(input_pc[:,2])
+        z_d = maxz - minz
+        if (max([x_d, y_d, z_d]) < 19):
+          ds.append(max([x_d, y_d, z_d]))
+
       index += 1
 
     print("\t\tLoaded {} regions from area {}".format(counter, area))
@@ -195,6 +213,8 @@ def load_directory_sunrgbd(path, train_test_split, is_train, objects, use_rgb=Tr
   Ks = np.array(Ks)
   RTs = np.array(RTs)
   fnames = np.array(fnames)
+  # plt.hist(ds, bins = 50)
+  # plt.show()
 
   print("finished casting to np array")
 
@@ -216,12 +236,12 @@ def load_points_matterport(path, X_npy_path, yb_npy_path, yl_npy_path,
   else:
     assert path is not None, "No path given for pointcloud directory."
     print("\tLoading points from directory...")
-    X, yb, yl = load_directory_matterport(path, train_test_split, is_train, categories, use_rgb)
+    X, yb, yl, _, _, fnames, _ = load_directory_matterport(path, train_test_split, is_train, categories, use_rgb)
     np.save(X_npy_path, X)
     np.save(yb_npy_path, yb)
     np.save(yl_npy_path, yl)
     new_ds = True
-  return X, yb, yl, new_ds
+  return X, yb, yl, new_ds, _, _, fnames, _
 
 def load_directory_matterport(path, train_test_split, is_train, objects, use_rgb=True):
   """
@@ -245,10 +265,11 @@ def load_directory_matterport(path, train_test_split, is_train, objects, use_rgb
   else:
     areas = all_areas[int(len(all_areas)*train_test_split):]
     #areas = all_areas[:int(len(all_areas)*.05)]
-
+  ds = []
   input_data = []
   bboxes = []
   labels = []
+  fnames = []
   total_regions = 0
   # Loop through buildings
   if areas is None:
@@ -264,7 +285,7 @@ def load_directory_matterport(path, train_test_split, is_train, objects, use_rgb
       room = "region{}".format(ri)
       ri += 1
       room_path = join(area_path, room)
-
+      
       # print("\tLoading room {}...".format(room))
 
       # Load point cloud
@@ -287,6 +308,18 @@ def load_directory_matterport(path, train_test_split, is_train, objects, use_rgb
         bboxes.append(fbbox)
         labels.append(flabel)
         input_data.append(input_pc)
+        fnames.append(room_path)
+        # minx = min(input_pc[:,0])
+        # maxx = max(input_pc[:,0])
+        # x_d = maxx - minx
+        # miny = min(input_pc[:,1])
+        # maxy = max(input_pc[:,1])
+        # y_d = maxy - miny
+        # minz = min(input_pc[:,2])
+        # maxz = max(input_pc[:,2])
+        # z_d = maxz - minz
+        # if (max([x_d, y_d, z_d]) < 19):
+        #   ds.append(max([x_d, y_d, z_d]))
 
     print("\t\tLoaded {} regions from area {}".format(ri, area))
     total_regions += ri
@@ -294,8 +327,10 @@ def load_directory_matterport(path, train_test_split, is_train, objects, use_rgb
   input_data = np.array(input_data)
   bboxes = np.array(bboxes)
   labels = np.array(labels)
+  # plt.hist(ds, bins = 50)
+  # plt.show()
 
-  return input_data, bboxes, labels
+  return input_data, bboxes, labels, None, None, fnames, None
 
 
 def load_points_stanford(path, X_npy_path, ys_npy_path, yl_npy_path,
@@ -311,12 +346,12 @@ def load_points_stanford(path, X_npy_path, ys_npy_path, yl_npy_path,
   else:
     assert path is not None, "No path given for pointcloud directory."
     print("\tLoading points from directory...")
-    X, ys, yl = load_directory_stanford(path, areas, categories)
+    X, ys, yl, _, _, fnames, _ = load_directory_stanford(path, areas, categories)
     np.save(X_npy_path, X)
     np.save(ys_npy_path, ys)
     np.save(yl_npy_path, yl)
     new_ds = True
-  return X, ys, yl, new_ds
+  return X, ys, yl, new_ds, None, None, fnames, None
 
 
 def load_directory_stanford(path, areas, categories):
@@ -337,6 +372,8 @@ def load_directory_stanford(path, areas, categories):
   input_data = []
   segmentations = []
   labels = []
+  fnames = []
+  ds = []
   # Loop through Areas
   if areas is None:
     areas = sorted(listdir(path))
@@ -353,6 +390,7 @@ def load_directory_stanford(path, areas, categories):
          room == '.DS_Store':
         continue
       print("\tLoading room {}...".format(room))
+      
 
       # Loop and load Annotations folder
       annotation_pc = []
@@ -365,7 +403,7 @@ def load_directory_stanford(path, areas, categories):
         annotation_label.append(annotation.split('.')[0])
       if len(annotation_pc) != 0:
         # Load point cloud
-        input_pc = np.genfromtxt(join(room_path, room+'.txt'), dtype=np.float32)
+        # input_pc = np.genfromtxt(join(room_path, room+'.txt'), dtype=np.float32)
         # pc_df = pd.DataFrame()
         # pc_df['x'] = input_pc[:,0]
         # pc_df['y'] = input_pc[:,1]
@@ -374,19 +412,41 @@ def load_directory_stanford(path, areas, categories):
         # pc_df['g'] = input_pc[:,4]
         # pc_df['b'] = input_pc[:,5]
         # write_ply(join(room_path, room+'.ply'), points=pc_df)
+
+
         input_pc = read_ply(join(room_path, room+'.ply'))
         input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
+
+        # minx = min(input_pc[:,0])
+        # maxx = max(input_pc[:,0])
+        # x_d = maxx - minx
+        # miny = min(input_pc[:,1])
+        # maxy = max(input_pc[:,1])
+        # y_d = maxy - miny
+        # minz = min(input_pc[:,2])
+        # maxz = max(input_pc[:,2])
+        # z_d = maxz - minz
+        # if (max([x_d, y_d, z_d]) < 15):
+        #   ds.append(max([x_d, y_d, z_d]))
+
+
         annotation_pc = np.array(annotation_pc)
         
         input_data.append(input_pc)
         segmentations.append(annotation_pc)
         labels.append(annotation_label)
+        fnames.append(room_path)
 
   input_data = np.array(input_data)
   segmentations = np.array(segmentations)
   labels = np.array(labels)
 
-  return input_data, segmentations, labels
+  # plt.hist(ds, bins = 50)
+  # plt.show()
+
+  exit()
+
+  return input_data, segmentations, labels, None, None, fnames, None
 
 
 def load_npy(X_path, ys_path, yl_path):

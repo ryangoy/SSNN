@@ -108,13 +108,14 @@ def nms(cls_preds, loc_preds, overlap_thresh, class_num):
             # index of the bbox with the highest remaining score
             j = idxs[0]
             pick.append(j)
-            xx1 = np.maximum(x1[j], x1[idxs])
 
-            yy1 = np.maximum(y1[j], y1[idxs])
-            zz1 = np.maximum(z1[j], z1[idxs])
-            xx2 = np.minimum(x2[j], x2[idxs])
-            yy2 = np.minimum(y2[j], y2[idxs])
-            zz2 = np.minimum(z2[j], z2[idxs])
+
+            xx2 = np.maximum(x1[j], x1[idxs])
+            yy2 = np.maximum(y1[j], y1[idxs])
+            zz2 = np.maximum(z1[j], z1[idxs])
+            xx1 = np.minimum(x2[j], x2[idxs])
+            yy1 = np.minimum(y2[j], y2[idxs])
+            zz1 = np.minimum(z2[j], z2[idxs])
 
             w = np.maximum(0, xx2 - xx1)
             h = np.maximum(0, yy2 - yy1)

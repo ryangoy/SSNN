@@ -7,6 +7,8 @@ import pandas as pd
 def ply2txt(ply_file, write_path):
   input_pc = read_ply(ply_file)
   input_pc = input_pc["points"].as_matrix(columns=["x", "y", "z", "r", "g", "b"])
+  mins = input_pc.min(axis=0)
+  input_pc -= mins
   np.savetxt(write_path, input_pc)
 
 if __name__ == '__main__':

@@ -44,7 +44,7 @@ def combine_2d_3d(img, labels, labels_conf, preds, preds_conf, img_index, name="
         currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor='red', linewidth=2))
 
     for bbox, conf in zip(preds, preds_conf):
-        if max(conf) > 0.8:
+        if max(conf) > 0.45:
             coords = (bbox[0], bbox[1]), bbox[3]-bbox[0], bbox[4]-bbox[1]
             currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor='blue', linewidth=2))
 

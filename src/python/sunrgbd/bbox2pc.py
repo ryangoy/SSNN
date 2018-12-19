@@ -8,21 +8,26 @@ def bbox2pc(read_path, write_path, confidences=None):
     
 
     # shape: (num_bboxes, 6)
-    bbox_npy = np.load(read_path)[1]
+    bbox_npy = np.load(read_path)[0]
+    print(bbox_npy.shape)
 
     bbox_pc = []
 
     if confidences is not None:
         confidences = np.load(confidences)
-        print(confidences[1])
+
         conf_indices = np.argsort(confidences[1])[::-1]
-        print(conf_indices)
+
         conf_indices = conf_indices[:5]
         bbox_npy = bbox_npy[conf_indices]
         
 
+    bbox_npy = bbox_npy[[0]]
     for bbox in bbox_npy:
+        print(bbox)
         bbox_pc.append(create_pc(bbox))
+
+
 
     bbox_pc = np.concatenate(bbox_pc, axis=0)
     bbox_color = np.zeros((bbox_pc.shape))
@@ -47,10 +52,14 @@ def bbox2pc(read_path, write_path, confidences=None):
 def create_pc(bbox_raw):
 
     bbox = np.concatenate([-bbox_raw[3:6], +bbox_raw[3:6]])
-    sinval = np.sin(bbox_raw[6])
-    cosval = np.cos(bbox_raw[6])
-
+    if len(bbox_raw) > 6:
+        sinval = np.sin(bbox_raw[6])
+        cosval = np.cos(bbox_raw[6])
+    else:
+        sinval = 0
+        cosval = 1
     R = np.array([[cosval, -sinval, 0], [sinval, cosval, 0], [0, 0, 1]])
+
 
     Xs = [0, 3]
     Ys = [1, 4]

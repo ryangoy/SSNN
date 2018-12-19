@@ -69,6 +69,7 @@ def compute_PR_curve(preds, preds_conf, labels, labels_confs, threshold):
 def compute_AP_from_PR(Ps, Rs):
     # Calculate AP for scene:
     PR_vals = []
+    R_vals = []
     for recall_threshold in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
         
         if len(Ps) == 0:
@@ -89,18 +90,25 @@ def compute_AP_from_PR(Ps, Rs):
             PR_vals.append(0)
         else:
             PR_vals.append(Ps[i])
+            R_vals.append(Rs[i])
     assert len(PR_vals) == 11
-    return PR_vals
+    return PR_vals, R_vals
 
 def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nms=True, plot_category=0, mapping=None, threshold=0.25):
 
     APs = []
+
+    P = []
+    R = []
     for c in range(len(preds_conf[0][0])):
 
+        print(preds_conf[0].shape)
+
         if use_nms:
-            new_preds, new_preds_conf = nms(preds_conf, preds, 0.1, c)
+            new_preds, new_preds_conf = nms(preds_conf, preds, 0.25, c)
         else:
             new_preds, new_preds_conf = preds, preds_conf
+        print(new_preds_conf[0].shape)
 
         category_preds = []
         category_preds_conf = []
@@ -130,12 +138,16 @@ def compute_mAP(preds, preds_conf, labels, labels_conf, hide_print=False, use_nm
 
 
         Ps, Rs = compute_PR_curve(category_preds, category_preds_conf, category_labels, category_labels_conf, threshold)
-        PR_vals = compute_AP_from_PR(Ps, Rs)
+        PR_vals, R_vals = compute_AP_from_PR(Ps, Rs)
+        print(PR_vals)
+        print(R_vals)
 
         APs.append(sum(PR_vals)/.11)
         
 
     mAP = sum(APs) / len(APs)
+    # print("precisions = {}".format(sum(P)/len(P)))
+    # print("recalls = {}".format(sum(R)/len(R)))
 
     if not hide_print:
         if mapping is None:

@@ -22,7 +22,8 @@ for scene in range(bboxes.shape[0]):
 
   f.set_figwidth(grid_size)
   for z_dim in range(num_steps):
-    for bb_id in range(len(bboxes[scene])):
+    # for bb_id in range(len(bboxes[scene])):
+    for bb_id in range(2):
 
       bbox = bboxes[scene][bb_id]
       if cls_vals is not None:
@@ -42,7 +43,7 @@ for scene in range(bboxes.shape[0]):
          (bbox[5] >= curr_z+kernel_size and bbox[2] <= curr_z):
 
 
-        axarr[int(z_dim/4), z_dim%4].add_patch(patches.Rectangle(bbox[:2], bbox_size[0], bbox_size[1]))
+        axarr[int(z_dim/4), z_dim%4].add_patch(patches.Rectangle(bbox[:2], bbox_size[0], bbox_size[1], fill = None,alpha=1))
         if cls_vals is not None:
           axarr[int(z_dim/4), z_dim%4].text(bbox[0], bbox[1], str(most_likely_class), color='orange')
 
