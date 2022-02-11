@@ -1,4 +1,4 @@
-# Sparse Sampling Neural Networks #
+# Sparse Sampling Neural Networks (Masters Thesis)#
 
 Created by Ryan Goy, Arda Sahiner, and Avideh Zakhor from UC Berkeley
 
